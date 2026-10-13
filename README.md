@@ -1,11 +1,11 @@
 # Robot-2027
 
+[![yt video koji objasnjava repo](https://img.youtube.com/vi/ONZMAUEJe-c/0.jpg)](https://www.youtube.com/watch?v=ONZMAUEJe-c)
 
 ## Struktura
 Svaki folder je zaseban uredjaj i svaki treba da prati bar sledecu strukturu
 - Da ima readme koji objasnjava vecinu stvari (uz gemini koji je besplatan ovo nema opravdanja da nepostoji)
 - Da koristi github ignore za sve stoje preveliko i nema potrebe da se pull (npr biblioteke posto se one automatski skidaju pri kompile)
-- 
 ## Šta je monorepo?
 
 Monorepo je jedan Git repozitorijum u kome se nalazi više projekata ili modula.
