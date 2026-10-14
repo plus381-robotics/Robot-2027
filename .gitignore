@@ -1,0 +1,30 @@
+# ---- ROS 2 / colcon (gradi se iz korena repoa) ----
+/build/
+/install/
+/log/
+
+# ---- C/C++ build izlazi bilo gde ----
+build/
+cmake-build-*/
+*.o
+*.obj
+*.a
+*.so
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ---- Editori i OS ----
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# ---- Lokalni rezultati testova ----
+*.csv.local
