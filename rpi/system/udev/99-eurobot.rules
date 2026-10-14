@@ -1,0 +1,13 @@
+# Trajna imena USB uredjaja robota. Instalira ih rpi/system/setup.sh.
+# Posle izmene: sudo udevadm control --reload-rules && sudo udevadm trigger
+# ID_MM_DEVICE_IGNORE sprecava ModemManager da salje AT komande mikrokontrolerima.
+
+# STM32 Nucleo F401RE (ST-LINK V2-1, virtuelni COM port) -> /dev/nucleo
+# Ako se ikad prikljuci vise ST-LINK uredjaja, dodati: ATTRS{serial}=="<SERIJSKI>"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="374b", SYMLINK+="nucleo", GROUP="dialout", MODE="0660", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+# Raspberry Pi Pico / RP2040 (USB CDC) -> /dev/pico
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", SYMLINK+="pico", GROUP="dialout", MODE="0660", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+# RPLiDAR A2 (CP2102 USB-serial) -> /dev/lidar
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SYMLINK+="lidar", GROUP="dialout", MODE="0660"

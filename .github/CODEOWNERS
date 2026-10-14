@@ -1,0 +1,15 @@
+# Ko automatski dobija zahtev za review kada PR menja odredjeni folder.
+# Format: <putanja> <@korisnik ili @organizacija/tim>
+# Kada se u Settings -> Rules ukljuci "Require review from Code Owners", PR ne moze na main
+# bez odobrenja vlasnika tog foldera.
+#
+# Zameniti primere stvarnim GitHub korisnicima ili timovima, pa ukloniti '#'.
+
+# *              @itzpere
+# /protocol/     @itzpere @<nucleo-osoba>
+# /rpi/          @<rpi-osoba>
+# /nucleo/       @<nucleo-osoba>
+# /pico/         @<pico-osoba>
+# /sima/         @<sima-osoba>
+# /beacon/       @<beacon-osoba>
+# /.github/      @itzpere
