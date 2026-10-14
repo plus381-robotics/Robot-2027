@@ -1,0 +1,36 @@
+name: rpi
+
+on:
+  push:
+    branches: [main]
+    paths: ["rpi/**", "protocol/**", ".github/workflows/rpi.yml"]
+  pull_request:
+    paths: ["rpi/**", "protocol/**", ".github/workflows/rpi.yml"]
+
+jobs:
+  colcon:
+    runs-on: ubuntu-latest
+    container: ros:humble-ros-base
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zavisnosti
+        run: |
+          apt-get update -qq
+          rosdep update --rosdistro humble
+          rosdep install --from-paths protocol rpi --ignore-src -y --rosdistro humble
+      - name: Build
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build --base-paths protocol rpi --event-handlers console_cohesion+
+      - name: Testovi
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon test --base-paths protocol rpi --event-handlers console_cohesion+
+          colcon test-result --verbose
+      - name: Provera shell skripti
+        run: |
+          apt-get install -y -qq shellcheck
+          shellcheck -S warning rpi/system/setup.sh tools/flash_nucleo.sh
