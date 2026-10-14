@@ -84,7 +84,7 @@ run "usermod -aG realtime,dialout,video '$TARGET_USER'"
 
 log "RT throttling (/etc/sysctl.d/99-realtime.conf)"
 run "echo 'kernel.sched_rt_runtime_us = 950000' > /etc/sysctl.d/99-realtime.conf"
-run "sysctl --system >/dev/null"
+run "sysctl -p /etc/sysctl.d/99-realtime.conf >/dev/null"
 
 # --- 4. CPU governor -----------------------------------------------------------
 log "CPU governor performance"
@@ -98,7 +98,7 @@ run "systemctl disable --now unattended-upgrades 2>/dev/null || true"
 run "systemctl disable --now ModemManager 2>/dev/null || true"
 
 log "Zamrzavanje RT kernel paketa"
-rt_pkgs="$(dpkg -l | awk '/^ii/ && /realtime/ {print $2}' | tr '\n' ' ')"
+rt_pkgs="$(dpkg -l | awk '$1 ~ /^(ii|hi)$/ && $2 ~ /realtime/ {print $2}' | tr '\n' ' ')"
 if [[ -n "$rt_pkgs" ]]; then
   run "apt-mark hold $rt_pkgs >/dev/null"
 else
@@ -111,11 +111,11 @@ run "install -m 0644 '$SCRIPT_DIR/udev/99-eurobot.rules' /etc/udev/rules.d/"
 run "udevadm control --reload-rules && udevadm trigger"
 
 # --- 7. Alati ------------------------------------------------------------------
-log "Alati (apt)"
-run "apt-get update -qq"
-run "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+log "Alati (apt) - gcc-arm-none-eabi je velik, ovo moze trajati 10-20 min"
+run "apt-get update"
+run "DEBIAN_FRONTEND=noninteractive apt-get install -y \
   stlink-tools openocd gcc-arm-none-eabi ninja-build python3-serial picocom \
-  rt-tests stress-ng git cmake build-essential >/dev/null"
+  rt-tests stress-ng git cmake build-essential"
 
 log "Gotovo."
 if [[ "${NEED_REBOOT:-0}" == "1" ]]; then
