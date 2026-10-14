@@ -1,0 +1,16 @@
+# Zajednicki parametri robota. Svaki cvor cita svoj blok.
+nucleo_bridge:
+  ros__parameters:
+    port: /dev/nucleo
+    baud: 460800
+    rt_cpu: 3          # izolovano jezgro (isolcpus=3)
+    rt_priority: 80    # SCHED_FIFO
+    heartbeat_hz: 20.0
+
+pico_bridge:
+  ros__parameters:
+    port: /dev/pico
+
+lidar:
+  ros__parameters:
+    serial_port: /dev/lidar

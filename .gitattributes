@@ -1,0 +1,21 @@
+# Svi tekstualni fajlovi u repou imaju LF kraj linije, bez obzira na OS.
+# Bez ovoga skripte commitovane sa Windows-a pucaju na RPi-ju ($'\r': command not found).
+* text=auto eol=lf
+
+# Windows-specificni fajlovi
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binarni fajlovi: bez konverzije i bez diff-a
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.bin binary
+*.elf binary
+*.hex binary
+*.uf2 binary
+*.stl binary
+*.step binary
+*.zip binary
