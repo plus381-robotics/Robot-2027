@@ -2,9 +2,6 @@
 
 [![yt video koji objasnjava repo](https://img.youtube.com/vi/ONZMAUEJe-c/0.jpg)](https://www.youtube.com/watch?v=ONZMAUEJe-c)
 
-[![protocol](../../actions/workflows/protocol.yml/badge.svg)](../../actions/workflows/protocol.yml)
-[![rpi](../../actions/workflows/rpi.yml/badge.svg)](../../actions/workflows/rpi.yml)
-[![nucleo](../../actions/workflows/nucleo.yml/badge.svg)](../../actions/workflows/nucleo.yml)
 
 ## Struktura
 
@@ -13,18 +10,12 @@
 | [`rpi/`](rpi/) | Raspberry Pi 4 | ROS 2 paketi, konfiguracija sistema, udev pravila |
 | [`nucleo/`](nucleo/) | STM32 Nucleo F401RE | firmware za kretanje (CubeMX + CMake) |
 | [`pico/`](pico/) | Raspberry Pi Pico | aktuatori, OLED, enkoder, NeoPixel |
-| [`protocol/`](protocol/) | svi | zajednički COBS + CRC-16 protokol (header-only C++) |
-| [`sima/`](sima/) | SIMA roboti | |
-| [`beacon/`](beacon/) | beacon | |
 | [`tools/`](tools/) | razvojni računar / RPi | echo test, flešovanje Nucleo-a |
-| [`docs/`](docs/) | ceo robot | log book, dijagrami, specifikacija protokola |
 
 Svaki folder uređaja mora da ima bar:
 - `README.md` koji objašnjava šta radi, kako se gradi i kako se flešuje (uz gemini/Claude koji su besplatni ovo nema opravdanja da ne postoji)
 - `.gitignore` za sve što je preveliko i nema potrebe da se pull-uje (build izlazi, biblioteke koje se automatski skidaju pri kompajliranju)
 
-**Izuzetak:** `nucleo/firmware/Drivers/` (STM32 HAL) se **commituje**, jer se ne skida automatski.
-Bez njega projekat ne može da se izgradi na RPi-ju i u CI-ju, gde nema CubeMX-a.
 
 ## Šta je monorepo?
 
@@ -79,9 +70,3 @@ Benefiti:
 Mane:
 - komplikovano u početku jer je potrebno neko razumevanje kako funkcioniše GitHub
 - potrebno je skidati ceo repo umesto samo dela koji ti treba (nije problem, kod zauzima jako malo)
-
-## Prethodna sezona
-
-Kod iz 2026: `PogonskiSTM-2026-BlackPill` i `DrugiSTM-2026-BlackPill` (zasebni repoi, samo za referencu).
-
-Kome nije jasno nek se obrati @itzpere za pomoć.
