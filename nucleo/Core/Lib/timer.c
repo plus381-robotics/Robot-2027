@@ -8,7 +8,6 @@
 #include "tim.h"
 #include "chinch.h"
 
-
 uint32_t time_ms;
 float time_s;
 float match_time;
@@ -17,18 +16,14 @@ uint8_t match_started = 0;
 uint32_t chinch_cnt_pom;
 uint8_t flag_chinch_timer = 0;
 
-
 void timer10_isr() {
 	time_ms++;
 	time_s = time_ms / 1000.0;
 
-
+	chinch_debounce_counter(0.2);
 	if (match_started == 1) {
 		match_time += 0.001;
 	}
-}
-uint32_t get_chinch_time() {
-	return chinch_time_pom;
 }
 
 void time_start() {
@@ -49,5 +44,4 @@ uint8_t timer_delay(uint32_t *start_time, uint32_t delay) {
 	}
 	return 0;
 }
-
 
