@@ -14,7 +14,6 @@ float time_s;
 float match_time;
 uint32_t chinch_time_pom = 0;
 uint8_t match_started = 0;
-float dt = 0.001;
 uint32_t chinch_cnt_pom;
 uint8_t flag_chinch_timer = 0;
 
@@ -27,12 +26,6 @@ void timer10_isr() {
 	if (match_started == 1) {
 		match_time += 0.001;
 	}
-	chinch_cnt_pom = chinch_debounce_counter();
-	if (chinch_cnt_pom > 1)
-		flag_chinch_timer = 1;
-
-	if (flag_chinch_timer == 1)
-		chinch_time_pom++;
 }
 uint32_t get_chinch_time() {
 	return chinch_time_pom;
