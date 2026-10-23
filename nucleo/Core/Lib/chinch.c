@@ -9,13 +9,14 @@
 #include "chinch.h"
 
 volatile uint32_t chinch_cnt = 0;
-volatile uint8_t chinch = 1; //ima cinca
 volatile uint8_t chinch_state_debounced = 1; //samo pocetna vr
 uint32_t chinch_cmp;
 float dt = 0.001;
+volatile uint8_t chinch;
 
 
 uint32_t chinch_debounce_counter(float chinch_time) {
+	chinch = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_5);
 	chinch_cmp = chinch_time / dt;
 	if (chinch == chinch_state_debounced) {
 		chinch_cnt = 0;

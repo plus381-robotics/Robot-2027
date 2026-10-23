@@ -9,16 +9,12 @@
 #include "chinch.h"
 
 uint32_t time_ms;
-float time_s;
 float match_time;
 uint32_t chinch_time_pom = 0;
 uint8_t match_started = 0;
-uint32_t chinch_cnt_pom;
-uint8_t flag_chinch_timer = 0;
 
 void timer10_isr() {
 	time_ms++;
-	time_s = time_ms / 1000.0;
 
 	chinch_debounce_counter(0.2);
 	if (match_started == 1) {
