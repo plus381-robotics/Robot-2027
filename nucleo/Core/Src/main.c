@@ -44,9 +44,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t chinch_main;
-int32_t encoder_left_speed;
-int32_t encoder_right_speed;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -103,9 +101,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		encoder_left_speed = get_left_encoder();
-		encoder_right_speed = get_right_encoder();
-		chinch_main = get_chinch();
 
 	}
   /* USER CODE END 3 */

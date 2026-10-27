@@ -9,8 +9,9 @@
 #define INC_ENCODER_H_
 
 void encoder_init();
-int32_t encoder_speed_left(float dt);
-int32_t encoder_speed_right(float dt);
-
+float encoder_speed_left(float dt);
+float encoder_speed_right(float dt);
+int32_t get_left_encoder();
+int32_t get_right_encoder();
 
 #endif /* INC_ENCODER_H_ */
