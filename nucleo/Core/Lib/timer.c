@@ -9,17 +9,24 @@
 #include "chinch.h"
 
 uint32_t time_ms;
+float time_s;
 float match_time;
-uint32_t chinch_time_pom = 0;
 uint8_t match_started = 0;
+float chinch_time = 0.2;
+const float dt = 0.001;
 
 void timer10_isr() {
 	time_ms++;
+	time_s = time_ms / 1000.0;
 
-	chinch_debounce_counter(0.2);
 	if (match_started == 1) {
 		match_time += 0.001;
 	}
+	encoder_speed_left(dt);
+	encoder_speed_right(dt);
+
+	chinch_read();
+	chinch_debounce_counter(chinch_time, dt);
 }
 
 void time_start() {
@@ -39,5 +46,11 @@ uint8_t timer_delay(uint32_t *start_time, uint32_t delay) {
 		return 1;
 	}
 	return 0;
+}
+int32_t get_left_encoder() {
+	return encoder_speed_left(dt);
+}
+int32_t get_right_encoder() {
+	return encoder_speed_right(dt);
 }
 

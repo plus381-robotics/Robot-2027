@@ -8,8 +8,8 @@
 #ifndef INC_CHINCH_H_
 #define INC_CHINCH_H_
 
-uint32_t chinch_debounce_counter(float chinch_time);
+void chinch_debounce_counter(float chinch_time, float dt);
 uint8_t get_chinch();
-
+void chinch_read();
 
 #endif /* INC_CHINCH_H_ */
