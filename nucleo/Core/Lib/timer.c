@@ -7,6 +7,7 @@
 #include "main.h"
 #include "tim.h"
 #include "chinch.h"
+#include "odometrija.h"
 
 uint32_t time_ms;
 float time_s;
@@ -14,19 +15,22 @@ float match_time;
 uint8_t match_started = 0;
 float chinch_time = 0.2;
 const float dt = 0.001;
+volatile float w_r, w_l;
 
 void timer10_isr() {
 	time_ms++;
 	time_s = time_ms / 1000.0;
+	chinch_read();
+	chinch_debounce_counter(chinch_time, dt);
 
 	if (match_started == 1) {
 		match_time += 0.001;
 	}
-	encoder_speed_left(dt);
-	encoder_speed_right(dt);
+	w_l = encoder_speed_left(dt);
+	w_r = encoder_speed_right(dt);
 
-	chinch_read();
-	chinch_debounce_counter(chinch_time, dt);
+	update_odometrija(w_l, w_r, dt);
+
 }
 
 void time_start() {
@@ -46,11 +50,5 @@ uint8_t timer_delay(uint32_t *start_time, uint32_t delay) {
 		return 1;
 	}
 	return 0;
-}
-int32_t get_left_encoder() {
-	return encoder_speed_left(dt);
-}
-int32_t get_right_encoder() {
-	return encoder_speed_right(dt);
 }
 
