@@ -30,12 +30,18 @@ void update_odometrija(float w_left, float w_right, float dt) {
 	linear_velocity = (v_left + v_right) / 2;
 	angular_velocity = (v_right - v_left) / D;
 
-	x += linear_velocity * cos(phi + (angular_velocity * dt) / 2);
-	y += linear_velocity * sin(phi + (angular_velocity * dt) / 2);
+	x += linear_velocity * cos(phi + (angular_velocity * dt) / 2)*dt;
+	y += linear_velocity * sin(phi + (angular_velocity * dt) / 2)*dt;
 	phi += angular_velocity * dt;
 
 }
 
-float get_pos_rob() {
-	return x, y, phi;
+float get_x_pos_rob() {
+	return x;
+}
+float get_y_pos_rob() {
+	return y;
+}
+float get_phi_pos_rob() {
+	return phi;
 }
