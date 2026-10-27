@@ -12,8 +12,8 @@
 volatile int32_t encoder_value_left = 0;
 volatile int32_t encoder_value_right = 0;
 
-volatile int32_t delta_left = 0;
-volatile int32_t delta_right = 0;
+volatile float delta_left = 0;
+volatile float delta_right = 0;
 
 volatile int32_t encoder_left_poc = 0;
 volatile int32_t encoder_right_poc = 0;
@@ -28,14 +28,14 @@ void encoder_init(void) {
 }
 
 float encoder_speed_right(float dt) {
-	encoder_value_right = __HAL_TIM_GET_COUNTER(&htim5);
+	encoder_value_right = (int16_t)__HAL_TIM_GET_COUNTER(&htim5);
 	delta_right = encoder_value_right - encoder_right_poc;
 	encoder_right_poc = encoder_value_right;
 	return delta_right * inc2rad / dt;
 }
 
 float encoder_speed_left(float dt) {
-	encoder_value_left = __HAL_TIM_GET_COUNTER(&htim2);
+	encoder_value_left = (int16_t)__HAL_TIM_GET_COUNTER(&htim2);
 	delta_left = encoder_value_left - encoder_left_poc;
 	encoder_left_poc = encoder_value_left;
 	return delta_left * inc2rad / dt;

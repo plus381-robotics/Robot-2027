@@ -28,7 +28,6 @@ void timer10_isr() {
 	}
 	w_l = encoder_speed_left(dt);
 	w_r = encoder_speed_right(dt);
-
 	update_odometrija(w_l, w_r, dt);
 
 }
