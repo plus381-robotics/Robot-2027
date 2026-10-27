@@ -43,11 +43,11 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
-  /*Configure GPIO pins : Chinch_GPIO_Pin PA13 */
-  GPIO_InitStruct.Pin = Chinch_GPIO_Pin|GPIO_PIN_13;
+  /*Configure GPIO pin : Chinch_GPIO_Pin */
+  GPIO_InitStruct.Pin = Chinch_GPIO_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(Chinch_GPIO_GPIO_Port, &GPIO_InitStruct);
 
 }
 
