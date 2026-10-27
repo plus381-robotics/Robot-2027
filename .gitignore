@@ -28,3 +28,4 @@ Thumbs.db
 
 # ---- Lokalni rezultati testova ----
 *.csv.local
+/nucleo/Debug
