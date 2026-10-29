@@ -90,6 +90,7 @@ int main(void)
   MX_TIM10_Init();
   MX_TIM2_Init();
   MX_TIM5_Init();
+  MX_TIM9_Init();
   /* USER CODE BEGIN 2 */
 	time_start();
 	encoder_init();
