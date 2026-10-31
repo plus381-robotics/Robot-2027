@@ -35,7 +35,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+uint32_t motor1=0;
+uint32_t motor2 =0;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -93,6 +94,7 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM5_Init();
   MX_TIM3_Init();
+
   /* USER CODE BEGIN 2 */
 	time_start();
 	encoder_init();
@@ -105,7 +107,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
+		pwm_set(motor1, motor2);
 	}
   /* USER CODE END 3 */
 }

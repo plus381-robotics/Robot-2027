@@ -9,5 +9,6 @@
 #define INC_PWM_H_
 
 void pwm_init();
+void pwm_set(uint8_t motor_left, uint8_t motor_right);
 
 #endif /* INC_PWM_H_ */
