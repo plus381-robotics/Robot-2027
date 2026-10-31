@@ -37,6 +37,7 @@ extern "C" {
 #include "chinch.h"
 #include "encoder.h"
 #include "odometrija.h"
+#include "pwm.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
