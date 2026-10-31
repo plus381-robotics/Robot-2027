@@ -23,7 +23,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "encoder.h"
+#include "timer.h"
+#include "pwm.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -90,10 +92,11 @@ int main(void)
   MX_TIM10_Init();
   MX_TIM2_Init();
   MX_TIM5_Init();
-  MX_TIM9_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 	time_start();
 	encoder_init();
+	pwm_init();
   /* USER CODE END 2 */
 
   /* Infinite loop */

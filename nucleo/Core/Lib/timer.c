@@ -8,6 +8,7 @@
 #include "tim.h"
 #include "chinch.h"
 #include "odometrija.h"
+#include "pwm.h"
 
 uint32_t time_ms;
 float time_s;
