@@ -12,6 +12,8 @@ void update_odometrija(float dt);
 
 float error_left(float ideal_distance);
 float error_right(float ideal_distance);
+float error_D(float ideal_angle);
+
 float new_d_left(float ideal_distance);
 float new_d_right(float ideal_distance);
 float new_D(float ideal_angle);
