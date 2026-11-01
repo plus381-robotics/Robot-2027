@@ -2,7 +2,7 @@
  * pwm.c
  *
  *  Created on: Oct 31, 2026
- *      Author: Dell
+ *      Author: Lea
  */
 #include "main.h"
 #include "tim.h"

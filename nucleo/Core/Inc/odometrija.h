@@ -2,7 +2,7 @@
  * odometrija.h
  *
  *  Created on: Oct 27, 2026
- *      Author: Dell
+ *      Author: Lea
  */
 
 #ifndef INC_ODOMETRIJA_H_

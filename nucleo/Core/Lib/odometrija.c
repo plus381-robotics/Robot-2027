@@ -2,7 +2,7 @@
  * odometrija.c
  *
  *  Created on: Oct 27, 2026
- *      Author: Dell
+ *      Author: Lea
  */
 #include "main.h"
 #include "tim.h"
