@@ -27,9 +27,7 @@ void timer10_isr() {
 	if (match_started == 1) {
 		match_time += 0.001;
 	}
-	w_l = encoder_speed_left(dt);
-	w_r = encoder_speed_right(dt);
-	update_odometrija(w_l, w_r, dt);
+	update_odometrija(dt);
 
 }
 

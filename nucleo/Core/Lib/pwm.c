@@ -22,7 +22,7 @@ void pwm_set(uint8_t motor_left, uint8_t motor_right)
 {
     arr = __HAL_TIM_GET_AUTORELOAD(&htim3);
 
-    ccr1 = (arr + 1) * motor_left / 100;      //formula za ccr je (arr+1) * dutycycle / 100
+    ccr1 = (arr + 1) * motor_left / 100;      //formula za ccr je (arr+1) * duty cycle / 100
     ccr2 = (arr + 1) * motor_right / 100;
 
     __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, ccr1);
