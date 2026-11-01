@@ -32,7 +32,6 @@
 #include "pwm.h"
 #include "odometrija.h"
 #include "ax.h"
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -53,7 +52,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-volatile uint16_t ax_position = 512;
+volatile uint16_t ax_position = 55;
 volatile uint16_t ax_speed = 200;
 volatile uint8_t id = 0;
 /* USER CODE END PV */
@@ -111,7 +110,7 @@ int main(void)
 	encoder_init();
 	pwm_init();
 
-	torque_enable(id, &huart6);
+	torque_enable(id);
 
   /* USER CODE END 2 */
 
@@ -121,9 +120,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
-		ax_move(id, ax_position, ax_speed, &huart6);
-		HAL_Delay(1000);
+		ax_move(id, ax_position, ax_speed, huart6);
 	}
   /* USER CODE END 3 */
 }
