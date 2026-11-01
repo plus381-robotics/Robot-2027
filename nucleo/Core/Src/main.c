@@ -104,13 +104,12 @@ int main(void)
   MX_I2C1_Init();
   MX_USART1_UART_Init();
   MX_USART6_UART_Init();
+
   /* USER CODE BEGIN 2 */
 
 	time_start();
 	encoder_init();
 	pwm_init();
-
-	torque_enable(id);
 
   /* USER CODE END 2 */
 
@@ -120,7 +119,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+		torque_enable(id);
 		ax_move(id, ax_position, ax_speed, huart6);
+		HAL_Delay(100);
 	}
   /* USER CODE END 3 */
 }
