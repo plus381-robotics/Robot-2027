@@ -1,3 +1,8 @@
+ /* chinch.c
+ *
+ *  Created on: Oct 31, 2026
+ *      Author: Lea
+ */
 #include "main.h"
 #include "tim.h"
 #include "chinch.h"
@@ -21,7 +26,6 @@ void chinch_debounce_counter(float chinch_time, float dt) {
 		chinch_cnt = 0;
 	}
 }
-
 uint8_t get_chinch() {
 	return chinch_state_debounced;
 }

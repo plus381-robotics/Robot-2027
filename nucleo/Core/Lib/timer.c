@@ -2,13 +2,14 @@
  * timer.c
  *
  *  Created on: Oct 14, 2026
- *      Author: Dell
+ *      Author: Lea
  */
 #include "main.h"
 #include "tim.h"
 #include "chinch.h"
 #include "odometrija.h"
 #include "pwm.h"
+#include "ax.h"
 
 uint32_t time_ms;
 float time_s;
@@ -28,7 +29,6 @@ void timer10_isr() {
 		match_time += 0.001;
 	}
 	update_odometrija(dt);
-
 }
 
 void time_start() {

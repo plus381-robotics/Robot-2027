@@ -2,7 +2,7 @@
  * timer.h
  *
  *  Created on: Oct 14, 2026
- *      Author: Dell
+ *      Author: Lea
  */
 #ifndef INC_TIMER_H_
 #define INC_TIMER_H_
