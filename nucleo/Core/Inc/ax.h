@@ -8,12 +8,9 @@
 #ifndef INC_AX_H_
 #define INC_AX_H_
 
-#include "stm32f4xx_hal.h"
 
-void torque_enable(uint8_t id, UART_HandleTypeDef *huart);
+void torque_enable (uint8_t id);
 
-void ax_move(uint8_t id, uint16_t angle, uint16_t speed,UART_HandleTypeDef *huart);
-
-void ax_write(uint8_t id, uint8_t addr, uint8_t *data, uint8_t n);
+void ax_move (uint8_t id, uint16_t angle, uint16_t speed, UART_HandleTypeDef huart);
 
 #endif

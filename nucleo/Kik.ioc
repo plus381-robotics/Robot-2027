@@ -77,6 +77,7 @@ PB9.Mode=I2C
 PB9.Signal=I2C1_SDA
 PC6.GPIOParameters=GPIO_PuPd
 PC6.GPIO_PuPd=GPIO_PULLUP
+PC6.Locked=true
 PC6.Mode=Half_duplex(single_wire_mode)
 PC6.Signal=USART6_TX
 PCC.Bar.Display=Horizontal Bar
