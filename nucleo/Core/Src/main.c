@@ -55,6 +55,7 @@
 /* USER CODE BEGIN PV */
 volatile uint16_t ax_position = 512;
 volatile uint16_t ax_speed = 200;
+volatile uint8_t id = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -110,8 +111,7 @@ int main(void)
 	encoder_init();
 	pwm_init();
 
-	HAL_Delay(1000);
-	torque_enable(1, &huart6);
+	torque_enable(id, &huart6);
 
   /* USER CODE END 2 */
 
@@ -122,9 +122,8 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-			ax_move(1, ax_position, ax_speed, &huart6);
-			HAL_Delay(100);
-
+		ax_move(id, ax_position, ax_speed, &huart6);
+		HAL_Delay(1000);
 	}
   /* USER CODE END 3 */
 }
