@@ -22,7 +22,7 @@ torque_enable (uint8_t id)
 }
 
 void
-ax_move (uint8_t id, uint16_t angle, uint16_t speed, UART_HandleTypeDef huart)
+ax_move (uint8_t id, uint16_t angle, uint16_t speed)
 {
 	uint8_t angle_low, angle_high, speed_low, speed_high;
 	angle_low = angle & 0xff;
@@ -35,12 +35,16 @@ ax_move (uint8_t id, uint16_t angle, uint16_t speed, UART_HandleTypeDef huart)
 	uint8_t ax_move[] =
 		{ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, id, 0x07, 0x03, 0x1E, angle_low, angle_high, speed_low, speed_high, checksum};
 
-	HAL_UART_Transmit (&huart, ax_move, 17, 100);
+	HAL_UART_Transmit (&huart6, ax_move, 17, 100);
 	HAL_Delay (1);
-	HAL_UART_Transmit (&huart, ax_move, 17, 100);
+	HAL_UART_Transmit (&huart6, ax_move, 17, 100);
 	HAL_Delay (1);
-	HAL_UART_Transmit (&huart, ax_move, 17, 100);
+	HAL_UART_Transmit (&huart6, ax_move, 17, 100);
 	HAL_Delay (1);
-	HAL_UART_Transmit (&huart, ax_move, 17, 100);
+	HAL_UART_Transmit (&huart6, ax_move, 17, 100);
 	HAL_Delay (6);
+}
+
+void ax_init (){
+	torque_enable(4);
 }

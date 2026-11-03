@@ -11,6 +11,7 @@
 
 void torque_enable (uint8_t id);
 
-void ax_move (uint8_t id, uint16_t angle, uint16_t speed, UART_HandleTypeDef huart);
+void ax_move (uint8_t id, uint16_t angle, uint16_t speed);
 
+void ax_init();
 #endif
