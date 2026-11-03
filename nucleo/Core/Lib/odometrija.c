@@ -7,8 +7,6 @@
 #include "main.h"
 #include "tim.h"
 #include "encoder.h"
-#include "odometrija.h"
-#include <math.h>
 
 float D = 0.3; //razmak izmedju tockova
 float d_left = 0.07; //precnik levog
@@ -41,14 +39,14 @@ void update_odometrija(float dt) {
 	linear_velocity = (v_left + v_right) / 2;
 	angular_velocity = (v_right - v_left) / D;
 
-	x += linear_velocity * cosf(phi + (angular_velocity * dt) / 2) * dt;
-	y += linear_velocity * sinf(phi + (angular_velocity * dt) / 2) * dt;
+	x += linear_velocity * cos(phi + (angular_velocity * dt) / 2) * dt;
+	y += linear_velocity * sin(phi + (angular_velocity * dt) / 2) * dt;
 
 	phi1 += angular_velocity * dt; //u bilo kom opsegu vraca
 	phi = remainderf(phi1, 2.0f * M_PI); //proveriti da li ova funkcija zaista vraca iz -1.57 do 1.57
 
-	s_left += fabsf(v_left * dt); //sabira predjeni put
-	s_right += fabsf(v_right * dt);
+	s_left += fabs(v_left * dt); //sabira predjeni put
+	s_right += fabs(v_right * dt);
 }
 
 float get_s_left(){
@@ -100,5 +98,12 @@ float get_y_pos_rob() {
 }
 float get_phi_pos_rob() {
 	return phi;
+}
+
+float get_linear_velocity(){
+	return linear_velocity;
+}
+float get_angular_velocity(){
+	return angular_velocity;
 }
 

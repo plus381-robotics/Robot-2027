@@ -26,4 +26,7 @@ float get_x_pos_rob();
 float get_y_pos_rob();
 float get_phi_pos_rob();
 
+float get_linear_velocity();
+float get_angular_velocity();
+
 #endif /* INC_ODOMETRIJA_H_ */
