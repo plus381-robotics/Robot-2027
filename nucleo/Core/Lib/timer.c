@@ -29,7 +29,7 @@ void timer10_isr() {
 		match_time += 0.001;
 	}
 	update_odometrija(dt);
-	velocity_control_loop(dt);
+	velocity_control_loop();
 }
 
 void time_start() {

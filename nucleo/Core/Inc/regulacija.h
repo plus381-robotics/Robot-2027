@@ -9,6 +9,6 @@
 #define INC_REGULACIJA_H_
 
 void position_control_loop();
-void velocity_control_loop()
+void velocity_control_loop();
 
 #endif /* INC_REGULACIJA_H_ */
