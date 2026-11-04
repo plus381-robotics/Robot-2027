@@ -9,7 +9,8 @@
 #include "usart.h"
 
 
-void torque_enable (uint8_t id)
+void
+torque_enable (uint8_t id)
 {
 	uint16_t checksum_local = id + 4 + 3 + 0x18 + 1;
 	uint8_t checksum = (uint8_t) (~checksum_local);
@@ -45,26 +46,5 @@ ax_move (uint8_t id, uint16_t angle, uint16_t speed)
 }
 
 void ax_init (){
-	torque_enable(1); //front levi
-	torque_enable(2); //front zakretni
-	torque_enable(3); //front desni
-	torque_enable(4); //front lift
-
-	torque_enable(5); //back levi
-	torque_enable(6); //back zakretni
-	torque_enable(7); //back desni
-	torque_enable(8); //back lift
-
-	torque_enable(9);
-	torque_enable(10);
-	torque_enable(11);
-	torque_enable(12);
-	torque_enable(13);
-	torque_enable(14);
-	torque_enable(15);
-	torque_enable(16);
-	torque_enable(17);
-	torque_enable(18);
-	torque_enable(19);
-	torque_enable(20);
+	torque_enable(4);
 }
