@@ -39,8 +39,6 @@ extern "C" {
 #include "odometrija.h"
 #include "pwm.h"
 #include "ax.h"
-#include "regulacija.h"
-#include "mehanizam.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
