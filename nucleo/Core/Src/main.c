@@ -32,6 +32,8 @@
 #include "pwm.h"
 #include "odometrija.h"
 #include "ax.h"
+#include "comm.h"
+#include "watchdog.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -110,6 +112,8 @@ int main(void) {
 	encoder_init();
 	pwm_init();
 	ax_init ();
+	comm_init();      // ESP na USART1; bez ESP-a Nucleo radi isto kao ranije
+	watchdog_init();  // poslednje, posle sporih inicijalizacija
 
 	/* USER CODE END 2 */
 
@@ -119,6 +123,9 @@ int main(void) {
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
+
+		comm_poll();
+		watchdog_feed();
 
 		ax_move(id, ax_position, ax_speed);
 	}

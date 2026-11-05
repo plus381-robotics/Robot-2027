@@ -29,4 +29,6 @@ float get_phi_pos_rob();
 float get_linear_velocity();
 float get_angular_velocity();
 
+void set_pose(float x_m, float y_m, float phi_rad); // dodato za ESP (SET_POSE)
+
 #endif /* INC_ODOMETRIJA_H_ */

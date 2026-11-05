@@ -39,6 +39,11 @@ void update_odometrija(float dt) {
 	linear_velocity = (v_left + v_right) / 2;
 	angular_velocity = (v_right - v_left) / D;
 
+	// LEA, IMAS BUG OVDE (performanse u prekidu od 1 kHz):
+	// cos(), sin() i fabs() rade u double preciznosti, a FPU na STM32F401 zna samo float.
+	// Zato se double racuna softverski, sporo, 1000 puta u sekundi u prekidu TIM10.
+	// Isto vazi za konstante bez "f" (2.0 * M_PI je double).
+	// Popravka: cosf(), sinf(), fabsf() i float konstante, npr. 2.0f * (float) M_PI
 	x += linear_velocity * cos(phi + (angular_velocity * dt) / 2) * dt;
 	y += linear_velocity * sin(phi + (angular_velocity * dt) / 2) * dt;
 
@@ -88,6 +93,17 @@ float new_D(float ideal_angle)
     return D*(get_phi1()/ideal_angle);
 }
 
+
+// Dodato za protokol sa ESP-om (komanda SET_POSE): postavlja trenutnu poziciju robota.
+// x, y u metrima, phi u radijanima. Poziva se iz glavne petlje, zato se prekid nakratko gasi.
+void set_pose(float x_m, float y_m, float phi_rad) {
+	__disable_irq();
+	x = x_m;
+	y = y_m;
+	phi = phi_rad;
+	phi1 = phi_rad;
+	__enable_irq();
+}
 
 //potrebne promenljive koje ce mi dalje trebati da baratam sa njima u kodu
 float get_x_pos_rob() {

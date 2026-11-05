@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "timer.h"
+#include "comm.h"
 #include "chinch.h"
 #include "encoder.h"
 #include "pwm.h"
@@ -213,6 +214,7 @@ void TIM1_UP_TIM10_IRQHandler(void)
   HAL_TIM_IRQHandler(&htim10);
   /* USER CODE BEGIN TIM1_UP_TIM10_IRQn 1 */
   timer10_isr();
+  comm_tick_1ms();   // heartbeat sa ESP-om
   /* USER CODE END TIM1_UP_TIM10_IRQn 1 */
 }
 

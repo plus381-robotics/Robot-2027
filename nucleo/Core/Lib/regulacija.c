@@ -26,6 +26,9 @@ void position_control_loop() {
 }
 
 void velocity_control_loop() {
+	// LEA: kad ovde budes upisivala PWM, prvo proveri comm_motion_allowed() (comm.h).
+	// Ako vrati 0 (ESP je utihnuo), pozovi pwm_set(0, 0) i preskoci regulaciju.
+	// Bez toga comm.c ugasi motore samo jednom, a vec sledeci prolaz (1 ms) ih ponovo pokrene.
 	lin_v = get_linear_velocity();
 	ang_v = get_angular_velocity();
 	err_v = ref_lin_v - lin_v;
