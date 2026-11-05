@@ -1,0 +1,59 @@
+# Jedini izvor istine za komunikaciju ESP32 <-> Nucleo (i ESP32 -> laptop).
+# dir: e2n = ESP32 -> Nucleo, n2e = Nucleo -> ESP32, e2h = ESP32 -> laptop (host).
+# Posle svake izmene:  python protocol/gen.py   i podigni `version`  (treba: pip install pyyaml).
+#
+# Okvir:  COBS( type:u8 | seq:u8 | payload | crc16:u16 ) 0x00
+#   - little-endian, CRC16-CCITT (poly 0x1021, init 0xFFFF) nad type+seq+payload
+#   - seq 1..255 za komande; 0 = nezatražena poruka (STATUS, LOG...)
+#   - odgovori (ACK/DONE/FAIL) nose seq komande na koju se odnose
+#
+# Jedinice: mm, cdeg (stotinke stepena, -18000..18000), mm/s, ms.
+# Tipovi polja: u8 i8 u16 i16 u32 i32 f32, i "bytes" (ostatak paketa, samo poslednje polje).
+
+version: 1
+
+enums:
+  Reason:          # razlog u FAIL poruci
+    INVALID: 1     # neispravni parametri / nepoznata komanda
+    BLOCKED: 2     # video protivnika i robot je stao
+    TIMEOUT: 3     # kretanje nije završeno na vreme
+    PREEMPTED: 4   # nova komanda kretanja je prekinula ovu
+    MATCH_OVER: 5  # isteklo 100 s, ništa se više ne izvršava
+    STOPPED: 6     # prekinuto komandom STOP ili heartbeat-om
+  GotoFlags:
+    REVERSE: 1     # vozi unazad
+    NO_THETA: 2    # ignoriši završni ugao
+  State:           # bitovi u STATUS.state
+    MOVING: 1
+    BLOCKED: 2
+    MATCH_RUNNING: 4
+    MATCH_OVER: 8
+    LINK_LOST: 16
+  Debug:           # bitovi za DEBUG_STREAMS.mask
+    LIDAR: 1
+    CONTROL: 2
+
+messages:
+  # ---------------- ESP32 -> Nucleo ---------------
+  PING:          {type: 0x01, dir: e2n, fields: []}
+  SET_POSE:      {type: 0x10, dir: e2n, fields: [[x, i16], [y, i16], [theta, i16]]}
+  GOTO:          {type: 0x11, dir: e2n, fields: [[x, i16], [y, i16], [theta, i16], [flags, u8], [max_speed, u16]]}
+  ROTATE:        {type: 0x12, dir: e2n, fields: [[theta, i16]]}
+  MOVE:          {type: 0x13, dir: e2n, fields: [[dist, i16], [max_speed, u16]]}
+  STOP:          {type: 0x1F, dir: e2n, fields: []}
+  ACTUATOR:      {type: 0x20, dir: e2n, fields: [[id, u8], [value, i16]]}
+  MATCH_START:   {type: 0x30, dir: e2n, fields: []}
+  DEBUG_STREAMS: {type: 0x31, dir: e2n, fields: [[mask, u8]]}
+
+  # ---------------- Nucleo -> ESP32 ---------------
+  PONG:          {type: 0x81, dir: n2e, fields: [[version, u8]]}
+  ACK:           {type: 0x90, dir: n2e, fields: []}
+  DONE:          {type: 0x91, dir: n2e, fields: []}
+  FAIL:          {type: 0x92, dir: n2e, fields: [[reason, u8]]}
+  STATUS:        {type: 0xA0, dir: n2e, fields: [[x, i16], [y, i16], [theta, i16], [v, i16], [state, u8], [match_ms, u32]]}
+  LIDAR_SCAN:    {type: 0xB0, dir: n2e, fields: [[points, bytes]]}   # parovi i16 x,y u koordinatama terena
+  CONTROL_DEBUG: {type: 0xB1, dir: n2e, fields: [[v_ref, i16], [v_meas, i16], [w_ref, i16], [w_meas, i16], [pwm_l, i16], [pwm_r, i16]]}
+  LOG:           {type: 0xF0, dir: n2e, fields: [[text, bytes]]}
+
+  # ---------------- ESP32 -> laptop (samo telemetrija) ----------------
+  TACTIC_EVENT:  {type: 0x70, dir: e2h, fields: [[text, bytes]]}

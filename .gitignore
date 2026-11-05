@@ -29,3 +29,7 @@ Thumbs.db
 # ---- Lokalni rezultati testova ----
 *.csv.local
 /nucleo/Debug
+
+# ---- ESP32: lozinke se ne commit-uju ----
+ESP32/secrets.py
+ESP32/webrepl_cfg.py
