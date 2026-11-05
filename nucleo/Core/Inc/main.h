@@ -32,8 +32,15 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdint.h>
+#include <math.h>
 #include "timer.h"
 #include "chinch.h"
+#include "encoder.h"
+#include "odometrija.h"
+#include "pwm.h"
+#include "ax.h"
+#include "regulacija.h"
+#include "mehanizam.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -59,6 +66,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define Chinch_GPIO_Pin GPIO_PIN_12
+#define Chinch_GPIO_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 

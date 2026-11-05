@@ -2,40 +2,30 @@
  * timer.c
  *
  *  Created on: Oct 14, 2026
- *      Author: Dell
+ *      Author: Lea
  */
 #include "main.h"
 #include "tim.h"
-#include "chinch.h"
-
 
 uint32_t time_ms;
 float time_s;
 float match_time;
-uint32_t chinch_time_pom = 0;
 uint8_t match_started = 0;
-float dt = 0.001;
-uint32_t chinch_cnt_pom;
-uint8_t flag_chinch_timer = 0;
-
+float chinch_time = 0.2;
+const float dt = 0.001;
+volatile float w_r, w_l;
 
 void timer10_isr() {
 	time_ms++;
 	time_s = time_ms / 1000.0;
-
+	chinch_read();
+	chinch_debounce_counter(chinch_time, dt);
 
 	if (match_started == 1) {
 		match_time += 0.001;
 	}
-	chinch_cnt_pom = chinch_debounce_counter();
-	if (chinch_cnt_pom > 1)
-		flag_chinch_timer = 1;
-
-	if (flag_chinch_timer == 1)
-		chinch_time_pom++;
-}
-uint32_t get_chinch_time() {
-	return chinch_time_pom;
+	update_odometrija(dt);
+	velocity_control_loop();
 }
 
 void time_start() {
@@ -56,5 +46,4 @@ uint8_t timer_delay(uint32_t *start_time, uint32_t delay) {
 	}
 	return 0;
 }
-
 
