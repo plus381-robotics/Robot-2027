@@ -12,7 +12,6 @@ volatile int16_t tim2_diff = 0, tim3_diff = 0, tim4_diff = 0, tim5_diff = 0;
 volatile int16_t tim2_cur = 0, tim3_cur = 0, tim4_cur = 0, tim5_cur = 0;
 volatile double vel_dbg;
 volatile double motorCtrl, out_vel;
-static uint8_t uart_psc = 100, uart_psc_cnt = 1;
 float vl = 0.0, vr = 0.0;
 
 void time_ISR()	// poziva se u stm32f4xx_it.c, na 1ms
@@ -26,12 +25,6 @@ void time_ISR()	// poziva se u stm32f4xx_it.c, na 1ms
 //	vr = -vel_dbg;
 //	pwm_left(vl);
 //	pwm_right(vr);
-
-	uart_psc_cnt++;
-	if (uart_psc_cnt >= uart_psc) {
-		uart_psc_cnt = 0;
-		update_tx_buffer();
-	}
 }
 
 void time_start() {
