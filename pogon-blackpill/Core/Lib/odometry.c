@@ -54,6 +54,21 @@ update_odom ()
 	wrap2Pi (&phi_base);
 }
 
+// Dodato za protokol sa ESP-om (SET_POSE): postavlja trenutnu poziciju robota.
+// x, y u metrima, phi u radijanima. Poziva se iz glavne petlje, a update_odom() iz
+// prekida od 1 kHz, zato se prekidi nakratko gase (double se ne upisuje odjednom).
+void
+set_pose (double x_m, double y_m, double phi_rad)
+{
+	uint32_t primask = __get_PRIMASK ();
+	__disable_irq ();
+	x_base = x_m;
+	y_base = y_m;
+	phi_base = phi_rad;
+	wrap2Pi (&phi_base);
+	__set_PRIMASK (primask);
+}
+
 double
 get_x ()
 {

@@ -100,6 +100,8 @@ void
 odometry_init();
 void
 update_odom();
+void
+set_pose(double x_m, double y_m, double phi_rad);
 double
 get_x();
 double
@@ -147,13 +149,9 @@ double snap_ortho_deg(double phi);
 //motorControl.h
 double calculate_control(double ref, double y);
 
-// comm.h
-void
-update_tx_buffer();
-void
-comm_init();
-void process_rx_buffer();
-goal_type* get_rx_goal();
+// comm_port.c (most između ESP protokola i regulacije; protokol je u comm.h)
+goal_type* comm_port_goal();
+void comm_port_update();
 
 // control.h
 void control_loop();

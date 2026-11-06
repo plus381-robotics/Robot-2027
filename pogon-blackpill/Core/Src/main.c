@@ -25,7 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "comm.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,7 +47,6 @@
 
 /* USER CODE BEGIN PV */
 goal_type rot_goal, xy_goal;
-goal_type* rx_goal_ptr;
 int16_t main_fsm_state = 0;
 int8_t dir_dbg=0;
 
@@ -103,7 +102,11 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
-	comm_init();
+	comm_init();      // ESP na USART1 (prekidi, ne DMA); bez ESP-a radi isto kao ranije
+	// TIM10 prekid (odometrija + regulacija u double) traje duže od jednog bajta na
+	// 115200 (~87 us), a USART1 nema FIFO: spusti TIM10 ispod USART1 (1), inače se gube bajtovi.
+	// U .ioc je TIM10 i dalje 0; ovo ga namerno menja posle MX_* inicijalizacije.
+	HAL_NVIC_SetPriority(TIM1_UP_TIM10_IRQn, 2, 0);
 	time_start();
 	enc_init();
 	pwm_init();
@@ -141,13 +144,11 @@ int main(void)
     /* USER CODE BEGIN 3 */
 //		set_motor_l_dir(dir_dbg);
 //		set_motor_r_dir(dir_dbg);
+		comm_poll();
 		switch (main_fsm_state) {
 		case 0:
-			rx_goal_ptr = get_rx_goal();
-//			if (rx_goal_ptr->status < 0)
-//				main_fsm_state = -1;
-//			else
-				move_goal(rx_goal_ptr);
+			comm_port_update();             // cilj sada dolazi sa ESP-a (comm_port.c)
+			move_goal(comm_port_goal());
 			break;
 		case -1:
 			break;

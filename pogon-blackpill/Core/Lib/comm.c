@@ -1,251 +1,288 @@
 /*
  * comm.c
  *
- *  Created on: Dec 9, 2025
- *      Author: lazar
- */
-#define TXBUFFERSIZE 40
-#define RXBUFFERSIZE 40
-
-#include "main.h"
-#include <string.h>
-
-static uint16_t fletcher16(uint8_t *data, size_t len);
-static uint8_t create_rxba();
-
-volatile uint8_t tx_buffer[TXBUFFERSIZE], rx_buffer[RXBUFFERSIZE];
-volatile uint8_t rxba[32];
-volatile uint32_t rc = 0;
-volatile int16_t x10k, y10k, phi2B;
-volatile int16_t v_left_2B, v_right_2B;
-volatile float v_left_comm, v_right_comm;
-volatile uint16_t v_left_pwm, v_right_pwm;
-volatile double phi_conversion;
-volatile static uint16_t sync = 0;
-volatile static uint8_t idx = 0;
-volatile float x, y, phi;
-uint16_t prev_checksum = 0;
-volatile goal_type rx_goal;
-double x_dbg = -1.0, y_dbg = 0.0, phi_dbg = 1.5708;
-int8_t type_dbg = 1;
-//static double PHI_TOL_ = 0.0314, D_TOL_ = 0.02;
-/*
- * ROS2 -> STM32:
- * 40B:
- * 	 8 * uint8 255
- * 	 int8 type
- * 	 double x
- * 	 double y
- * 	 double phi
- * 	 int8 	obstacle	:6
- * 	 		direction 	:2
- * 	 uint8 	v_max_100				[0.00, 2.55]
- * 	 uint8 	w_max_10				[0.0, 25.5]
- * 	 uint8 	dis_tol_perc_16: 4	[0.0, 1.0 : 0.0625]
- * 	 		ang_tol_perc_16: 4	[0.0, 1.0 : 0.0625]
- * 	 int8	start_coeff_v_4: 2	[0.0, 1.0 : 0.25]
- * 	 		start_coeff_w_4: 2	[0.0, 1.0 : 0.25]
- * 	 		stop_coeff_v_4:  2	[0.0, 1.0 : 0.25]
- * 	 		stop_coeff_w_4:  2	[0.0, 1.0 : 0.25]
- * 	 uint16 checksum
+ * Protokol sa ESP-om na USART1. Vidi comm.h za opis i povezivanje.
+ * Isti fajl je u nucleo/ i pogon-blackpill/: sve što zavisi od robota ide kroz
+ * comm_port.h (svaki projekat ima svoj comm_port.c), ovde se ne dodaje ništa robot-specifično.
  *
- * STM32 -> ROS2:
- * 40B:
- *	 int8	status kratnje
- *	 int32	x_10k
- *	 int32	y_10k
- *	 int32	phi_10k
- *	 int32	v_10k
- *	 int32	w_10k
-
+ * Prijem i slanje idu preko prekida u kružne bafere, pa glavna petlja nikad ne čeka na UART.
+ * Ako glavna petlja nakratko blokira (HAL_Delay), bajtovi se čuvaju u baferu (512 B)
+ * i obrade se u sledećem comm_poll().
+ *
+ * NAPOMENA: USART1_IRQHandler je definisan ovde. Ako se u CubeMX-u uključi
+ * "USART1 global interrupt", CubeMX će napraviti još jedan u stm32f4xx_it.c
+ * i build javlja dupliranu funkciju: tada ga obrisati ovde ili tamo.
  */
+#include <string.h>
+#include "stm32f4xx_hal.h"
+#include "comm.h"
+#include "comm_port.h"
+#include "link.h"
+#include "protocol.h"
 
-void process_rx_buffer() {
-	if (!create_rxba())
-		return;
+#define RX_SIZE 512             /* stepen dvojke */
+#define TX_SIZE 512
 
-	rx_goal.obstacle = (rxba[25]) & 0b011;
-	int8_t type = rxba[0];
+static volatile uint8_t rx_buf[RX_SIZE];
+static volatile uint16_t rx_head, rx_tail;
+static volatile uint8_t tx_buf[TX_SIZE];
+static volatile uint16_t tx_head, tx_tail;
 
-	uint16_t received_checksum = rxba[30] | (rxba[31] << 8);
+static link_parser_t parser;
+static volatile uint32_t last_rx_ms;
+static volatile uint8_t esp_seen;    /* ESP se javio bar jednom ispravnom porukom */
+static volatile uint8_t link_lost;   /* ESP je bio tu, pa utihnuo */
 
-	// kill
-	if (type == 0 || type == 10)
-		rx_goal.type = type;
-	// kretnja vec ide
-	if (rx_goal.status > 0)
-		return;
+static uint8_t last_seq;             /* za prepoznavanje ponovljenih komandi */
+static uint8_t last_reply_type, last_reply_reason;
+static uint8_t motion_seq;           /* aktivna komanda kretanja, 0 = nema */
+static uint8_t debug_mask;
+static uint32_t last_status_ms;
 
-	// ako ponovo dobije istu kretnju
-	if (prev_checksum == received_checksum)
-		return;
+/* ---------------- UART: prekid i kružni baferi ---------------- */
 
-	double x, y, phi;
-	memcpy(&x, &rxba[1], sizeof(double));
-	memcpy(&y, &rxba[9], sizeof(double));
-	memcpy(&phi, &rxba[17], sizeof(double));
-//
-//	double dx = x - get_x();
-//	double dy = y - get_y();
-//	double dist2 = sqrt(dx * dx + dy * dy);
-//
-//	double dphi = phi - get_phi();
-//	while (dphi > M_PI)
-//		dphi -= 2 * M_PI;
-//	while (dphi < -M_PI)
-//		dphi += 2 * M_PI;
-//
-//	// Skip goal if already reached
-//	if ((type == 1 && dist2 < D_TOL_)
-//			|| (type == -1 && fabs(dphi) < PHI_TOL_)) {
-////		reset_goal(&rx_goal);
-////		prev_checksum = received_checksum;
-//		return;
-//	}
-
-	rx_goal.type = type;
-	rx_goal.x = x;
-	rx_goal.y = y;
-	rx_goal.phi = phi;
-	uint8_t dir_bits = (rxba[25] >> 6) & 0b11;
-
-	if (dir_bits == 0b01)
-		rx_goal.direction = 1;
-	else if (dir_bits == 0b10)
-		rx_goal.direction = -1;
-	else
-		rx_goal.direction = 0;
-	uint8_t v_max_100 = rxba[26];
-	rx_goal.v_max = v_max_100 * 0.01;
-	uint8_t w_max_10 = rxba[27];
-	rx_goal.w_max = w_max_10 * 0.1;
-	// TODO: ovde sam zapravo na pogresnu stranu racunao ovo, tako da za sad zanemari, pa ako treba ispravljaj
-//	uint8_t tol_byte = rxba[28];
-//	rx_goal.distance_tolerance_percentage = (((tol_byte >> 4) & 0b1111) + 1)
-//			* 0.0625;
-//	rx_goal.angle_tolerance_percentage = (((tol_byte) & 0b1111) + 1) * 0.0625;
-//	uint8_t coeff_byte = rxba[29];
-//	rx_goal.start_coeff_v = (((coeff_byte >> 6) & 0b11) + 1) * 0.25;
-//	rx_goal.start_coeff_w = (((coeff_byte >> 4) & 0b11) + 1) * 0.25;
-//	rx_goal.stop_coeff_v = (((coeff_byte >> 2) & 0b11) + 1) * 0.25;
-//	rx_goal.stop_coeff_w = (((coeff_byte) & 0b11) + 1) * 0.25;
-	rx_goal.distance_tolerance_percentage = 1.0;
-	rx_goal.angle_tolerance_percentage = 1.0;
-	rx_goal.start_coeff_v = 1.0;
-	rx_goal.start_coeff_w = 1.0;
-	rx_goal.stop_coeff_v = 1.0;
-	rx_goal.stop_coeff_w = 1.0;
-	prev_checksum = received_checksum;
-	rx_goal.status = 0;
-	return;
-}
-
-goal_type* get_rx_goal() {
-	return &rx_goal;
-}
-
-void update_tx_buffer() {
-	for (int i = 0; i < 8; i++)
-		tx_buffer[i] = 0xFF;
-
-// XXX: slanje cilja za kretnju, za testiranje
-	// prvo metar
-//	tx_buffer[8] = type_dbg;
-//	memcpy(&tx_buffer[9], &x_dbg, sizeof(double));
-//	memcpy(&tx_buffer[17], &y_dbg, sizeof(double));
-//	memcpy(&tx_buffer[25], &phi_dbg, sizeof(double));
-//	tx_buffer[33] = 1;      // direction
-//	tx_buffer[34] = 150;    // v_max_100
-//	tx_buffer[35] = 150;     // w_max_10
-//	tx_buffer[36] = 0xff; 	// tol_perc_16
-//	tx_buffer[37] = 0xff; 	// start/stop coeffs = 1
-
-	if (rx_goal.type != 0)
-		tx_buffer[8] = rx_goal.status;
-	else
-		tx_buffer[8] = 0;
-	int32_t x = (int32_t) (get_x() * 10000.0);
-	int32_t y = (int32_t) (get_y() * 10000.0);
-	int32_t phi = (int32_t) (get_phi() * 10000.0);
-	int32_t v = (int32_t) (get_v() * 10000.0);
-	int32_t w = (int32_t) (get_w() * 10000.0);
-	memcpy(&tx_buffer[9], &x, sizeof(int32_t));
-	memcpy(&tx_buffer[13], &y, sizeof(int32_t));
-	memcpy(&tx_buffer[17], &phi, sizeof(int32_t));
-	memcpy(&tx_buffer[21], &v, sizeof(int32_t));
-	memcpy(&tx_buffer[25], &w, sizeof(int32_t));
-	memset(&tx_buffer[29], 0, 9);
-
-	// checksum over payload bytes (8→37)
-	uint16_t cksum = fletcher16(&tx_buffer[8], 30);
-	tx_buffer[38] = cksum & 0xFF;
-	tx_buffer[39] = cksum >> 8;
-
-	huart1.gState = HAL_UART_STATE_READY;
-	__HAL_UART_CLEAR_FLAG(&huart1, UART_FLAG_TC);
-	HAL_UART_Transmit_DMA(&huart1, (uint8_t*) tx_buffer, TXBUFFERSIZE);
-
-	if (rx_goal.status < 0)
-		reset_goal(&rx_goal);
-}
-
-static uint16_t fletcher16(uint8_t *data, size_t len) {
-	uint16_t sum1 = 0;
-	uint16_t sum2 = 0;
-
-	for (size_t i = 0; i < len; i++) {
-		sum1 = (sum1 + data[i]) % 255;
-		sum2 = (sum2 + sum1) % 255;
-	}
-
-	return (sum2 << 8) | sum1;
-}
-static uint8_t create_rxba() {
-	int start_index = -1;
-
-	for (int i = 0; i < RXBUFFERSIZE; i++) {
-		int found = 1;
-
-		for (int k = 0; k < 8; k++) {
-			if (rx_buffer[(i + k) % RXBUFFERSIZE] != 0xFF) {
-				found = 0;
-				break;
+void USART1_IRQHandler(void) {
+	uint32_t sr = USART1->SR;
+	if (sr & (USART_SR_RXNE | USART_SR_ORE | USART_SR_FE | USART_SR_NE)) {
+		uint8_t b = (uint8_t) USART1->DR;   /* čitanje DR briše i oznake grešaka */
+		if (sr & USART_SR_RXNE) {
+			uint16_t next = (rx_head + 1) & (RX_SIZE - 1);
+			if (next != rx_tail) {
+				rx_buf[rx_head] = b;
+				rx_head = next;
 			}
 		}
-
-		if (found) {
-			start_index = (i + 8) % RXBUFFERSIZE;
-			break;
+	}
+	if ((USART1->CR1 & USART_CR1_TXEIE) && (sr & USART_SR_TXE)) {
+		if (tx_tail != tx_head) {
+			USART1->DR = tx_buf[tx_tail];
+			tx_tail = (tx_tail + 1) & (TX_SIZE - 1);
+		} else {
+			USART1->CR1 &= ~USART_CR1_TXEIE;
 		}
 	}
-
-	if (start_index < 0)
-		return 0;
-
-	// Copy 32 bytes with wrap
-	for (int i = 0; i < 32; i++) {
-		rxba[i] = rx_buffer[(start_index + i) % RXBUFFERSIZE];
-	}
-
-	return 1;
 }
 
-void comm_init() {
-	rx_goal.status = 0;
-
-	if (HAL_UART_Receive_DMA(&huart1, (uint8_t*) rx_buffer,
-	RXBUFFERSIZE) != HAL_OK) {
-		Error_Handler();
+static void tx_write(const uint8_t *data, size_t n) {
+	uint16_t free_space = (tx_tail - tx_head - 1) & (TX_SIZE - 1);
+	if (n > free_space)
+		return;                              /* bafer pun: okvir se odbacuje ceo */
+	for (size_t i = 0; i < n; i++) {
+		tx_buf[tx_head] = data[i];
+		tx_head = (tx_head + 1) & (TX_SIZE - 1);
 	}
-//  if(HAL_UART_Transmit_DMA(&huart1, (uint8_t*)tx_buffer, TXBUFFERSIZE)!= HAL_OK)
-//  {
-//    Error_Handler();
-//  }
+	USART1->CR1 |= USART_CR1_TXEIE;
 }
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-//    HAL_UART_Receive_DMA(&huart1, (uint8_t *)rx_buffer, RXBUFFERSIZE);
-	process_rx_buffer();
-//	if (get_set_goal_reset())
-//		reset_goal(&rx_goal);
+static void send(uint8_t type, uint8_t seq, const void *payload, size_t len) {
+	uint8_t frame[LINK_MAX_FRAME];
+	size_t n = link_build_frame(type, seq, payload, len, frame);
+	if (n)
+		tx_write(frame, n);
+}
+
+/* ---------------- odgovori ---------------- */
+
+static void reply(uint8_t seq, uint8_t reason) {
+	last_reply_type = reason ? MSG_FAIL : MSG_ACK;
+	last_reply_reason = reason;
+	if (reason) {
+		msg_fail_t f = { reason };
+		send(MSG_FAIL, seq, &f, sizeof f);
+	} else {
+		send(MSG_ACK, seq, 0, 0);
+	}
+}
+
+void comm_motion_finished(uint8_t reason) {
+	if (!motion_seq)
+		return;
+	if (reason) {
+		msg_fail_t f = { reason };
+		send(MSG_FAIL, motion_seq, &f, sizeof f);
+	} else {
+		send(MSG_DONE, motion_seq, 0, 0);
+	}
+	motion_seq = 0;
+}
+
+void comm_actuator_finished(uint8_t seq, uint8_t reason) {
+	if (reason) {
+		msg_fail_t f = { reason };
+		send(MSG_FAIL, seq, &f, sizeof f);
+	} else {
+		send(MSG_DONE, seq, 0, 0);
+	}
+}
+
+void comm_log(const char *text) {
+	if (esp_seen)
+		send(MSG_LOG, 0, text, strnlen(text, LINK_MAX_PAYLOAD));
+}
+
+/* ---------------- podrazumevani hook-ovi (zameniti svojim u comm_port.c) ----------------
+ * comm_hook_stop namerno nema podrazumevanu verziju: ako ga projekat ne definiše,
+ * build javlja grešku umesto da robot tiho ne staje kad veza pukne. */
+
+__weak uint8_t comm_hook_goto(int16_t x_mm, int16_t y_mm, int16_t theta_cdeg, uint8_t flags, uint16_t max_speed) {
+	return REASON_INVALID;   /* projekat još nema svoju verziju */
+}
+__weak uint8_t comm_hook_rotate(int16_t theta_cdeg) {
+	return REASON_INVALID;
+}
+__weak uint8_t comm_hook_move(int16_t dist_mm, uint16_t max_speed) {
+	return REASON_INVALID;
+}
+__weak uint8_t comm_hook_actuator(uint8_t seq, uint8_t id, int16_t value) {
+	return REASON_INVALID;
+}
+
+/* ---------------- obrada komandi ---------------- */
+
+#define PAYLOAD_IS(T) (f->len == sizeof(T))
+
+static void start_motion(uint8_t seq, uint8_t reason) {
+	if (!reason) {
+		if (motion_seq)                       /* nova komanda prekida staru */
+			comm_motion_finished(REASON_PREEMPTED);
+		motion_seq = seq;
+	}
+	reply(seq, reason);
+}
+
+static void handle(const link_frame_t *f) {
+	last_rx_ms = comm_port_time_ms();         /* heartbeat: samo okviri koji su prošli CRC */
+	if (link_lost)
+		last_seq = 0;                         /* ESP se vratio (možda restartovan): seq kreće ispočetka */
+	esp_seen = 1;
+	link_lost = 0;
+
+	if (f->type == MSG_PING) {
+		msg_pong_t p = { PROTO_VERSION };
+		send(MSG_PONG, f->seq, &p, sizeof p);
+		return;
+	}
+	if (f->seq == 0)
+		return;
+	if (f->seq == last_seq) {                 /* ponovljena komanda: samo ponovi odgovor */
+		if (last_reply_type == MSG_FAIL) {
+			msg_fail_t r = { last_reply_reason };
+			send(MSG_FAIL, f->seq, &r, sizeof r);
+		} else {
+			send(MSG_ACK, f->seq, 0, 0);
+		}
+		return;
+	}
+	last_seq = f->seq;
+
+	switch (f->type) {
+	case MSG_SET_POSE:
+		if (!PAYLOAD_IS(msg_set_pose_t)) break;
+		{
+			msg_set_pose_t m;
+			memcpy(&m, f->payload, sizeof m);
+			reply(f->seq, comm_port_set_pose(m.x, m.y, m.theta));
+		}
+		return;
+	case MSG_GOTO:
+		if (!PAYLOAD_IS(msg_goto_t)) break;
+		{
+			msg_goto_t m;
+			memcpy(&m, f->payload, sizeof m);
+			start_motion(f->seq, comm_hook_goto(m.x, m.y, m.theta, m.flags, m.max_speed));
+		}
+		return;
+	case MSG_ROTATE:
+		if (!PAYLOAD_IS(msg_rotate_t)) break;
+		{
+			msg_rotate_t m;
+			memcpy(&m, f->payload, sizeof m);
+			start_motion(f->seq, comm_hook_rotate(m.theta));
+		}
+		return;
+	case MSG_MOVE:
+		if (!PAYLOAD_IS(msg_move_t)) break;
+		{
+			msg_move_t m;
+			memcpy(&m, f->payload, sizeof m);
+			start_motion(f->seq, comm_hook_move(m.dist, m.max_speed));
+		}
+		return;
+	case MSG_STOP:
+		comm_hook_stop();
+		comm_motion_finished(REASON_STOPPED);
+		reply(f->seq, 0);
+		return;
+	case MSG_ACTUATOR:
+		if (!PAYLOAD_IS(msg_actuator_t)) break;
+		{
+			msg_actuator_t m;
+			memcpy(&m, f->payload, sizeof m);
+			reply(f->seq, comm_hook_actuator(f->seq, m.id, m.value));
+		}
+		return;
+	case MSG_MATCH_START:
+		comm_port_match_start();
+		reply(f->seq, 0);
+		return;
+	case MSG_DEBUG_STREAMS:
+		if (!PAYLOAD_IS(msg_debug_streams_t)) break;
+		debug_mask = f->payload[0];
+		reply(f->seq, 0);
+		return;
+	default:
+		break;
+	}
+	reply(f->seq, REASON_INVALID);            /* nepoznata komanda ili pogrešna dužina */
+}
+
+/* ---------------- STATUS ---------------- */
+
+static void send_status(void) {
+	msg_status_t s = { 0 };
+	comm_port_fill_status(&s);
+	if (motion_seq)
+		s.state |= STATE_MOVING;
+	send(MSG_STATUS, 0, &s, sizeof s);
+}
+
+/* ---------------- javne funkcije ---------------- */
+
+void comm_init(void) {
+	/* USART1 je već podešen u CubeMX-u (MX_USART1_UART_Init); ovde se samo uključuju prekidi */
+	/* Prioritet 1. USART prekid traje par us; ako 1 kHz prekid robota traje duže od jednog
+	 * bajta (~87 us na 115200), projekat mora da ga spusti ispod 1, inače se gube bajtovi. */
+	HAL_NVIC_SetPriority(USART1_IRQn, 1, 0);
+	HAL_NVIC_EnableIRQ(USART1_IRQn);
+	USART1->CR1 |= USART_CR1_RXNEIE;
+}
+
+void comm_poll(void) {
+	link_frame_t f;
+	while (rx_tail != rx_head) {
+		uint8_t b = rx_buf[rx_tail];
+		rx_tail = (rx_tail + 1) & (RX_SIZE - 1);
+		if (link_parser_feed(&parser, b, &f))
+			handle(&f);
+	}
+	uint32_t now = comm_port_time_ms();
+	if (esp_seen && !link_lost && now - last_status_ms >= COMM_STATUS_PERIOD_MS) {
+		last_status_ms = now;
+		send_status();
+	}
+}
+
+void comm_tick_1ms(void) {
+	if (esp_seen && !link_lost && comm_port_time_ms() - last_rx_ms > COMM_HEARTBEAT_MS) {
+		link_lost = 1;
+		comm_hook_stop();
+	}
+}
+
+uint8_t comm_esp_connected(void) {
+	return esp_seen && !link_lost;
+}
+
+uint8_t comm_motion_allowed(void) {
+	return !link_lost;   /* bez ESP-a (samostalni režim) uvek 1 */
 }
