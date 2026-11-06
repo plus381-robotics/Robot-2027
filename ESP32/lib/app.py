@@ -171,8 +171,11 @@ class Pages(Screen):
         text_right(fb, "CRC %d" % r.parser.errors, ui.W, R2)
         fb.text("pon %d" % r.retries, 0, R3, 1)
         text_right(fb, "bez odg %d" % r.noreply, ui.W, R3)
-        ip = state.IP or "bez WiFi"
-        fb.text(fit(ip if state.MODE != "AP" else "AP " + ip, 16), 0, R4 + 2, 1)
+        if not state.MODE:
+            ip = "WiFi %s..." % (state.SSID or "")
+        else:
+            ip = state.IP if state.MODE == "STA" else "AP " + state.IP
+        fb.text(fit(ip, 16), 0, R4 + 2, 1)
 
 
 class App:
@@ -200,9 +203,7 @@ class App:
             self.fb.write_cmd(0xA0 | f)
 
     def indicators(self):
-        out = []
-        if state.MODE:
-            out.append((ui.ICON_WIFI if state.MODE == "STA" else ui.ICON_AP, False))
+        out = [(ui.ICON_AP, False) if state.MODE == "AP" else (ui.ICON_WIFI, not state.MODE)]  # trepće dok se povezuje
         out.append((ui.ICON_LINK, False) if self.robot.ok else (ui.ICON_NOLINK, True))
         return out
 
