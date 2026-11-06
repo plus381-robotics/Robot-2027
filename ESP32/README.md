@@ -64,3 +64,9 @@ zajednički GND, i da je na STM32 flešovan kod sa comm.c. Oba su na 115200 baud
 ## Prvo podešavanje
 Kopiraj `secrets_example.py` u `secrets.py` i `webrepl_cfg_example.py` u `webrepl_cfg.py`,
 pa upiši prave mreže i lozinke. Ta dva fajla se ne commit-uju.
+
+## Probna vožnja (POKREĆE MOTORE)
+    mpremote connect /dev/ttyUSB0 run tests/goto_test.py
+Postavi pozu na (0, 0, 0) i pošalje GOTO 300 mm napred na 200 mm/s; ispisuje STATUS dok ne stigne
+DONE/FAIL. Ctrl+C, 10 s bez završetka ili pad veze šalju STOP. Pre pokretanja: slobodno ispred robota,
+ruka na prekidaču za motore. Posle testa `mpremote connect /dev/ttyUSB0 reset` vraća ekran.
