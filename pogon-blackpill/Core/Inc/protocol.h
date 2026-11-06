@@ -2,7 +2,7 @@
 #pragma once
 #include <stdint.h>
 
-#define PROTO_VERSION 1
+#define PROTO_VERSION 2
 
 #define REASON_INVALID 1
 #define REASON_BLOCKED 2
@@ -32,6 +32,7 @@
 #define MSG_ACTUATOR 0x20  /* e2n */
 #define MSG_MATCH_START 0x30  /* e2n */
 #define MSG_DEBUG_STREAMS 0x31  /* e2n */
+#define MSG_ENTER_BOOTLOADER 0x40  /* e2n */
 #define MSG_PONG 0x81  /* n2e */
 #define MSG_ACK 0x90  /* n2e */
 #define MSG_DONE 0x91  /* n2e */

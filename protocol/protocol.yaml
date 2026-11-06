@@ -10,7 +10,7 @@
 # Jedinice: mm, cdeg (stotinke stepena, -18000..18000), mm/s, ms.
 # Tipovi polja: u8 i8 u16 i16 u32 i32 f32, i "bytes" (ostatak paketa, samo poslednje polje).
 
-version: 1
+version: 2
 
 enums:
   Reason:          # razlog u FAIL poruci
@@ -44,6 +44,7 @@ messages:
   ACTUATOR:      {type: 0x20, dir: e2n, fields: [[id, u8], [value, i16]]}
   MATCH_START:   {type: 0x30, dir: e2n, fields: []}
   DEBUG_STREAMS: {type: 0x31, dir: e2n, fields: [[mask, u8]]}
+  ENTER_BOOTLOADER: {type: 0x40, dir: e2n, fields: []}   # posle ACK STM32 skače u ugrađeni bootloader (AN3155)
 
   # ---------------- Nucleo -> ESP32 ---------------
   PONG:          {type: 0x81, dir: n2e, fields: [[version, u8]]}

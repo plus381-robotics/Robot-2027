@@ -57,6 +57,8 @@ uint8_t comm_hook_goto(int16_t x_mm, int16_t y_mm, int16_t theta_cdeg, uint8_t f
 uint8_t comm_hook_rotate(int16_t theta_cdeg);
 uint8_t comm_hook_move(int16_t dist_mm, uint16_t max_speed);
 uint8_t comm_hook_actuator(uint8_t seq, uint8_t id, int16_t value);
+/* ENTER_BOOTLOADER: 0 = prihvaćeno (projekat posle ACK skače u bootloader), REASON_* = odbijeno. */
+uint8_t comm_hook_bootloader(void);
 void comm_hook_stop(void);   /* obavezno; zove se i iz 1 kHz prekida (pad heartbeat-a) */
 
 #endif /* INC_COMM_H_ */

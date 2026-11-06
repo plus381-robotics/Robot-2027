@@ -136,6 +136,9 @@ __weak uint8_t comm_hook_move(int16_t dist_mm, uint16_t max_speed) {
 __weak uint8_t comm_hook_actuator(uint8_t seq, uint8_t id, int16_t value) {
 	return REASON_INVALID;
 }
+__weak uint8_t comm_hook_bootloader(void) {
+	return REASON_INVALID;
+}
 
 /* ---------------- obrada komandi ---------------- */
 
@@ -224,6 +227,9 @@ static void handle(const link_frame_t *f) {
 	case MSG_MATCH_START:
 		comm_port_match_start();
 		reply(f->seq, 0);
+		return;
+	case MSG_ENTER_BOOTLOADER:
+		reply(f->seq, comm_hook_bootloader());
 		return;
 	case MSG_DEBUG_STREAMS:
 		if (!PAYLOAD_IS(msg_debug_streams_t)) break;

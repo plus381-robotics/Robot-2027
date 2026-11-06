@@ -45,6 +45,11 @@ static struct {
 } req;
 static volatile uint8_t req_pending;
 
+static volatile uint8_t boot_request;
+static uint32_t boot_t0;
+#define BOOT_DELAY_MS   30       /* da ACK stigne da ode preko UART-a */
+#define SYSMEM          0x1FFF0000UL
+
 static volatile uint8_t match_running, match_over;
 static uint32_t match_start_ms;
 
@@ -137,6 +142,37 @@ uint8_t comm_hook_move(int16_t dist_mm, uint16_t max_speed) {
 	return 0;
 }
 
+uint8_t comm_hook_bootloader(void) {
+	boot_request = 1;
+	boot_t0 = HAL_GetTick();
+	comm_hook_stop();
+	return 0;
+}
+
+/* Skok u ugrađeni bootloader (USART1, AN3155). Motori se gase, periferije i takt
+ * vraćaju na podrazumevano, sistemska memorija se mapira na 0. Kad bootloader posle
+ * upisa izvrši Go, main() to prepozna (nema oznake razloga restarta) i uradi čist restart. */
+static void jump_to_bootloader(void) {
+	pwm_kill();
+	__disable_irq();
+	SysTick->CTRL = 0;
+	SysTick->LOAD = 0;
+	SysTick->VAL = 0;
+	HAL_RCC_DeInit();
+	HAL_DeInit();
+	for (int i = 0; i < 8; i++) {
+		NVIC->ICER[i] = 0xFFFFFFFF;
+		NVIC->ICPR[i] = 0xFFFFFFFF;
+	}
+	__HAL_RCC_SYSCFG_CLK_ENABLE();
+	SYSCFG->MEMRMP = SYSCFG_MEMRMP_MEM_MODE_0;   /* sistemska memorija na adresi 0 */
+	__set_MSP(*(volatile uint32_t*) SYSMEM);
+	__enable_irq();
+	((void (*)(void)) *(volatile uint32_t*) (SYSMEM + 4))();
+	while (1) {
+	}
+}
+
 void comm_hook_stop(void) {
 	req_pending = 0;
 	stop_reason = REASON_STOPPED;
@@ -202,6 +238,8 @@ void comm_port_update(void) {
 		stop_request = 0;
 		finish(stop_reason);
 	}
+	if (boot_request && now - boot_t0 >= BOOT_DELAY_MS)
+		jump_to_bootloader();
 	if (req_pending) {
 		req_pending = 0;
 		start();
