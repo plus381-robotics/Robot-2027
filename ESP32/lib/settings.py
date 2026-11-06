@@ -8,6 +8,7 @@ DEFAULTS = {
     "enc_rev": False,     # obrnut smer enkodera
     "sleep_s": 0,         # gašenje ekrana posle N s bez dodira (0 = nikad)
     "start_pose": True,   # posle povezivanja pošalji SET_POSE iz config.START_POSE
+    "demo": False,        # lažna taktika na ekranu (samo prikaz, ništa se ne šalje robotu)
 }
 
 

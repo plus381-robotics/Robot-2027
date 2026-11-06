@@ -19,9 +19,9 @@ except ImportError:                     # CPython (simulator na laptopu)
         return a - b
 
 W, H = 128, 64
-HEAD = 11       # visina naslovne trake
-ROW = 12        # visina reda u listi
-ROWS = 4        # redova na ekranu: (64 - HEAD - 1) // ROW
+HEAD = 16       # naslovna traka (na dvobojnom OLED-u je to tačno žuta zona)
+ROW = 12        # visina reda
+ROWS = 4        # redova ispod trake: (64 - HEAD) // ROW
 LIVE_MS = 150   # koliko često se osvežavaju ekrani sa živim podacima
 
 # Ikonice: redovi od 8 piksela, levi piksel je najviši bit.
@@ -292,7 +292,7 @@ class Menu(Screen):
             if i >= len(self.items):
                 break
             it = self.items[i]
-            y = HEAD + 1 + r * ROW
+            y = HEAD + r * ROW
             c = 1
             if i == self.sel:
                 box(fb, 0, y, 124, ROW, 1)
@@ -303,7 +303,7 @@ class Menu(Screen):
             it.draw_right(fb, 121, y + 2, c, editing)
         n = len(self.items)                  # klizač desno
         if n > ROWS:
-            top, h = HEAD + 1, H - HEAD - 1
+            top, h = HEAD, H - HEAD
             for yy in range(top, top + h, 2):
                 fb.pixel(126, yy, 1)
             th = max(4, h * ROWS // n)
@@ -333,7 +333,7 @@ class Confirm(Screen):
         ui.header(fb, self.title + "?")
         for i, l in enumerate(self.lines[:3]):
             l = l() if callable(l) else l
-            fb.text(fit(l, 16), 0, HEAD + 3 + i * 10, 1)
+            fb.text(fit(l, 16), 0, HEAD + 1 + i * 9, 1)
         frame(fb, 2, 45, 124, 8, 1)
         p = min(self.ms, self.HOLD_MS) * 120 // self.HOLD_MS
         if p:
@@ -451,17 +451,27 @@ class UI:
                 text_center(fb, s, H - 9, 1)
         fb.show()
 
-    def header(self, fb, title, right=None):
-        """Naslovna traka: naslov levo, desno ikonice stanja i (ako ima mesta) tekst."""
-        fb.fill_rect(0, 0, W, HEAD - 1, 1)
-        x = W - 1
+    def header(self, fb, title, right=None, page=None, alert=False):
+        """Naslovna traka: podebljan naslov levo, desno tekst i ikonice stanja,
+        ispod linija; page=(i, n) podebljava i-ti deo linije (na kojoj smo stranici).
+        alert=True: tekst desno je inverzan (npr. vreme pred kraj meča)."""
+        x = W
         blink = (ticks_ms() // 400) % 2
         for ic, blinks in self.indicators():
             x -= 9
             if not (blinks and blink):
-                icon(fb, ic, x, 1 if len(ic) > 6 else 2, 0)
-        room = (x - 2 - 2) // 8                     # znakova između levog ruba i ikonica
+                icon(fb, ic, x, 4 if len(ic) > 6 else 5, 1)
+        room = (x - 3) // 8                         # znakova levo od ikonica
         if right and len(title) + 1 + len(right) <= room:
-            text_right(fb, right, x - 2, 1, 0)
+            if alert:
+                box(fb, x - 4 - 8 * len(right), 2, 8 * len(right) + 3, 11, 1)
+            text_right(fb, right, x - 3, 4, 0 if alert else 1)
             room -= len(right) + 1
-        fb.text(fit(title, room), 2, 1, 0)
+        t = fit(title, room)
+        fb.text(t, 0, 4, 1)
+        fb.text(t, 1, 4, 1)                         # podebljano
+        fb.hline(0, HEAD - 2, W, 1)
+        if page:
+            i, n = page
+            seg = W // n
+            fb.fill_rect(i * seg + 1, HEAD - 3, seg - 2, 3, 1)

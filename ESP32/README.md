@@ -27,24 +27,33 @@ i svakih 50 ms šalje STATUS. Komanda se ponavlja do 3 puta ako ACK ne stigne za
 | Šta | ESP pin | Napomena |
 |---|---|---|
 | enkoder A / B | 32 / 33 | ako se okreće naopako: Podešavanja → obrni smer |
-| taster enkodera | 14 | klik = OK, dugi klik = nazad |
-| taster NAZAD | 25 | dugi = početni ekran |
+| taster enkodera | 14 | dugi klik = podešavanja / nazad |
+| taster NAZAD | 25 | podešavanja / nazad, dugi = početni ekran |
 | taster OK | 26 | |
 | taster STOP | 27 | šalje STOP odmah, i kad je ekran ugašen |
 
 Pinovi su u `config.py`. Ako enkoder pravi 2 koraka po kliku (ili 1 na 2 klika), promeni `ENC_STEPS`.
 
-### Ekrani
-- **Početni**: x, y (mm), ugao (°), brzina (mm/s), kompas sa smerom robota i stanje
-  (`spreman`, `VOZI`, `BLOK`, `MEC`...). Desno gore: WiFi i veza sa STM32 (trepće `x` kad nema veze).
-  Kad meč traje, gore piše koliko je sekundi ostalo. Klik ili okret otvara meni.
-- **Meni**: Kretanje (STOP, GOTO, ROTATE, MOVE), Pozicija (SET_POSE), Meč, Debug,
-  Veza STM32 (okviri, greške, ponavljanja, poslednji LOG), WiFi, Podešavanja, O uređaju.
-- Broj se menja klikom pa okretanjem (brže okretanje = veći korak); OK potvrđuje, NAZAD vraća staru vrednost.
-- **Komande kretanja traže držanje OK ~1 s** (traka se puni); puštanje ili NAZAD otkazuje.
-- Odgovori STM32 se vide u traci na dnu: `GOTO OK`, `GOTO gotovo`, `OKRET: prepreka`, `POZA: nema odg.`
-- Podešavanja (kontrast, okretanje ekrana, smer enkodera, gašenje ekrana, automatski SET_POSE
-  posle povezivanja) se pamte u `settings.json` na ESP-u.
+### Ekran (telemetrija na robotu)
+Okret enkodera menja stranicu; crta ispod naslova pokazuje na kojoj si.
+- **TAKTIKA**: trenutni korak (`3/12 GOTO kocka B`), traka trajanja u odnosu na timeout
+  (trepće kad ga pređe), sledeći korak, ishod i trajanje prethodnog. Kad taktika krene,
+  ekran sam prelazi ovde. Bez taktike: poslednji korak, pozicija i stanje robota.
+- **KORACI**: poslednja 4 koraka sa ishodom i trajanjem.
+- **ROBOT**: x, y (mm), ugao (°), v (mm/s), stanje (`VOZI`, `BLOK`, `MEC`...) i starost STATUS-a.
+- **VEZA**: STM32 i verzija, okvira/s, CRC greške, ponavljanja, komande bez odgovora, IP.
+- Gore desno: preostalo vreme meča (inverzno poslednjih 10 s), WiFi i veza sa STM32 (trepće `x` kad nema).
+- Dugi klik enkodera ili NAZAD: podešavanja ekrana (kontrast, okretanje 180°, smer enkodera,
+  gašenje, auto SET_POSE, **demo taktika** = lažni koraci samo za prikaz, ništa se ne šalje robotu).
+- Greške sa STM32 (FAIL, komanda bez odgovora) iskaču u traci na dnu.
+
+Taktike javljaju korake preko `lib/tactic.py`:
+
+    from tactic import tracker
+    tracker.start("Plava", total=12)
+    tracker.step("GOTO kocka B", timeout=3.0, next="ROTATE 90")
+    tracker.fail("BLOCKED")    # ili tracker.ok(); sledeći step() zatvara prethodni kao OK
+    tracker.finish()
 
 Posle povezivanja ESP jednom pošalje SET_POSE iz `config.START_POSE` (250, 1000, 0°);
 isključuje se u Podešavanjima → auto poza.
