@@ -70,3 +70,15 @@ pa upiši prave mreže i lozinke. Ta dva fajla se ne commit-uju.
 Postavi pozu na (0, 0, 0) i pošalje GOTO 300 mm napred na 200 mm/s; ispisuje STATUS dok ne stigne
 DONE/FAIL. Ctrl+C, 10 s bez završetka ili pad veze šalju STOP. Pre pokretanja: slobodno ispred robota,
 ruka na prekidaču za motore. Posle testa `mpremote connect /dev/ttyUSB0 reset` vraća ekran.
+
+## Bez kabla (WiFi)
+Na ESP-u radi upload server (port 8267, lozinka iz `webrepl_cfg.py`):
+
+    python tools/esp_push.py                       # ceo ESP kod + restart
+    python tools/esp_push.py ESP32/lib/app.py      # samo neki fajlovi
+    python tools/flash_stm32.py pogon-blackpill/Debug/PogonskiSTM-2026-BlackPill.elf --host eurokik.local
+
+`flash_stm32.py` prima .elf ili .bin; ESP pošalje ENTER_BOOTLOADER, flešuje preko ugrađenog
+bootloader-a (AN3155, 8E1), proveri upis čitanjem i pokrene novi firmver. Radi samo ako je na
+STM32 već firmver koji zna ENTER_BOOTLOADER (protokol v2); prvi put ide preko ST-LINK-a.
+Ako se STM32 ne javlja, rezerva su žice NRST/BOOT0 (`config.STM_NRST`, `config.STM_BOOT0`).

@@ -71,6 +71,11 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+	// Bez oznake razloga restarta = pokrenut je iz bootloader-a (komanda Go posle upisa preko ESP-a):
+	// takt i periferije su ostali od bootloader-a, zato čist restart pre bilo čega.
+	if ((RCC->CSR & 0xFE000000) == 0)
+		NVIC_SystemReset();
+	RCC->CSR |= RCC_CSR_RMVF;
 
   /* USER CODE END 1 */
 

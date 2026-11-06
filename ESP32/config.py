@@ -16,6 +16,10 @@ BTN_BACK, BTN_OK, BTN_STOP = 25, 26, 27
 ENC_A, ENC_B, ENC_SW = 32, 33, 14
 ENC_STEPS = 4
 
+# STM32 NRST (open-drain) i BOOT0 za flešovanje kad softverski ulazak u bootloader ne radi.
+# None = nije povezano (vidi dijagram povezivanja: 18 = NRST, 19 = BOOT0).
+STM_NRST, STM_BOOT0 = None, None
+
 # SET_POSE posle povezivanja sa STM32 (mm, mm, stepeni); isključuje se u Podešavanjima
 START_POSE = (250, 1000, 0)
 
