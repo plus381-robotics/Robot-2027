@@ -1,7 +1,8 @@
 # Veza sa STM32 (Nucleo ili BlackPill) preko UART-a. Ne blokira: poll() u svakom krugu petlje.
 #  - PING na 150 ms (heartbeat; STM32 staje posle 500 ms tišine)
 #  - komanda se ponavlja do 3 puta ako ACK ne stigne za 60 ms (isti seq, STM32 je ne izvrši dvaput)
-#  - odgovori (ACK/DONE/FAIL) se pretvaraju u događaje za meni: (naziv, "ok"|"done"|"fail"|"timeout", razlog)
+#  - odgovori (ACK/DONE/FAIL) se pretvaraju u događaje:
+#    (seq, naziv, "ok"|"done"|"fail"|"timeout", razlog)
 try:
     from time import ticks_ms, ticks_diff
 except ImportError:
@@ -24,7 +25,11 @@ class Robot:
         self.parser = FrameParser()
         self.version = None
         self.status = None             # poslednji STATUS (dict) ili None
+        self.status_t = None           # kad je stigao
         self.last_rx = None
+        self.fps = 0                   # ispravnih okvira u poslednjoj sekundi
+        self._fps_n = 0
+        self._fps_t = 0
         self.frames = 0                # ispravno primljeni okviri
         self.retries = 0               # ponovljena slanja
         self.noreply = 0               # komande bez odgovora posle 3 pokušaja
@@ -75,23 +80,30 @@ class Robot:
                 if w[2] >= TRIES:
                     del self._wait[seq]
                     self.noreply += 1
-                    self._events.append((w[3], "timeout", None))
+                    self._events.append((seq, w[3], "timeout", None))
                 else:
                     self.uart.write(w[0])
                     w[1] = now
                     w[2] += 1
                     self.retries += 1
+        if ticks_diff(now, self._fps_t) >= 1000:
+            self.fps, self._fps_n, self._fps_t = self._fps_n, 0, now
         ev, self._events = self._events, []
         return ev
 
+    def status_age(self):
+        """Koliko ms je star poslednji STATUS (None = nije ni stigao)."""
+        return None if self.status_t is None else ticks_diff(ticks_ms(), self.status_t)
+
     def _frame(self, now, t, seq, payload):
         self.frames += 1
+        self._fps_n += 1
         self.last_rx = now
         name, d = P.decode(t, payload)
         if name == "PONG":
             self.version = d["version"]
         elif name == "STATUS":
-            self.status = d
+            self.status, self.status_t = d, now
         elif name == "LOG":
             try:
                 txt = d["text"].decode()
@@ -105,7 +117,7 @@ class Robot:
                 if w[3] in MOTION:          # stara kretanja: STM32 javlja FAIL PREEMPTED za njih
                     self._motion[seq] = w[3]
                     self.busy = w[3]
-                self._events.append((w[3], "ok", None))
+                self._events.append((seq, w[3], "ok", None))
         elif name in ("DONE", "FAIL"):
             w = self._wait.pop(seq, None)
             label = self._motion.pop(seq, None) or (w[3] if w else None)
@@ -113,4 +125,4 @@ class Robot:
                 self.busy = None
             if label:
                 reason = REASONS.get(d.get("reason"), d.get("reason")) if name == "FAIL" else None
-                self._events.append((label, name.lower(), reason))
+                self._events.append((seq, label, name.lower(), reason))
