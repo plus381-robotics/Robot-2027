@@ -76,6 +76,7 @@ int main(void)
 	if ((RCC->CSR & 0xFE000000) == 0)
 		NVIC_SystemReset();
 	RCC->CSR |= RCC_CSR_RMVF;
+	comm_port_boot_check();   // ESP je tražio bootloader (ENTER_BOOTLOADER): skok iz čistog stanja
 
   /* USER CODE END 1 */
 

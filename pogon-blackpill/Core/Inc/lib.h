@@ -152,6 +152,7 @@ double calculate_control(double ref, double y);
 // comm_port.c (most između ESP protokola i regulacije; protokol je u comm.h)
 goal_type* comm_port_goal();
 void comm_port_update();
+void comm_port_boot_check();
 
 // control.h
 void control_loop();
