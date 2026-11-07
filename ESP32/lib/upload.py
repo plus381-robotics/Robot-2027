@@ -7,11 +7,19 @@
 #   RUN <ime>                pokreni /tactics/<ime>.py (odgovara odmah)
 #   STOP                     prekini taktiku i pošalji STOP robotu
 #   LOG <od>                 redovi dnevnika taktike od rednog broja <od>; poslednji red "OK <n> <radi>"
+#   STAT                     merenja petlje (najduže faze u poslednjoj sekundi), PING, veza
+# Dok taktika radi, prihvataju se samo LOG, STOP i STAT (upis fajlova i restart usred vožnje ne).
+# U rescue režimu (app = None, main.py je pao) rade samo PUT, RESET i LOG (ispiše grešku).
 # Odgovor: redovi napretka, na kraju "OK ..." ili "ERR ...". Lozinka je ista kao za WebREPL.
 import socket
 import os
+from compat import ticks_ms, ticks_diff
 
 PORT = 8267
+BUSY_OK = ("LOG", "STOP", "STAT")       # dozvoljeno dok taktika radi
+RESCUE_OK = ("PUT", "RESET", "LOG")
+CMD_TIMEOUT = 0.5                       # s, za red sa lozinkom i komandom
+DATA_TIMEOUT = 3                        # s, za podatke fajla
 
 
 def _password():
@@ -23,27 +31,45 @@ def _password():
 
 
 class Upload:
-    def __init__(self, app, uart_args, cfg):
+    def __init__(self, app, uart_args, cfg, error=None):
         self.app, self.uart_args, self.cfg = app, uart_args, cfg
+        self.error = error              # rescue režim: redovi greške za LOG
         self.s = None
+        self._t_try = None
+
+    def _open(self):
+        import state
+        if not state.MODE:              # čeka WiFi
+            return
+        if self._t_try is not None and ticks_diff(ticks_ms(), self._t_try) < 1000:
+            return
+        self._t_try = ticks_ms()
+        try:
+            s = socket.socket()
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("0.0.0.0", PORT))
+            s.listen(1)
+            s.setblocking(False)
+            self.s = s
+            print("upload: port", PORT)
+        except OSError as e:            # npr. port još drži stari socket (rescue): probaj ponovo
+            print("upload:", e)
+
+    def busy(self):
+        a = self.app
+        return a is not None and (a.running or a.request)
 
     def poll(self):
         if self.s is None:
-            import state
-            if not state.MODE:              # čeka WiFi
+            self._open()
+            if self.s is None:
                 return
-            self.s = socket.socket()
-            self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.s.bind(("0.0.0.0", PORT))
-            self.s.listen(1)
-            self.s.setblocking(False)
-            print("upload: port", PORT)
         try:
             c, addr = self.s.accept()
         except OSError:
             return
         c.setblocking(True)
-        c.settimeout(10)
+        c.settimeout(CMD_TIMEOUT)
         try:
             self._serve(c)
         except Exception as e:
@@ -73,6 +99,7 @@ class Upload:
             except OSError:
                 pass
         tmp = path + ".tmp"
+        c.settimeout(DATA_TIMEOUT)
         buf = bytearray(1024)
         left = n
         with open(tmp, "wb") as f:
@@ -94,7 +121,22 @@ class Upload:
             c.write(b"ERR pogresna lozinka\n")
             return
         args = self._line(c).split()
-        ui = self.app.ui
+        if not args:
+            c.write(b"ERR prazna komanda\n")
+            return
+        if self.app is None:
+            if args[0] not in RESCUE_OK:
+                c.write(b"ERR rescue: samo PUT, RESET, LOG\n")
+                return
+            if args[0] == "LOG":
+                for l in self.error or []:
+                    c.write((l + "\n").encode())
+                c.write(b"OK 0 0\n")
+                return
+        elif self.busy() and args[0] not in BUSY_OK:
+            c.write(b"ERR taktika radi (dozvoljeno: LOG, STOP, STAT)\n")
+            return
+        ui = self.app.ui if self.app else None
         if args[0] == "PUT":
             path, n = args[1], int(args[2])
             self._recv_file(c, path, n)
@@ -110,6 +152,13 @@ class Upload:
         elif args[0] == "STOP":
             self.app.stop()
             c.write(b"OK\n")
+        elif args[0] == "STAT":
+            a, r = self.app, self.app.robot
+            for k, v in sorted(a.loop.max.items()):
+                c.write(("%s %d ms\n" % (k, v)).encode())
+            c.write(("krug %d ms, PING max %d ms, okvira/s %d, CRC %d, ponovljeno %d, bez odg %d\n" % (
+                a.loop.step_max, r.ping_gap, r.fps, r.parser.errors, r.retries, r.noreply)).encode())
+            c.write(b"OK\n")
         elif args[0] == "LOG":
             a = self.app
             first = a.log_n - len(a.log)          # redni broj najstarijeg sačuvanog reda
@@ -118,9 +167,6 @@ class Upload:
                     c.write((line + "\n").encode())
             c.write(("OK %d %d\n" % (a.log_n, 1 if (a.running or a.request) else 0)).encode())
         elif args[0] == "FLASH":
-            if self.app.running:
-                c.write(b"ERR taktika radi\n")
-                return
             n = int(args[1])
             ui.toast("STM32: prijem", 60000)
             ui.draw()

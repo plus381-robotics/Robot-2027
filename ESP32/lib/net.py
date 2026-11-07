@@ -2,7 +2,7 @@
 # (WIFI_TIMEOUT_S po mreži), a ako nijedna ne uspe, pravi svoju (AP). Zatim WebREPL.
 # Dok traje povezivanje, state.MODE je None (ikonica WiFi trepće), a state.SSID je mreža koja se proba.
 import network
-from time import ticks_ms, ticks_diff
+from compat import ticks_ms, ticks_diff
 
 import config as cfg
 import secrets

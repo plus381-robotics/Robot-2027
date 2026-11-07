@@ -8,7 +8,7 @@
 #   držanje OK (enkoder ili taster) -> hold_ms (za "drži za potvrdu")
 # Svi tasteri su na GND sa internim pull-up otpornikom.
 from machine import Pin, disable_irq, enable_irq
-from time import ticks_ms, ticks_diff
+from compat import ticks_ms, ticks_diff
 
 DEBOUNCE_MS = 20
 LONG_MS = 600
@@ -26,8 +26,17 @@ class Encoder:
         self._s = (self.a.value() << 1) | self.b.value()
         self._acc = 0
         self._clicks = 0
-        self.a.irq(self._irq, Pin.IRQ_RISING | Pin.IRQ_FALLING)
-        self.b.irq(self._irq, Pin.IRQ_RISING | Pin.IRQ_FALLING)
+        # hard IRQ: obrađuje se odmah, i dok se ekran crta (fb.show() ~23 ms). Soft IRQ bi čekao u
+        # redu i izgubio prelaze. _irq ne sme da alocira memoriju (samo mali int-ovi).
+        trig = Pin.IRQ_RISING | Pin.IRQ_FALLING
+        try:
+            self.a.irq(self._irq, trig, hard=True)
+            self.b.irq(self._irq, trig, hard=True)
+            self.hard = True
+        except (TypeError, ValueError):
+            self.a.irq(self._irq, trig)
+            self.b.irq(self._irq, trig)
+            self.hard = False
 
     def _irq(self, _):
         s = (self.a.value() << 1) | self.b.value()

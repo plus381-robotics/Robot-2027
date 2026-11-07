@@ -1,12 +1,12 @@
 # Veza sa STM32 (Nucleo ili BlackPill) preko UART-a. Ne blokira: poll() u svakom krugu petlje.
 #  - PING na 150 ms (heartbeat; STM32 staje posle 500 ms tišine)
 #  - komanda se ponavlja do 3 puta ako ACK ne stigne za 60 ms (isti seq, STM32 je ne izvrši dvaput)
+#  - ponavlja se SAMO poslednja poslata komanda: STM32 (comm.c) duplikat prepoznaje samo po
+#    poslednjem seq, pa bi starija komanda ponovljena posle novije (npr. GOTO posle STOP-a)
+#    bila izvršena ponovo. Starija dobije događaj ("timeout", "SUPERSEDED").
 #  - odgovori (ACK/DONE/FAIL) se pretvaraju u događaje:
 #    (seq, naziv, "ok"|"done"|"fail"|"timeout", razlog)
-try:
-    from time import ticks_ms, ticks_diff
-except ImportError:
-    from ui import ticks_ms, ticks_diff
+from compat import ticks_ms, ticks_diff
 import protocol as P
 from link import build_frame, FrameParser
 
@@ -17,6 +17,8 @@ TRIES = 3
 MOTION = ("GOTO", "ROTATE", "MOVE")      # posle ACK čekaju još DONE/FAIL
 
 REASONS = {getattr(P.Reason, k): k for k in dir(P.Reason) if not k.startswith("_")}
+COMPAT = (1, 2)                          # verzije protokola sa kojima ESP sme da radi
+FEATURES = {"bootloader": 2}             # mogućnost -> najmanja verzija
 
 
 class Robot:
@@ -37,6 +39,8 @@ class Robot:
         self.busy = None               # kretanje koje traje (naziv) ili None
         self._seq = 0
         self._last_ping = 0
+        self.ping_gap = 0                  # najduža pauza između dva PING-a u poslednjoj sekundi (ms)
+        self._gap_cur = 0
         self._wait = {}                # seq -> [okvir, vreme slanja, pokušaja, naziv]
         self._motion = {}              # seq -> naziv, čeka DONE/FAIL
         self._events = []
@@ -49,12 +53,19 @@ class Robot:
 
     @property
     def ok(self):
-        return self.alive and self.version == P.VERSION
+        return self.alive and self.version in COMPAT
+
+    def can(self, feature):
+        """Da li STM32 (po verziji protokola) podržava mogućnost, npr. "bootloader"."""
+        return (self.version or 0) >= FEATURES.get(feature, 1)
 
     # ---------------- slanje ----------------
 
     def send(self, name, **fields):
         """Pošalji komandu. Vraća seq. Odgovor stiže kao događaj iz poll()."""
+        for s in list(self._wait):         # starije se više ne ponavljaju (vidi gore)
+            w = self._wait.pop(s)
+            self._events.append((s, w[3], "timeout", "SUPERSEDED"))
         self._seq = self._seq % 255 + 1
         t, payload = P.encode(name, **fields)
         frame = build_frame(t, self._seq, payload)
@@ -67,9 +78,12 @@ class Robot:
     def poll(self):
         """Pošalji PING kad treba, obradi pristigle okvire. Vraća listu događaja."""
         now = ticks_ms()
-        if ticks_diff(now, self._last_ping) >= PING_MS:
+        gap = ticks_diff(now, self._last_ping)
+        if gap >= PING_MS:
             self.uart.write(build_frame(P.PING, 0))
             self._last_ping = now
+            if gap < 60000 and gap > self._gap_cur:
+                self._gap_cur = gap
         data = self.uart.read()
         if data:
             for t, seq, payload in self.parser.feed(data):
@@ -80,7 +94,7 @@ class Robot:
                 if w[2] >= TRIES:
                     del self._wait[seq]
                     self.noreply += 1
-                    self._events.append((seq, w[3], "timeout", None))
+                    self._events.append((seq, w[3], "timeout", "NOREPLY"))
                 else:
                     self.uart.write(w[0])
                     w[1] = now
@@ -88,6 +102,7 @@ class Robot:
                     self.retries += 1
         if ticks_diff(now, self._fps_t) >= 1000:
             self.fps, self._fps_n, self._fps_t = self._fps_n, 0, now
+            self.ping_gap, self._gap_cur = self._gap_cur, 0
         ev, self._events = self._events, []
         return ev
 
