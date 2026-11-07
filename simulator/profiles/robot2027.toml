@@ -1,0 +1,77 @@
+# Profil robota za simulator. Sve dužine u mm, brzine u m/s, uglovi u stepenima, vreme u s.
+# Oznaka (P) = pretpostavka, treba proveriti na robotu ili iz CAD-a.
+
+name = "Robot 2027"
+
+[body]
+width = 300            # popreko, duž osovine pogonskih točkova (baza 300 x 165)
+length = 165           # napred-nazad
+height = 350           # (P) najveća dozvoljena visina
+axle_offset = 0        # (P) osovina točkova u odnosu na sredinu dužine (+ = napred)
+
+[drive]
+# Točkovi: unutrašnje ivice 126 mm, spoljne 206 mm, širina 40 mm -> sredine točkova 166 mm.
+# Razmak se menja (126..206 po ivicama), pa se menja samo ovaj broj.
+wheel_track = 166
+wheel_diameter = 65    # (P) "65 po obimu": uzeto kao prečnik
+wheel_width = 40
+wheel_v_max = 1.2      # sistem je projektovan za ~1.2 m/s (MOTOR_V_MAX u regulaciji)
+wheel_a_max = 4.0      # (P) najveće ubrzanje točka [m/s^2] (motor i trenje)
+motor_tau = 0.03       # (P) kašnjenje brzine točka za referencom [s] (PID + motor)
+
+[odometry]
+encoder_track = 286    # razmak odometrijskih (pasivnih) točkova
+# Greške odometrije (1.0 = tačno). Npr. left_scale = 1.002 -> levi enkoder broji 0.2 % više.
+left_scale = 1.0
+right_scale = 1.0
+track_scale = 1.0
+
+[control]
+# Regulacija: Python prepis BlackPill control.c / signal.c / comm_port.c (vidi eurosim/control.py).
+# Vrednosti su iz BlackPill koda; menjaju se ovde kad nova regulacija promeni parametre.
+V_MIN = 0.15
+V_MAX = 1.2            # BlackPill: 1.5, ali sistem ide do 1.2
+W_MIN = 0.628
+W_MAX = 12.57
+J_MAX = 36.0
+J_MAX_STOP = 16.0
+J_ROT_MAX = 2400.0
+J_ROT_MAX_STOP = 300.0
+STACKED_TIME = 0.06
+V_MIN_STACKED = 0.01
+P_W = 18.0
+D_TOL = 0.02
+D_PROJ_TOL = 0.005
+D_LONG_TOL = 0.12
+D_SHORT_TOL = 0.03
+PHI_TOL = 0.0157
+V_SLOWED_MAX = 0.75
+# comm_port.c
+V_DEFAULT = 1.0        # kad je max_speed = 0
+W_GOTO = 6.0
+W_ROTATE = 3.14
+ROT_TIMEOUT_MS = 5000
+D_ARRIVED = 0.02
+
+[link]
+protocol_version = 2   # BlackPill: 2, Nucleo: 1
+heartbeat_ms = 500
+status_period_ms = 50
+
+[esp]
+loop_extra_ms = 5      # (P) vreme obrade jednog kruga ESP petlje povrh pauze od 5 ms (meri se: VEZA, STAT)
+
+[actuators]
+# Aktuatori (AX servo, pumpe) ne javljaju grešku: posle ACK stiže DONE posle zadatog vremena.
+default_ms = 300       # (P)
+# po imenu iz ESP32/config.py ACTUATORS, npr.:
+# [actuators.ms]
+# lift = 600
+
+[ir]
+# IR senzori: po 4 napred i nazad (u uglovima: 2 dole, 2 gore, malo ispod vrha robota).
+# Vide protivnika; ivice stola ne (P). Domet se podešava na robotu.
+range = 250            # (P) [mm] od ivice robota
+low_z = 40             # (P) visina donjih senzora
+high_z = 320           # (P) visina gornjih senzora
+see_walls = false

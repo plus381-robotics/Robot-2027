@@ -1,0 +1,29 @@
+# Simulator taktika: testovi na Linux-u i Windows-u (isti ESP kod, simulirani STM32).
+name: Simulator
+
+on:
+  push:
+    paths: ["simulator/**", "ESP32/lib/**", "ESP32/sim/**", "ESP32/tactics/**", "ESP32/config.py",
+            ".github/workflows/simulator.yml"]
+  pull_request:
+    paths: ["simulator/**", "ESP32/lib/**", "ESP32/sim/**", "ESP32/tactics/**", "ESP32/config.py",
+            ".github/workflows/simulator.yml"]
+
+jobs:
+  simulator:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest
+      - name: testovi simulatora
+        run: python -m pytest -q simulator/tests
+      - name: sve taktike iz ESP32/tactics se izvršavaju u simulatoru
+        run: |
+          python simulator/sim.py run primer --side plava
+          python simulator/sim.py run primer --side zuta --test
