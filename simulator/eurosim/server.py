@@ -8,6 +8,8 @@
 import asyncio
 import json
 import multiprocessing as mp
+import os
+import uuid
 import pathlib
 import re
 import time
@@ -15,7 +17,7 @@ import webbrowser
 
 from aiohttp import web
 
-from . import field, paths, profile as profmod
+from . import field, paths, profile as profmod, tactics as tacmod
 from .record import Recording
 
 WEB = paths.SIM / "web"
@@ -27,14 +29,33 @@ STATE = web.AppKey("state", dict)          # {"profile": Profile, "last": posled
 
 # ---------------- simulacija u posebnom procesu ----------------
 
+def _staged(kw):
+    """kw["source"] (tekst iz editora, ne mora biti sačuvan): sve taktike + ova u privremeni folder."""
+    src = kw.pop("source", None)
+    if src is None:
+        return None
+    import shutil
+    import tempfile
+    d = tempfile.TemporaryDirectory(prefix="eurosim-tac-")
+    for f in paths.TACTICS.glob("*.py"):
+        shutil.copy(f, d.name)
+    with open(os.path.join(d.name, kw["name"] + ".py"), "w", encoding="utf-8") as fh:
+        fh.write(src)
+    kw["tactics_dir"] = d.name
+    return d
+
+
 def _worker(conn, kw):
     try:
         import contextlib
         import io
         from .sim import Sim
         err = io.StringIO()
+        tmp = _staged(kw)
         with contextlib.redirect_stderr(err):
             rec = Sim(**kw).run()
+        if tmp:
+            tmp.cleanup()
         conn.send(("ok", rec.to_dict()))
     except BaseException as e:            # noqa: BLE001  (sve greške idu nazad u UI)
         import traceback
@@ -78,8 +99,11 @@ def _live_worker(conn, kw):
         def emit(d):
             conn.send(("data", d))
 
+        tmp = _staged(kw)
         with contextlib.redirect_stderr(io.StringIO()):
             rec = Sim(mode="live", control=control, emit=emit, **kw).run()
+        if tmp:
+            tmp.cleanup()
         conn.send(("end", rec.to_dict()))
     except BaseException as e:            # noqa: BLE001
         import traceback
@@ -128,19 +152,31 @@ async def info(request):
 async def run(request):
     q = await request.json()
     name = q.get("tactic")
-    if name not in {f.stem for f in paths.TACTICS.glob("*.py")}:
+    source = q.get("source")
+    if source is not None:
+        if not tacmod.NAME_RE.match(name or ""):
+            return web.json_response({"error": "neispravno ime taktike %r" % name}, status=400)
+    elif name not in {f.stem for f in paths.TACTICS.glob("*.py")}:
         return web.json_response({"error": "nema taktike %r" % name}, status=400)
-    kw = dict(name=name, side=q.get("side", "plava"), mode=q.get("mode", "mec"),
+    else:
+        source = (paths.TACTICS / (name + ".py")).read_text(encoding="utf-8")
+    loop = asyncio.get_running_loop()
+    api = request.app[STATE].setdefault("api", tacmod.tac_api())
+    diags = await loop.run_in_executor(None, tacmod.static_check, source, api)
+    if any(d["source"] == "syntax" for d in diags):
+        return web.json_response({"error": "taktika ima sintaksnu grešku", "diagnostics": diags}, status=422)
+    kw = dict(source=source, name=name, side=q.get("side", "plava"), mode=q.get("mode", "mec"),
               cord_s=float(q.get("cord_s", 1.0)), obstacles=q.get("obstacles") or [],
               prof=request.app[STATE]["profile"])
     if q.get("max_s"):
         kw["max_s"] = float(q["max_s"])
     t0 = time.time()
-    kind, res = await asyncio.get_running_loop().run_in_executor(None, run_in_process, kw)
+    kind, res = await loop.run_in_executor(None, run_in_process, kw)
     if kind != "ok":
-        return web.json_response({"error": res}, status=500)
+        return web.json_response({"error": res, "diagnostics": diags}, status=500)
     request.app[STATE]["last"] = res
     out = pack(res)
+    out["diagnostics"] = diags + tacmod.runtime_diags(res)
     out["wall_s"] = round(time.time() - t0, 2)
     return web.json_response(out, dumps=lambda o: json.dumps(o, separators=(",", ":")))
 
@@ -187,11 +223,14 @@ async def live(request):
     q = request.query
     names = {f.stem for f in paths.TACTICS.glob("*.py")}
     tactic = q.get("tactic") if q.get("tactic") in names else None
+    staged = request.app[STATE].get("staged", {}).pop(q.get("stage"), None)
     try:
         obstacles = json.loads(q.get("obstacles") or "[]")
     except ValueError:
         obstacles = []
     kw = dict(name=tactic, side=q.get("side", "plava"), obstacles=obstacles, prof=request.app[STATE]["profile"])
+    if staged:
+        kw["name"], kw["source"] = staged
     ctx = mp.get_context("spawn")
     a, b = ctx.Pipe()
     p = ctx.Process(target=_live_worker, args=(b, kw), daemon=True)
@@ -252,6 +291,51 @@ async def live(request):
     return ws
 
 
+async def tac_api_h(request):
+    api = tacmod.tac_api()                      # svaki put iz tac.py (prati izmene)
+    request.app[STATE]["api"] = api
+    return web.json_response(dict(api, template=tacmod.TEMPLATE))
+
+
+async def tactic_get(request):
+    try:
+        return web.json_response(tacmod.read(request.match_info["name"]))
+    except (ValueError, OSError) as e:
+        return web.json_response({"error": str(e)}, status=404)
+
+
+async def tactic_save(request):
+    q = await request.json()
+    try:
+        r = tacmod.save(q.get("name"), q.get("source", ""), q.get("sha"))
+    except ValueError as e:
+        return web.json_response({"error": str(e)}, status=400)
+    if r.get("conflict"):
+        return web.json_response({"error": "fajl je u međuvremenu promenjen na disku (git, drugi editor); "
+                                           "osveži ili sačuvaj pod drugim imenom", **r}, status=409)
+    return web.json_response(r)
+
+
+async def check(request):
+    q = await request.json()
+    api = request.app[STATE].setdefault("api", tacmod.tac_api())
+    diags = await asyncio.get_running_loop().run_in_executor(None, tacmod.static_check, q.get("source", ""), api)
+    return web.json_response({"diagnostics": diags})
+
+
+async def stage(request):
+    """Tekst iz editora za Live (ne staje u URL): vraća oznaku za /ws/live?stage=..."""
+    q = await request.json()
+    if not tacmod.NAME_RE.match(q.get("name") or ""):
+        return web.json_response({"error": "neispravno ime"}, status=400)
+    st = request.app[STATE].setdefault("staged", {})
+    if len(st) > 20:
+        st.clear()
+    key = uuid.uuid4().hex
+    st[key] = (q["name"], q.get("source", ""))
+    return web.json_response({"stage": key})
+
+
 async def index(request):
     return web.FileResponse(WEB / "index.html")
 
@@ -266,6 +350,11 @@ def make_app(prof=None):
     app.router.add_post("/api/runs/save", run_save)
     app.router.add_get("/api/runs/{name}", run_load)
     app.router.add_get("/ws/live", live)
+    app.router.add_get("/api/tacapi", tac_api_h)
+    app.router.add_get("/api/tactic/{name}", tactic_get)
+    app.router.add_post("/api/tactic/save", tactic_save)
+    app.router.add_post("/api/check", check)
+    app.router.add_post("/api/stage", stage)
     app.router.add_static("/", WEB, show_index=False)
     return app
 

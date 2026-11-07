@@ -123,3 +123,40 @@ def test_live_websocket(base):
     assert m["type"] == "end", m
     assert m["run"]["meta"]["tactic"] == "primer" and len(m["run"]["cols"]["t"]) > 100
     assert any(e[1] == "screen" for e in m["run"]["events"])
+
+
+def test_tacapi_i_citanje(base):
+    d = get(base + "/api/tacapi")
+    assert "goto" in d["funcs"] and "from tac import *" in d["template"]
+    t = get(base + "/api/tactic/primer")
+    assert "goto" in t["source"] and len(t["sha"]) == 64
+
+
+def test_check(base):
+    st, d = post(base + "/api/check", {"source": "from tac import *\ngoto(1)\n"})
+    assert st == 200 and any("fali" in x["msg"] for x in d["diagnostics"])
+
+
+def test_run_nesacuvan_tekst_i_dijagnostike(base):
+    src = "from tac import *\nSTART = (250, 1000, 0)\ngoto(600, 1000)\nx = 1 / 0\n"
+    st, d = post(base + "/api/run", {"tactic": "nesacuvana", "source": src, "mode": "test"})
+    assert st == 200 and d["meta"]["tactic"] == "nesacuvana"
+    assert any(x["line"] == 4 and x["source"] == "sim" for x in d["diagnostics"])
+    from eurosim import paths
+    assert not (paths.TACTICS / "nesacuvana.py").exists()
+
+
+def test_run_sintaksna_greska_422(base):
+    st, d = post(base + "/api/run", {"tactic": "x", "source": "goto(1,\n", "mode": "test"})
+    assert st == 422 and d["diagnostics"][0]["source"] == "syntax"
+
+
+def test_cuvanje_preko_servera(base, tmp_path, monkeypatch):
+    from eurosim import paths
+    monkeypatch.setattr(paths, "TACTICS", tmp_path)
+    st, d = post(base + "/api/tactic/save", {"name": "t1", "source": "from tac import *\n", "sha": None})
+    assert st == 200 and (tmp_path / "t1.py").exists()
+    st, d2 = post(base + "/api/tactic/save", {"name": "t1", "source": "x\n", "sha": "staro"})
+    assert st == 409 and d2["sha"] == d["sha"]
+    st, _ = post(base + "/api/tactic/save", {"name": "../x", "source": ""})
+    assert st == 400

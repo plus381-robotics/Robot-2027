@@ -12,6 +12,7 @@ import io
 import math
 import pathlib
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -82,6 +83,7 @@ class Sim:
         self._sent = (0, 0)                      # koliko frame-ova i događaja je poslato
         self._t_emit = 0.0
         self.esp.services.append(self._service)
+        self._hook_lines()
         meta = self.esp.tactic_meta(name) if name else {}
         self.start_meta = meta.get("START")
         st = start or self.start_meta or (250, 1000, 0)
@@ -98,6 +100,52 @@ class Sim:
             "field": field.describe(), "obstacles": [o.to_dict() for o in self.stm.plant.obstacles],
             "frame_ms": FRAME_MS, "git": _git_version(),
         }
+
+    # ---------------- linije koda (za editor) ----------------
+
+    def _hook_lines(self):
+        """Linija taktike za svaki korak i za izuzetak. Samo omotač oko tracker.step i app.error u ovom
+        procesu (runner prevodi taktiku sa imenom fajla = ime taktike); ESP kod se ne menja."""
+        tr, app = self.tracker, self.app
+        orig_step, orig_error, orig_start = tr.step, app.error, tr.start
+        cur = [None]                             # ime taktike koja radi (tracker ga briše pre app.error)
+
+        def start(name, total=None):
+            cur[0] = name
+            orig_start(name, total)
+
+        def line_here(tb=None):
+            name = cur[0]
+            if tb is not None:
+                line = None
+                while tb is not None:
+                    if tb.tb_frame.f_code.co_filename == name:
+                        line = tb.tb_lineno
+                    tb = tb.tb_next
+                return line
+            f = sys._getframe(2)
+            while f is not None:
+                if f.f_code.co_filename == name:
+                    return f.f_lineno
+                f = f.f_back
+            return None
+
+        def step(name, timeout=None, next=None):
+            line = line_here()
+            orig_step(name, timeout, next)
+            if line:
+                self.rec.event(self.t(), "line", [tr.idx, line])
+
+        def error(text):
+            _, ev, tb = sys.exc_info()
+            if ev is not None:
+                line = ev.lineno if isinstance(ev, SyntaxError) else line_here(tb)
+                self.rec.event(self.t(), "exception", {"type": type(ev).__name__, "msg": str(ev), "line": line})
+            orig_error(text)
+
+        tr.start = start
+        tr.step = step
+        app.error = error
 
     # ---------------- vreme ----------------
 

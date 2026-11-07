@@ -373,6 +373,7 @@ export class FieldView {
       this.controls.screenSpacePanning = true;
     }
     this.controls.target.copy(this.center);
+    this._fitAspect = 0;
     this.resize();
   }
 
@@ -381,11 +382,22 @@ export class FieldView {
     this.renderer.setSize(w, h, false);
     this.renderer.domElement.style.width = w + 'px'; this.renderer.domElement.style.height = h + 'px';
     this.persp.aspect = w / h; this.persp.updateProjectionMatrix();
+    if (Math.abs(w / h - (this._fitAspect || 0)) > 0.05) { this._fitAspect = w / h; this.fit(); }
     const W = this.field.w / 1000 + 0.2, H = this.field.h / 1000 + 0.2;
     let hw = W / 2, hh = H / 2;
     if (w / h > W / H) hw = hh * w / h; else hh = hw * h / w;
     Object.assign(this.ortho, { left: -hw, right: hw, top: hh, bottom: -hh });
     this.ortho.updateProjectionMatrix();
+  }
+
+  fit() {                                         // perspective camera: whole table in view for this aspect
+    if (this.camera !== this.persp) return;
+    const W = this.field.w / 1000 + 0.3, H = this.field.h / 1000 + 0.3;
+    const v = this.persp.fov * Math.PI / 180, hf = 2 * Math.atan(Math.tan(v / 2) * this.persp.aspect);
+    const d = Math.max(3.4, (W / 2) / Math.tan(hf / 2) * 1.05, (H * 0.75) / Math.tan(v / 2));
+    const dir = new THREE.Vector3(0, -2.7, 2.5).normalize();
+    this.persp.position.copy(this.center).addScaledVector(dir, d);
+    this.controls.target.copy(this.center);
   }
 
   _pick(e) {

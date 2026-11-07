@@ -21,6 +21,26 @@ Pušta taktike iz `ESP32/tactics/` bez robota, sa **istim ESP kodom** koji radi 
   (Shift+←/→), klizač sa oznakama koraka, grafici brzine, okretanja i točkova (klik = skok).
 - **Save run** čuva snimak u `simulator/runs/` (ide u git), **Saved runs** ga učitava.
 
+### Editor taktika (✎ Editor)
+
+Otvara taktiku iz `ESP32/tactics/` (ista kao u izboru gore) pored stola.
+- Isticanje sintakse, **dopuna** (Ctrl+Space) i **opis na prelaz mišem** za ceo `tac` API, plus imena
+  aktuatora u `actuator("...")` i argumenti funkcije u kojoj si (`speed=`, `next=`...). Pomoć se pravi iz
+  samog `ESP32/lib/tac.py` (potpisi i docstring-ovi), pa uvek odgovara kodu na robotu; kartica **tac API**
+  ima ceo spisak sa pretragom.
+- **Provera dok kucaš** (Problems, i oznake u kodu): sintaksa; MicroPython kompajler (`mpy-cross`, ista
+  verzija kao firmver); nepoznata imena; pogrešni ili nedostajući argumenti tac funkcija; nepoznat
+  aktuator; tačke van stola i brzina iznad ~1200 mm/s; `while True` bez ijednog tac poziva (ESP bi se
+  zaglavio, STM32 staje posle 500 ms bez PING-a); START koji ESP ne može da pročita bez izvršavanja.
+- **▶ Run** (Ctrl+Enter) proverava i simulira **tekst iz editora, sačuvan ili ne** (fajl se ne dira).
+  Posle simulacije Problems pokazuje i greške iz izvršavanja sa linijom (izuzetak u taktici, korak koji
+  nije uspeo, TOTAL koji se ne slaže, START van startne zone). Live takođe koristi tekst iz editora.
+- Tokom reprodukcije **linija koja se izvršava je istaknuta**, neuspeli koraci crveno; klik na korak
+  skače i na njegovu liniju.
+- **Save** (Ctrl+S) upisuje `ESP32/tactics/<ime>.py`; ako je fajl u međuvremenu promenjen na disku (git,
+  drugi editor), pita pre nego što prepiše. **New** pravi taktiku iz šablona. Nesačuvane izmene se čuvaju u
+  browseru i vraćaju posle osvežavanja stranice.
+
 ### Live režim (● Live)
 
 Interaktivna simulacija u stvarnom vremenu (×0.25..×5, pauza): "robot je upaljen", ESP se poveže sa
@@ -83,7 +103,7 @@ taktika.py -> tac.py -> runner/match/app -> robot.py ==UART bajtovi (COBS+CRC)==
 - **Server** (`server.py`, aiohttp): svaka simulacija u posebnom procesu (taktika sa beskonačnom petljom
   bez `wait()` se prekine posle 60 s). Frontend (`web/`) je običan JavaScript bez build koraka;
   three.js i uPlot su u `web/vendor/` (radi bez interneta).
-- UI testovi: `node simulator/tests/ui_smoke.js` i `node simulator/tests/ui_f3.js` dok radi `sim.py serve`
+- UI testovi: `node simulator/tests/ui_smoke.js`, `ui_f2.js`, `ui_f3.js` dok radi `sim.py serve`
   (treba Playwright).
 - **Live** (`/ws/live`, WebSocket): simulacija u posebnom procesu prima komande (tasteri, činč, STOP,
   protivnik, brzina) i šalje nove frame-ove, događaje i sliku ekrana ~20 puta u sekundi.
@@ -97,3 +117,8 @@ taktika.py -> tac.py -> runner/match/app -> robot.py ==UART bajtovi (COBS+CRC)==
 
 `eurosim/field.py`: Eurobot 2027 (pravila, dodatak G.1): x 0..3000, y 0..2000, žuta startna zona
 x 0..500, plava x 2500..3000 (y 750..1250). Elementi igre dolaze kasnije.
+
+## CodeMirror (editor)
+
+`web/vendor/codemirror.bundle.js` je CodeMirror 6 spakovan u jedan fajl, da tim ne treba Node. Pravi se samo
+kad se menja verzija: `cd simulator/web/vendor/codemirror-src && npm ci && npm run build`.

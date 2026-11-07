@@ -12,6 +12,7 @@ const FIELD_X = 3000, REF_SIDE = 'plava';
 
 let info, view, charts, esp, run = null;
 let opponents = [], oppSel = -1;
+let ed = null;                        // {editor, api, name, sha, saved} when the editor is open
 let live = null;                       // {ws, raw: {meta, frames, events}, follow, dirty, last}
 const play = { t: 0, playing: false, speed: 1, last: 0 };
 
@@ -25,13 +26,17 @@ function buildRun(d) {
     while (lo < hi) { const m = (lo + hi + 1) >> 1; if (ts[m] <= t) lo = m; else hi = m - 1; }
     return lo;
   };
-  const steps = [], byIdx = {}, tactics = [];
+  const steps = [], byIdx = {}, tactics = [], pendingLine = {}, excLines = [];
   for (const [t, kind, x] of d.events) {
+    if (kind === 'line') { pendingLine[x[0]] = x[1]; continue; }
+    if (kind === 'exception') { if (x.line) excLines.push(x.line); continue; }
     if (kind === 'tactic') {
       tactics.push({ t, name: x[0], side: x[1] });
       for (const k in byIdx) delete byIdx[k];
     } else if (kind === 'step') {
-      const s = { idx: x[0], name: x[1], timeout: x[2], next: x[3], t, end: null, ok: null, reason: null, dur: null, target: null };
+      const s = { idx: x[0], name: x[1], timeout: x[2], next: x[3], t, end: null, ok: null, reason: null, dur: null,
+        target: null, line: pendingLine[x[0]] || null };
+      delete pendingLine[x[0]];
       steps.push(s); byIdx[x[0]] = s;
     } else if (kind === 'step_end') {
       const s = byIdx[x[0]];
@@ -60,7 +65,7 @@ function buildRun(d) {
     for (const sc of screens) { if (sc.t <= t) r = sc; else break; }
     return r;
   };
-  return { ...d, frameAt, steps, tactics, log, screens, screenAt, duration: ts.length ? ts[ts.length - 1] : 0 };
+  return { ...d, frameAt, steps, tactics, excLines, log, screens, screenAt, duration: ts.length ? ts[ts.length - 1] : 0 };
 }
 
 // ---------------- formatting ----------------
@@ -132,7 +137,7 @@ function renderSteps() {
     const res = s.ok == null ? '<span class="res-run">…</span>' : s.ok ? '<span class="res-ok">OK</span>' :
       `<span class="res-fail">${REASON[s.reason] || s.reason || 'FAIL'}</span>`;
     tr.innerHTML = `<td>${s.idx}</td><td title="${s.name}">${s.name}</td><td>${res}</td><td>${s.dur == null ? '' : secs(s.dur)}</td>`;
-    tr.onclick = () => seek(s.t);
+    tr.onclick = () => { seek(s.t); if (ed && s.line && edShowsRun()) ed.editor.reveal(s.line, false); };
     s.row = tr;
     tb.appendChild(tr);
   }
@@ -216,6 +221,7 @@ function show() {
   if (!run.cols.t || !run.cols.t.length) return;
   const i = run.frameAt(play.t);
   esp.setScreen(run.screenAt(play.t));
+  edMarks();
   view.setFrame(i);
   renderState(i);
   updateSteps(play.t);
@@ -264,7 +270,7 @@ function msg(text, err = false) { const m = $('msg'); m.textContent = text; m.cl
 async function api(path, body) {
   const r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
   const d = await r.json();
-  if (!r.ok || d.error) throw new Error(d.error || r.statusText);
+  if (!r.ok || d.error) { const e = new Error(d.error || r.statusText); e.data = d; e.status = r.status; throw e; }
   return d;
 }
 
@@ -287,12 +293,15 @@ async function simulate(keepTime = null) {
   if (live) return;
   const body = { tactic: $('tactic').value, side: $('side').value, mode: $('mode').value, obstacles: opponents };
   localStorage.setItem('eurosim.sel', JSON.stringify(body));
+  if (ed) { body.tactic = ed.name; body.source = ed.editor.text(); }
   $('run').disabled = true;
   msg(`simulating ${body.tactic}…`);
   try {
     const d = await api('/api/run', body);
     load(d, `${body.tactic}: simulated ${secs(d.result.sim_ms)} s in ${d.wall_s} s`, keepTime);
+    if (ed && d.diagnostics) edDiagnostics(d.diagnostics);
   } catch (e) {
+    if (ed && e.data && e.data.diagnostics) edDiagnostics(e.data.diagnostics);
     msg(e.message.split('\n')[0], true);
     console.error(e);
   } finally {
@@ -345,6 +354,171 @@ function editOpponent() {
   opponentsChanged(true);
 }
 
+// ---------------- editor ----------------
+
+const curTactic = () => (ed ? ed.name : $('tactic').value);
+const edShowsRun = () => !!(ed && run && run.meta && run.meta.tactic === ed.name);
+let edMarkKey = '';
+
+function edMarks() {
+  if (!ed) return;
+  let m = {};
+  if (edShowsRun()) {
+    const t = play.t;
+    let cur = null;
+    const fail = [];
+    for (const s of run.steps) {
+      if (!s.line || s.t > t) continue;
+      cur = s;
+      if (s.ok === false && s.end != null && s.end <= t) fail.push(s.line);
+    }
+    m = { cur: cur && cur.line, fail, err: t >= run.duration - 1 || !live ? run.excLines : [] };
+  }
+  const key = JSON.stringify(m);
+  if (key === edMarkKey) return;
+  const scroll = !!(m.cur && JSON.parse(edMarkKey || '{}').cur !== m.cur && (play.playing || (live && live.follow)));
+  edMarkKey = key;
+  ed.editor.setMarks({ ...m, scroll });
+}
+
+function edDiagnostics(list) {
+  ed.diags = list;
+  ed.editor.setDiagnostics(list);
+  const el = $('edProblems');
+  el.innerHTML = '';
+  const order = { error: 0, warning: 1, info: 2 };
+  const sorted = [...list].sort((a, b) => order[a.severity] - order[b.severity] || a.line - b.line);
+  for (const d of sorted) {
+    const div = document.createElement('div');
+    div.className = d.severity;
+    div.innerHTML = `<span class="ln">${d.line}:${(d.col || 0) + 1}</span>`;
+    div.appendChild(document.createTextNode(`${d.severity === 'error' ? '✖' : d.severity === 'warning' ? '⚠' : 'ℹ'} ${d.msg}`));
+    div.onclick = () => ed.editor.reveal(d.line);
+    el.appendChild(div);
+  }
+  if (!list.length) el.innerHTML = '<div class="info">no problems found</div>';
+  const n = list.filter(d => d.severity === 'error').length, w = list.filter(d => d.severity === 'warning').length;
+  $('edCount').textContent = n || w ? `${n} error${n === 1 ? '' : 's'}, ${w} warning${w === 1 ? '' : 's'}` : '✓';
+}
+
+function edState() {
+  const dirty = ed.editor.text() !== ed.saved;
+  $('edState').textContent = (ed.sha ? '' : 'new · ') + (dirty ? '● unsaved' : 'saved') + ` · ESP32/tactics/${ed.name}.py`;
+  $('edState').classList.toggle('dirty', dirty);
+  return dirty;
+}
+
+function fillTacticSelects() {
+  const names = [...info.tactics];
+  if (ed && !names.includes(ed.name)) names.push(ed.name);
+  const opts = names.map(t => `<option>${t}</option>`).join('');
+  const cur = $('tactic').value;
+  $('tactic').innerHTML = info.tactics.map(t => `<option>${t}</option>`).join('');
+  if (info.tactics.includes(cur)) $('tactic').value = cur;
+  $('edFile').innerHTML = opts;
+  if (ed) { $('edFile').value = ed.name; if (info.tactics.includes(ed.name)) $('tactic').value = ed.name; }
+}
+
+let edCheckSeq = 0;
+async function edCheck() {
+  const seq = ++edCheckSeq;
+  try {
+    const d = await api('/api/check', { source: ed.editor.text() });
+    if (seq === edCheckSeq && ed) edDiagnostics(d.diagnostics);
+  } catch (e) { /* server busy or gone: ignore */ }
+}
+
+function edChanged(text) {
+  if (!ed) return;
+  const dirty = edState();
+  try {
+    if (dirty) localStorage.setItem('eurosim.draft.' + ed.name, JSON.stringify({ text, sha: ed.sha }));
+    else localStorage.removeItem('eurosim.draft.' + ed.name);
+  } catch (e) { /* ignore */ }
+  edCheck();
+}
+
+async function edLoad(name) {
+  let source = '', sha = null;
+  try { const d = await api('/api/tactic/' + encodeURIComponent(name)); source = d.source; sha = d.sha; }
+  catch (e) { msg(e.message, true); return; }
+  ed.name = name; ed.sha = sha; ed.saved = source;
+  let text = source;
+  try {
+    const dr = JSON.parse(localStorage.getItem('eurosim.draft.' + name) || 'null');
+    if (dr && dr.text !== source) {
+      if (dr.sha === sha) { text = dr.text; msg(`${name}: restored your unsaved changes`); }
+      else { localStorage.removeItem('eurosim.draft.' + name); msg(`${name}: file changed on disk, an old unsaved draft was dropped`, true); }
+    }
+  } catch (e) { /* ignore */ }
+  ed.editor.setText(text);
+  edMarkKey = '';
+  fillTacticSelects();
+  edState();
+  edCheck();
+  if (run) edMarks();
+}
+
+async function edSave(force = false) {
+  const body = { name: ed.name, source: ed.editor.text(), sha: ed.sha };
+  try {
+    const d = await api('/api/tactic/save', body);
+    ed.sha = d.sha; ed.saved = body.source.endsWith('\n') ? body.source : body.source + '\n';
+    try { localStorage.removeItem('eurosim.draft.' + ed.name); } catch (e) { /* ignore */ }
+    info = await api('/api/info');
+    fillTacticSelects();
+    edState();
+    msg(`saved ESP32/tactics/${ed.name}.py`);
+  } catch (e) {
+    if (e.status === 409 && !force &&
+        confirm(`ESP32/tactics/${ed.name}.py was changed on disk after you opened it.\n\nOverwrite it with your version?`)) {
+      ed.sha = e.data.sha;
+      return edSave(true);
+    }
+    msg(e.message, true);
+  }
+}
+
+function edNew() {
+  const name = prompt('Name of the new tactic (letters, digits, _):', 'nova');
+  if (!name) return;
+  if (!/^[A-Za-z_][A-Za-z0-9_]{0,40}$/.test(name)) { msg('name: letters, digits and _ only', true); return; }
+  if (info.tactics.includes(name)) { msg(`${name} already exists`, true); return; }
+  ed.name = name; ed.sha = null; ed.saved = '';
+  ed.editor.setText(ed.api.template);
+  fillTacticSelects();
+  edChanged(ed.editor.text());
+}
+
+function renderApiHelp() {
+  const f = $('apiFilter').value.toLowerCase();
+  const el = $('apiList');
+  const parts = [];
+  if (!f) parts.push(`<pre class="dim">${ed.api.doc.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])}</pre>`);
+  for (const [name, fn] of Object.entries(ed.api.funcs)) {
+    if (f && !(name + fn.doc).toLowerCase().includes(f)) continue;
+    parts.push(`<div class="fn"><b>${fn.sig}</b><pre>${(fn.doc || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])}</pre></div>`);
+  }
+  parts.push(`<div class="fn"><b>actuators</b><pre>${ed.api.actuators.join(', ')} (ESP32/config.py ACTUATORS)</pre></div>`);
+  el.innerHTML = parts.join('');
+}
+
+async function toggleEditor() {
+  if (ed) {
+    $('editorPane').hidden = true; $('main').classList.remove('editing'); $('edBtn').classList.remove('on');
+    ed.editor.view.destroy(); ed = null;
+    fillTacticSelects();
+    return;
+  }
+  const { TacticEditor } = await import('./editor.js');
+  const tapi = await api('/api/tacapi');
+  $('editorPane').hidden = false; $('main').classList.add('editing'); $('edBtn').classList.add('on');
+  ed = { api: tapi, name: $('tactic').value, sha: null, saved: '' };
+  ed.editor = new TacticEditor($('edHost'), { api: tapi, onChange: edChanged, onRun: () => simulate(), onSave: () => edSave() });
+  renderApiHelp();
+  await edLoad(ed.name);
+}
+
 // ---------------- live ----------------
 
 function liveSend(c) {
@@ -383,10 +557,14 @@ function liveRebuild() {
   show();
 }
 
-function startLive() {
+async function startLive() {
   if (live) return;
   setPlaying(false);
   const q = new URLSearchParams({ tactic: $('tactic').value, side: $('side').value, obstacles: JSON.stringify(opponents) });
+  if (ed) {                                     // editor text (saved or not) is the tactic in Live too
+    try { q.set('stage', (await api('/api/stage', { name: ed.name, source: ed.editor.text() })).stage); }
+    catch (e) { msg(e.message, true); return; }
+  }
   const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/live?${q}`);
   live = { ws, raw: { meta: null, frames: [], events: [] }, follow: true, dirty: false, screen: null };
   $('liveGroup').hidden = false;
@@ -484,8 +662,23 @@ async function main() {
   for (const id of ['oppX', 'oppY', 'oppW', 'oppH', 'oppTh', 'oppZ', 'oppRound']) $(id).onchange = editOpponent;
   $('liveBtn').onclick = () => (live ? liveSend(['quit']) : startLive());
   $('endBtn').onclick = () => liveSend(['quit']);
-  $('armBtn').onclick = () => liveSend(['arm', $('tactic').value, $('side').value]);
-  $('testBtn').onclick = () => liveSend(['test', $('tactic').value, $('side').value]);
+  $('armBtn').onclick = () => liveSend(['arm', curTactic(), $('side').value]);
+  $('testBtn').onclick = () => liveSend(['test', curTactic(), $('side').value]);
+  document.querySelector('#espPanel .ov-title').onclick = () => $('espPanel').classList.toggle('collapsed');
+  $('result').onclick = () => $('result').classList.toggle('mini');
+  $('edBtn').onclick = () => toggleEditor().catch(e => msg('editor: ' + e.message, true));
+  $('edFile').onchange = e => edLoad(e.target.value);
+  $('tactic').addEventListener('change', e => { if (ed) edLoad(e.target.value); });
+  $('edNew').onclick = edNew;
+  $('edSave').onclick = () => edSave();
+  $('edRun').onclick = () => simulate();
+  $('apiFilter').oninput = renderApiHelp;
+  for (const b of document.querySelectorAll('.ed-tabs button')) {
+    b.onclick = () => {
+      for (const o of document.querySelectorAll('.ed-tabs button')) { o.classList.toggle('on', o === b); $(o.dataset.tab).hidden = o !== b; }
+    };
+  }
+  window.addEventListener('beforeunload', e => { if (ed && ed.editor.text() !== ed.saved) e.preventDefault(); });
   $('cordBtn').onclick = () => liveSend(['cord']);
   $('stopBtn').onclick = () => liveSend(['stop']);
   $('pace').onchange = e => liveSend(['speed', +e.target.value]);
@@ -519,6 +712,7 @@ async function main() {
   };
   document.addEventListener('keydown', e => {
     const tg = e.target;
+    if (tg.isContentEditable || (tg.closest && tg.closest('.cm-editor'))) return;
     if (tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' ||
         (tg.tagName === 'INPUT' && !['range', 'checkbox', 'button'].includes(tg.type))) return;
     if (e.key === ' ') { e.preventDefault(); setPlaying(!play.playing); }
@@ -532,4 +726,5 @@ async function main() {
   msg('choose a tactic and press Simulate');
 }
 
+window.eurosim = { get ed() { return ed; }, get run() { return run; }, play, edMarks };   // za testove i konzolu
 main().catch(e => msg('cannot start: ' + e.message, true));

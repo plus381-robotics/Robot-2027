@@ -1,2 +1,3 @@
-# Simulator: komandna linija radi i bez ovoga; web interfejs (sim.py serve) treba aiohttp.
-aiohttp>=3.9
+# Simulator: komandna linija radi i bez ovoga.
+aiohttp>=3.9                # web interfejs (sim.py serve)
+mpy-cross==1.29.0.post2     # provera taktike MicroPython kompajlerom (ista verzija kao firmver na ESP-u)
