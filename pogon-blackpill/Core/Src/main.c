@@ -26,6 +26,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "comm.h"
+#include "watchdog.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -118,6 +119,7 @@ int main(void)
 	pwm_init();
 	odometry_init();
 	move_init();
+	watchdog_init();  // poslednje: ako se glavna petlja zaglavi, čip se sam restartuje (motori staju)
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -151,6 +153,7 @@ int main(void)
 //		set_motor_l_dir(dir_dbg);
 //		set_motor_r_dir(dir_dbg);
 		comm_poll();
+		watchdog_feed();
 		switch (main_fsm_state) {
 		case 0:
 			comm_port_update();             // cilj sada dolazi sa ESP-a (comm_port.c)

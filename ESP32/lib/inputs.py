@@ -33,7 +33,15 @@ class Encoder:
         s = (self.a.value() << 1) | self.b.value()
         self._acc += _STEP[(self._s << 2) | s]
         self._s = s
-        if self._acc >= self.steps:
+        if s == 3:
+            # mirni položaj (oba pina 1, između klikova): klik se broji ako je pomeraj bar pola
+            # koraka, pa izgubljen prelaz (prekid stigao kasno dok se crta ekran) ne gubi ceo klik
+            if self._acc * 2 >= self.steps:
+                self._clicks += 1
+            elif -self._acc * 2 >= self.steps:
+                self._clicks -= 1
+            self._acc = 0
+        elif self._acc >= self.steps:      # enkoder bez mirnog položaja na 11
             self._acc -= self.steps
             self._clicks += 1
         elif self._acc <= -self.steps:
