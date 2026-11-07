@@ -82,3 +82,13 @@ Na ESP-u radi upload server (port 8267, lozinka iz `webrepl_cfg.py`):
 bootloader-a (AN3155, 8E1), proveri upis čitanjem i pokrene novi firmver. Radi samo ako je na
 STM32 već firmver koji zna ENTER_BOOTLOADER (protokol v2); prvi put ide preko ST-LINK-a.
 Ako se STM32 ne javlja, rezerva su žice NRST/BOOT0 (`config.STM_NRST`, `config.STM_BOOT0`).
+
+## Taktike (bez kabla)
+Taktika je fajl u `ESP32/tactics/` (vidi `primer.py`, API je u `lib/tac.py`: pose, goto, rotate,
+move, wait, log, status). Pokretanje sa laptopa preko WiFi-ja (šalje fajl, pokreće, ispisuje dnevnik):
+
+    python tools/tactic.py primer      # Ctrl+C = STOP
+    python tools/tactic.py --stop
+
+Ili na robotu: dugi klik enkodera -> Taktike -> ime -> drži OK. Taster STOP uvek prekida taktiku.
+Ekran tokom taktike prikazuje korake (TAKTIKA, KORACI).

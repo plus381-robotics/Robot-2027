@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Pošalji ESP kod preko WiFi-ja i restartuj ESP (umesto mpremote preko USB-a).
 
-    python tools/esp_push.py                      # main.py, config.py i sve iz lib/
+    python tools/esp_push.py                      # main.py, config.py, lib/ i tactics/
     python tools/esp_push.py ESP32/lib/app.py     # samo neki fajlovi
 
 Prvi put (dok na ESP-u nema lib/upload.py) ide preko USB-a, vidi ESP32/README.md.
@@ -22,7 +22,7 @@ def main():
     a = ap.parse_args()
     esp = ROOT / "ESP32"
     files = [ROOT / f if not f.startswith("/") else f for f in a.files] or \
-        [esp / "main.py", esp / "config.py"] + sorted((esp / "lib").glob("*.py"))
+        [esp / "main.py", esp / "config.py"] + sorted((esp / "lib").glob("*.py")) + sorted((esp / "tactics").glob("*.py"))
     pw = password(a.password)
     for f in files:
         rel = f.resolve().relative_to(esp.resolve()).as_posix()
