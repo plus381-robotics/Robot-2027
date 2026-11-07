@@ -149,28 +149,28 @@ uint8_t comm_hook_bootloader(void) {
 	return 0;
 }
 
-/* Skok u ugrađeni bootloader (USART1, AN3155). Motori se gase, periferije i takt
- * vraćaju na podrazumevano, sistemska memorija se mapira na 0. Kad bootloader posle
- * upisa izvrši Go, main() to prepozna (nema oznake razloga restarta) i uradi čist restart. */
+/* Ulazak u bootloader preko reseta: oznaka u backup registru (preživljava reset), pa restart;
+ * main() je vidi pre bilo kakve inicijalizacije i skače u bootloader iz čistog stanja (comm_port_boot_check). */
+#define BOOT_MAGIC 0xB007B007UL
+
 static void jump_to_bootloader(void) {
 	pwm_kill();
-	__disable_irq();
-	SysTick->CTRL = 0;
-	SysTick->LOAD = 0;
-	SysTick->VAL = 0;
-	HAL_RCC_DeInit();
-	HAL_DeInit();
-	for (int i = 0; i < 8; i++) {
-		NVIC->ICER[i] = 0xFFFFFFFF;
-		NVIC->ICPR[i] = 0xFFFFFFFF;
-	}
+	__HAL_RCC_PWR_CLK_ENABLE();
+	PWR->CR |= PWR_CR_DBP;
+	RTC->BKP0R = BOOT_MAGIC;
+	NVIC_SystemReset();
+}
+
+void comm_port_boot_check(void) {
+	__HAL_RCC_PWR_CLK_ENABLE();
+	if (RTC->BKP0R != BOOT_MAGIC)
+		return;
+	PWR->CR |= PWR_CR_DBP;
+	RTC->BKP0R = 0;
 	__HAL_RCC_SYSCFG_CLK_ENABLE();
 	SYSCFG->MEMRMP = SYSCFG_MEMRMP_MEM_MODE_0;   /* sistemska memorija na adresi 0 */
 	__set_MSP(*(volatile uint32_t*) SYSMEM);
-	__enable_irq();
 	((void (*)(void)) *(volatile uint32_t*) (SYSMEM + 4))();
-	while (1) {
-	}
 }
 
 void comm_hook_stop(void) {

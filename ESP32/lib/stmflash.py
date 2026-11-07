@@ -68,6 +68,15 @@ class Bootloader:
         raise FlashError("bootloader se ne javlja na 0x7F")
 
     def get_id(self):
+        for i in range(4):                      # posle sinhronizacije redosled može kasniti bajt
+            try:
+                return self._get_id()
+            except FlashError:
+                sleep_ms(50)
+                self._read(64, 50)
+        return self._get_id()
+
+    def _get_id(self):
         self._cmd(0x02, "Get ID")
         n = self._read(1, 500)[0] + 1
         pid = self._read(n, 500)
@@ -122,13 +131,31 @@ def flash_file(uart, path, uart_args, robot=None, cfg=None, log=print):
     if size == 0 or size % 4:
         raise FlashError("neispravan .bin (%d B)" % size)
     hw = cfg is not None and getattr(cfg, "STM_NRST", None) is not None and getattr(cfg, "STM_BOOT0", None) is not None
-    if robot is not None and robot.ok:
-        log("ENTER_BOOTLOADER")
-        robot.send("ENTER_BOOTLOADER")
+    if robot is not None:                       # dok je stizao fajl, UART se nije čitao: obnovi vezu
         t0 = ticks_ms()
-        while ticks_diff(ticks_ms(), t0) < 300:
+        while not robot.ok and ticks_diff(ticks_ms(), t0) < 1500:
             robot.poll()
             sleep_ms(5)
+    if robot is not None and robot.ok:
+        # Posle ove komande ESP ne sme ništa da šalje (ni PING): bootloader po prvom
+        # primljenom bajtu meri brzinu i mora da to bude 0x7F.
+        seq = robot.send("ENTER_BOOTLOADER")
+        acked = False
+        t0 = ticks_ms()
+        while ticks_diff(ticks_ms(), t0) < 300:
+            d = uart.read()
+            if d:
+                for t, s, _ in robot.parser.feed(d):
+                    if s == seq and t == 0x90:      # ACK
+                        acked = True
+            if acked:
+                break
+            sleep_ms(1)
+        # 8E1 odmah, dok STM32 još 30 ms radi u aplikaciji: smetnja na TX liniji pri promeni
+        # UART-a ne sme da stigne do bootloader-a (njegov prvi bajt mora biti 0x7F)
+        uart.init(parity=0, bits=8, stop=1, timeout=0, **uart_args)
+        sleep_ms(300)
+        log("ENTER_BOOTLOADER: " + ("ACK" if acked else "bez ACK"))
     elif hw:
         log("BOOT0 + reset")
     else:
@@ -143,8 +170,17 @@ def flash_file(uart, path, uart_args, robot=None, cfg=None, log=print):
     uart.init(parity=0, bits=8, stop=1, timeout=0, **uart_args)
     bl = Bootloader(uart, log)
     try:
-        bl.sync()
-        log("ID 0x%03X" % bl.get_id())
+        for attempt in range(3):                # STM32 ostaje u bootloader-u, pa ponovni pokušaj pomaže
+            try:
+                bl.sync()
+                log("ID 0x%03X" % bl.get_id())
+                break
+            except FlashError as e:
+                if attempt == 2:
+                    raise
+                log("ponovo: %s" % e)
+                uart.init(parity=0, bits=8, stop=1, timeout=0, **uart_args)
+                sleep_ms(300)
         log("brisem sektore %s" % bl.erase(size))
         buf = bytearray(256)
         mv = memoryview(buf)
