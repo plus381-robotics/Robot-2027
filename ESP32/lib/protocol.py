@@ -2,7 +2,7 @@
 # Radi i u MicroPythonu i u CPythonu.
 import struct
 
-VERSION = 1
+VERSION = 2
 
 class Reason:
     INVALID = 1
@@ -36,6 +36,7 @@ STOP = 0x1F
 ACTUATOR = 0x20
 MATCH_START = 0x30
 DEBUG_STREAMS = 0x31
+ENTER_BOOTLOADER = 0x40
 PONG = 0x81
 ACK = 0x90
 DONE = 0x91
@@ -56,6 +57,7 @@ _MSGS = {
     0x20: ('ACTUATOR', '<Bh', ('id', 'value'), None),
     0x30: ('MATCH_START', '<', (), None),
     0x31: ('DEBUG_STREAMS', '<B', ('mask',), None),
+    0x40: ('ENTER_BOOTLOADER', '<', (), None),
     0x81: ('PONG', '<B', ('version',), None),
     0x90: ('ACK', '<', (), None),
     0x91: ('DONE', '<', (), None),
