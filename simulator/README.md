@@ -21,6 +21,26 @@ Pušta taktike iz `ESP32/tactics/` bez robota, sa **istim ESP kodom** koji radi 
   (Shift+←/→), klizač sa oznakama koraka, grafici brzine, okretanja i točkova (klik = skok).
 - **Save run** čuva snimak u `simulator/runs/` (ide u git), **Saved runs** ga učitava.
 
+### Live režim (● Live)
+
+Interaktivna simulacija u stvarnom vremenu (×0.25..×5, pauza): "robot je upaljen", ESP se poveže sa
+STM32 i čeka, kao na stolu.
+- **ESP panel** (dole desno): pravi ekran robota (`ui.py`/`pages.py` crtaju u simulirani SSD1306) i tasteri
+  enkoder ⟲ ● ⟳, BACK, OK, STOP. Tasteri idu kroz pravi `inputs.py` (lažni pinovi: debounce, dugi pritisak,
+  kvadraturni enkoder), pa se meni, izbor taktike i strane, naoružavanje i "drži OK" ponašaju kao na
+  robotu. Točkić miša na ekranu = enkoder.
+- **Arm match** (izabrana taktika i strana), **Pull cord** (činč: meč kreće, 100 s), **Run test**, **STOP**.
+- **Follow**: prikaz prati robota; isključi ga (ili klikni na klizač/korak) da se vratiš unazad dok
+  simulacija radi dalje.
+- **End**: kraj; sesija ostaje kao snimak (reprodukcija, Save run).
+
+### Protivnik
+
+**+ Opponent** dodaje protivnika (300 x 300 mm, visina 350); prevlači se mišem po stolu, a dimenzije,
+ugao, visina i oblik (pravougaonik ili krug) menjaju se u panelu dole levo. IR senzori ga vide (zavisno
+od visine), sudar zaustavlja robota. U brzom režimu simulacija se sama ponovi kad pustiš protivnika (ostaje
+isti trenutak); u Live režimu protivnik se pomera dok robot vozi. Protivnici se pamte u browseru.
+
 ## Komandna linija
 
     python simulator/sim.py run primer                     # meč na plavoj (naoružan -> činč -> 100 s)
@@ -63,7 +83,10 @@ taktika.py -> tac.py -> runner/match/app -> robot.py ==UART bajtovi (COBS+CRC)==
 - **Server** (`server.py`, aiohttp): svaka simulacija u posebnom procesu (taktika sa beskonačnom petljom
   bez `wait()` se prekine posle 60 s). Frontend (`web/`) je običan JavaScript bez build koraka;
   three.js i uPlot su u `web/vendor/` (radi bez interneta).
-- UI smoke test: `node simulator/tests/ui_smoke.js` dok radi `sim.py serve` (treba Playwright).
+- UI testovi: `node simulator/tests/ui_smoke.js` i `node simulator/tests/ui_f3.js` dok radi `sim.py serve`
+  (treba Playwright).
+- **Live** (`/ws/live`, WebSocket): simulacija u posebnom procesu prima komande (tasteri, činč, STOP,
+  protivnik, brzina) i šalje nove frame-ove, događaje i sliku ekrana ~20 puta u sekundi.
 
 ## Profil robota
 

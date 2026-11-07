@@ -15,7 +15,21 @@
   <label>Tactic <select id="tactic"></select></label>
   <label>Side <select id="side"><option value="plava">Blue</option><option value="zuta">Yellow</option></select></label>
   <label>Mode <select id="mode"><option value="mec">Match (arm, cord, 100 s)</option><option value="test">Test (run now)</option></select></label>
-  <button id="run" class="primary" title="Run simulation (Ctrl+Enter)">▶ Simulate</button>
+  <button id="run" class="primary" title="Run the whole simulation fast, then play it back (Ctrl+Enter)">▶ Simulate</button>
+  <button id="liveBtn" title="Interactive simulation in real time: ESP screen and buttons, cord, STOP, move the opponent">● Live</button>
+  <span id="liveGroup" class="group" hidden>
+    <button id="armBtn" title="Select tactic + side and arm the match (like the ESP menu)">Arm match</button>
+    <button id="cordBtn" title="Pull the start cord: match starts, 100 s">Pull cord</button>
+    <button id="testBtn" title="Run the tactic now, without a match (like tools/tactic.py)">Run test</button>
+    <button id="stopBtn" class="danger" title="STOP (like the STOP button on the robot)">■ STOP</button>
+    <select id="pace" title="Simulation speed in Live mode">
+      <option value="0.25">×0.25</option><option value="0.5">×0.5</option><option value="1" selected>×1</option>
+      <option value="2">×2</option><option value="5">×5</option>
+    </select>
+    <button id="pauseBtn" title="Pause the simulation">⏸</button>
+    <button id="followBtn" class="on" title="Follow the live robot (otherwise you can scrub back)">Follow</button>
+    <button id="endBtn" title="End Live; the session stays as a recording you can replay or save">End</button>
+  </span>
   <span class="sep"></span>
   <button id="save" disabled title="Save this run to simulator/runs/">Save run</button>
   <select id="runs" title="Load a saved run"><option value="">Saved runs…</option></select>
@@ -30,6 +44,30 @@
       <label><input type="checkbox" id="showOdom" checked> odometry</label>
       <label><input type="checkbox" id="showTargets" checked> targets</label>
       <label><input type="checkbox" id="follow"> follow</label>
+      <button id="addOpp" title="Add an opponent (drag it on the table)">+ Opponent</button>
+    </div>
+    <div id="oppEdit" class="overlay" hidden>
+      <div class="ov-title">Opponent <span id="oppName" class="dim"></span> <button id="oppDel" title="Remove">✕</button></div>
+      <div class="ov-grid">
+        <label>x <input type="number" id="oppX" step="10"></label><label>y <input type="number" id="oppY" step="10"></label>
+        <label>w <input type="number" id="oppW" step="10" min="20"></label><label>h <input type="number" id="oppH" step="10" min="20"></label>
+        <label>∠ <input type="number" id="oppTh" step="5"></label><label>z <input type="number" id="oppZ" step="10" min="10"></label>
+        <label class="wide"><input type="checkbox" id="oppRound"> round (diameter = w)</label>
+      </div>
+      <div class="dim small">drag on the table to move · simulation re-runs on release</div>
+    </div>
+    <div id="espPanel" class="overlay">
+      <div class="ov-title">ESP <span class="esp-hint dim small"></span></div>
+      <div class="oled"><canvas width="128" height="64"></canvas></div>
+      <div class="esp-btns">
+        <button data-rot="-1" title="Encoder: turn left">⟲</button>
+        <button data-btn="enc" title="Encoder click">●</button>
+        <button data-rot="1" title="Encoder: turn right">⟳</button>
+        <span class="sep"></span>
+        <button data-btn="back" title="BACK (hold = menu)">BACK</button>
+        <button data-btn="ok" title="OK (hold = confirm)">OK</button>
+        <button data-btn="stop" class="danger" title="STOP">STOP</button>
+      </div>
     </div>
     <div id="cursor" class="mono"></div>
     <div id="result"></div>

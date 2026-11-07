@@ -2,6 +2,7 @@
 // frame / step stepping, scrubbing). All data comes from one recording (server: /api/run).
 import { FieldView } from './view3d.js';
 import { Charts } from './charts.js';
+import { EspPanel } from './esp.js';
 
 const $ = id => document.getElementById(id);
 const SIDE_NAME = { plava: 'Blue', zuta: 'Yellow' };
@@ -9,7 +10,9 @@ const REASON = { BLOCKED: 'blocked', TIMEOUT: 'timeout', PREEMPTED: 'preempted',
   STOPPED: 'stopped', INVALID: 'rejected', NOREPLY: 'no reply', SUPERSEDED: 'superseded', STOP: 'STOP' };
 const FIELD_X = 3000, REF_SIDE = 'plava';
 
-let info, view, charts, run = null;
+let info, view, charts, esp, run = null;
+let opponents = [], oppSel = -1;
+let live = null;                       // {ws, raw: {meta, frames, events}, follow, dirty, last}
 const play = { t: 0, playing: false, speed: 1, last: 0 };
 
 // ---------------- recording -> run ----------------
@@ -22,9 +25,12 @@ function buildRun(d) {
     while (lo < hi) { const m = (lo + hi + 1) >> 1; if (ts[m] <= t) lo = m; else hi = m - 1; }
     return lo;
   };
-  const steps = [], byIdx = {};
+  const steps = [], byIdx = {}, tactics = [];
   for (const [t, kind, x] of d.events) {
-    if (kind === 'step') {
+    if (kind === 'tactic') {
+      tactics.push({ t, name: x[0], side: x[1] });
+      for (const k in byIdx) delete byIdx[k];
+    } else if (kind === 'step') {
       const s = { idx: x[0], name: x[1], timeout: x[2], next: x[3], t, end: null, ok: null, reason: null, dur: null, target: null };
       steps.push(s); byIdx[x[0]] = s;
     } else if (kind === 'step_end') {
@@ -48,7 +54,13 @@ function buildRun(d) {
         text: `${kind === 'rx' ? 'ESP→STM' : 'STM→ESP'} ${x.name} #${x.seq} ${f}` });
     }
   }
-  return { ...d, frameAt, steps, log, duration: ts.length ? ts[ts.length - 1] : 0 };
+  const screens = d.events.filter(e => e[1] === 'screen').map(([t, , x]) => ({ t, ...x }));
+  const screenAt = t => {
+    let r = null;
+    for (const sc of screens) { if (sc.t <= t) r = sc; else break; }
+    return r;
+  };
+  return { ...d, frameAt, steps, tactics, log, screens, screenAt, duration: ts.length ? ts[ts.length - 1] : 0 };
 }
 
 // ---------------- formatting ----------------
@@ -108,7 +120,14 @@ function renderState(i) {
 function renderSteps() {
   const tb = $('steps').querySelector('tbody');
   tb.innerHTML = '';
+  const heads = run.tactics.length > 1 ? [...run.tactics] : [];
   for (const s of run.steps) {
+    while (heads.length && heads[0].t <= s.t) {
+      const h = heads.shift(), tr = document.createElement('tr');
+      tr.innerHTML = `<td></td><td colspan="3" class="dim">▶ ${h.name} · ${SIDE_NAME[h.side] || h.side} · ${secs(h.t)} s</td>`;
+      tr.onclick = () => seek(h.t);
+      tb.appendChild(tr);
+    }
     const tr = document.createElement('tr');
     const res = s.ok == null ? '<span class="res-run">…</span>' : s.ok ? '<span class="res-ok">OK</span>' :
       `<span class="res-fail">${REASON[s.reason] || s.reason || 'FAIL'}</span>`;
@@ -187,13 +206,16 @@ function renderMarks() {
 
 function seek(t, keepPlaying = false) {
   if (!run) return;
+  if (live && !keepPlaying) setFollow(false);
   play.t = Math.max(0, Math.min(run.duration, t));
   if (!keepPlaying) setPlaying(false);
   show();
 }
 
 function show() {
+  if (!run.cols.t || !run.cols.t.length) return;
   const i = run.frameAt(play.t);
+  esp.setScreen(run.screenAt(play.t));
   view.setFrame(i);
   renderState(i);
   updateSteps(play.t);
@@ -204,6 +226,7 @@ function show() {
 }
 
 function setPlaying(p) {
+  if (live) { if (p) setFollow(true); else setFollow(false); return; }
   if (p && run && play.t >= run.duration) play.t = 0;
   play.playing = p && !!run;
   play.last = performance.now();
@@ -245,7 +268,7 @@ async function api(path, body) {
   return d;
 }
 
-function load(d, label) {
+function load(d, label, keepTime = null) {
   run = buildRun(d);
   view.setRun(run);
   view.setVisibility({ odom: $('showOdom').checked, targets: $('showTargets').checked });
@@ -253,19 +276,22 @@ function load(d, label) {
   renderSteps(); renderLog(); renderResult(); renderMarks();
   $('slider').max = Math.max(0, run.cols.t.length - 1);
   $('save').disabled = false;
-  msg(label);
+  if (label) msg(label);
+  if (d.meta && d.meta.obstacles) { opponents = d.meta.obstacles.map(o => ({ ...o })); oppSel = -1; refreshOpponents(); }
+  if (keepTime != null) { seek(keepTime); return; }
   seek(0);
   setPlaying(true);
 }
 
-async function simulate() {
-  const body = { tactic: $('tactic').value, side: $('side').value, mode: $('mode').value };
+async function simulate(keepTime = null) {
+  if (live) return;
+  const body = { tactic: $('tactic').value, side: $('side').value, mode: $('mode').value, obstacles: opponents };
   localStorage.setItem('eurosim.sel', JSON.stringify(body));
   $('run').disabled = true;
   msg(`simulating ${body.tactic}…`);
   try {
     const d = await api('/api/run', body);
-    load(d, `${body.tactic}: simulated ${secs(d.result.sim_ms)} s in ${d.wall_s} s`);
+    load(d, `${body.tactic}: simulated ${secs(d.result.sim_ms)} s in ${d.wall_s} s`, keepTime);
   } catch (e) {
     msg(e.message.split('\n')[0], true);
     console.error(e);
@@ -277,6 +303,137 @@ async function simulate() {
 function fillRuns(list) {
   const s = $('runs');
   s.innerHTML = '<option value="">Saved runs…</option>' + list.map(n => `<option>${n}</option>`).join('');
+}
+
+// ---------------- opponents ----------------
+
+function saveOpponents() {
+  try { localStorage.setItem('eurosim.opp', JSON.stringify(opponents)); } catch (e) { /* ignore */ }
+}
+
+function refreshOpponents() {
+  view.setOpponents(opponents, oppSel);
+  const o = opponents[oppSel];
+  $('oppEdit').hidden = !o;
+  if (!o) return;
+  $('oppName').textContent = o.name || '';
+  const round = !!o.r;
+  $('oppX').value = o.x; $('oppY').value = o.y;
+  $('oppW').value = round ? o.r * 2 : o.w; $('oppH').value = o.h; $('oppH').disabled = round;
+  $('oppTh').value = o.th || 0; $('oppZ').value = o.z || 350; $('oppRound').checked = round;
+}
+
+let oppTimer = null;
+function opponentsChanged(final) {
+  saveOpponents();
+  if (live) {                                   // live: send at most every 100 ms while dragging
+    if (final || !oppTimer) {
+      clearTimeout(oppTimer);
+      oppTimer = setTimeout(() => { oppTimer = null; liveSend(['obstacles', opponents]); }, final ? 0 : 100);
+    }
+  } else if (final && run) {
+    simulate(play.t);                           // fast mode: re-run, stay at the same moment
+  }
+}
+
+function editOpponent() {
+  const o = opponents[oppSel]; if (!o) return;
+  const round = $('oppRound').checked;
+  o.x = +$('oppX').value; o.y = +$('oppY').value; o.th = +$('oppTh').value; o.z = +$('oppZ').value;
+  if (round) { o.r = Math.max(10, +$('oppW').value / 2); } else { o.r = 0; o.w = +$('oppW').value; o.h = +$('oppH').value; }
+  refreshOpponents();
+  opponentsChanged(true);
+}
+
+// ---------------- live ----------------
+
+function liveSend(c) {
+  if (live && live.ws.readyState === 1) live.ws.send(JSON.stringify(c));
+}
+
+function setFollow(on) {
+  if (!live) return;
+  live.follow = on;
+  $('followBtn').classList.toggle('on', on);
+  $('play').textContent = on ? '⏸' : '▶';
+}
+
+function liveColumns(frames) {
+  const cols = {};
+  const keys = new Set();
+  for (const f of frames) for (const k in f) keys.add(k);
+  for (const k of keys) cols[k] = frames.map(f => f[k] ?? null);
+  return cols;
+}
+
+function liveRebuild() {
+  const L = live;
+  if (!L || !L.dirty || !L.raw.frames.length) return;
+  L.dirty = false;
+  const d = { meta: L.raw.meta || {}, result: {}, events: L.raw.events, cols: liveColumns(L.raw.frames) };
+  const first = !run || run.live !== L;
+  run = buildRun(d);
+  run.live = L;
+  view.setRun(run);
+  view.setVisibility({ odom: $('showOdom').checked, targets: $('showTargets').checked });
+  if (first) charts.setRun(run); else charts.update(run);
+  renderSteps(); renderLog(); renderMarks();
+  $('slider').max = Math.max(0, run.cols.t.length - 1);
+  if (L.follow) play.t = run.duration;
+  show();
+}
+
+function startLive() {
+  if (live) return;
+  setPlaying(false);
+  const q = new URLSearchParams({ tactic: $('tactic').value, side: $('side').value, obstacles: JSON.stringify(opponents) });
+  const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/live?${q}`);
+  live = { ws, raw: { meta: null, frames: [], events: [] }, follow: true, dirty: false, screen: null };
+  $('liveGroup').hidden = false;
+  $('liveBtn').classList.add('live-on'); $('liveBtn').textContent = '● LIVE';
+  $('run').disabled = true; $('result').style.display = 'none';
+  esp.setEnabled(true);
+  setFollow(true);
+  msg('live: robot is on, ESP connected to STM32 · use the ESP buttons or Arm / Run test');
+  ws.onmessage = ev => {
+    const m = JSON.parse(ev.data);
+    if (m.type === 'data') {
+      const L = live; if (!L) return;
+      if (m.meta) L.raw.meta = m.meta;
+      if (m.frames.length) { L.raw.frames.push(...m.frames); L.dirty = true; }
+      if (m.events.length) {
+        L.raw.events.push(...m.events); L.dirty = true;
+        for (const e of m.events) if (e[1] === 'screen') L.screen = { t: e[0], ...e[2] };
+      }
+      if (L.follow) {
+        if (L.screen) esp.setScreen(L.screen);
+        const f = m.frames[m.frames.length - 1];
+        if (f) {
+          view.setPose(f);
+          $('time').textContent = `${secs(f.t)} s · live ×${m.speed}${m.paused ? ' · paused' : ''}`;
+        }
+      }
+      $('pauseBtn').textContent = m.paused ? '▶' : '⏸';
+      $('pauseBtn').classList.toggle('on', m.paused);
+    } else if (m.type === 'end') {
+      stopLiveUi();
+      load(m.run, 'live session ended: replay it or save it', 1e12);
+    } else if (m.type === 'error') {
+      msg('live: ' + m.error.split('\n')[0], true);
+      console.error(m.error);
+    }
+  };
+  ws.onclose = () => { if (live) { stopLiveUi(); msg('live connection closed', true); } };
+}
+
+function stopLiveUi() {
+  if (!live) return;
+  try { live.ws.close(); } catch (e) { /* ignore */ }
+  live = null;
+  $('liveGroup').hidden = true;
+  $('liveBtn').classList.remove('live-on'); $('liveBtn').textContent = '● Live';
+  $('run').disabled = false;
+  esp.setEnabled(false);
 }
 
 // ---------------- start ----------------
@@ -307,7 +464,34 @@ async function main() {
     msg(`copied ${s} (tactic coordinates)`);
   };
 
-  $('run').onclick = simulate;
+  $('run').onclick = () => simulate();
+  esp = new EspPanel($('espPanel'), c => liveSend(c));
+  esp.setEnabled(false);
+  try { opponents = JSON.parse(localStorage.getItem('eurosim.opp') || '[]'); } catch (e) { opponents = []; }
+  view.onOppSelect = i => { oppSel = i; refreshOpponents(); };
+  view.onOppMove = (i, final) => {
+    if (i === oppSel) { $('oppX').value = opponents[i].x; $('oppY').value = opponents[i].y; }
+    opponentsChanged(final);
+  };
+  refreshOpponents();
+  $('addOpp').onclick = () => {
+    opponents.push({ name: 'opponent ' + (opponents.length + 1), x: 1500, y: 1000, w: 300, h: 300, th: 0, z: 350, r: 0 });
+    oppSel = opponents.length - 1;
+    refreshOpponents();
+    opponentsChanged(true);
+  };
+  $('oppDel').onclick = () => { opponents.splice(oppSel, 1); oppSel = -1; refreshOpponents(); opponentsChanged(true); };
+  for (const id of ['oppX', 'oppY', 'oppW', 'oppH', 'oppTh', 'oppZ', 'oppRound']) $(id).onchange = editOpponent;
+  $('liveBtn').onclick = () => (live ? liveSend(['quit']) : startLive());
+  $('endBtn').onclick = () => liveSend(['quit']);
+  $('armBtn').onclick = () => liveSend(['arm', $('tactic').value, $('side').value]);
+  $('testBtn').onclick = () => liveSend(['test', $('tactic').value, $('side').value]);
+  $('cordBtn').onclick = () => liveSend(['cord']);
+  $('stopBtn').onclick = () => liveSend(['stop']);
+  $('pace').onchange = e => liveSend(['speed', +e.target.value]);
+  $('pauseBtn').onclick = () => liveSend(['pause', !$('pauseBtn').classList.contains('on')]);
+  $('followBtn').onclick = () => setFollow(!live.follow);
+  setInterval(liveRebuild, 250);
   $('play').onclick = () => setPlaying(!play.playing);
   $('speed').onchange = e => { play.speed = +e.target.value; };
   $('prevFrame').onclick = () => frameJump(-1);

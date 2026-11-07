@@ -51,6 +51,12 @@ export class Charts {
     this.resize();
   }
 
+  update(run) {                      // live: new data in existing charts
+    if (!this.plots.length) return this.setRun(run);
+    const c = run.cols, t = c.t.map(v => v / 1000);
+    DEFS.forEach((d, i) => this.plots[i].setData([t, ...d.series.map(([k]) => c[k] || t.map(() => null))]));
+  }
+
   setTime(tms) {
     this.plots.forEach((u, i) => {
       const x = u.valToPos(tms / 1000, 'x');

@@ -62,6 +62,35 @@ def run_in_process(kw, timeout=RUN_TIMEOUT_S):
             p.kill()
 
 
+def _live_worker(conn, kw):
+    """Live simulacija: komande stižu kroz conn, podaci idu nazad ("data", d), na kraju ("end", snimak)."""
+    try:
+        import contextlib
+        import io
+        from .sim import Sim
+
+        def control():
+            out = []
+            while conn.poll():
+                out.append(conn.recv())
+            return out
+
+        def emit(d):
+            conn.send(("data", d))
+
+        with contextlib.redirect_stderr(io.StringIO()):
+            rec = Sim(mode="live", control=control, emit=emit, **kw).run()
+        conn.send(("end", rec.to_dict()))
+    except BaseException as e:            # noqa: BLE001
+        import traceback
+        try:
+            conn.send(("err", "%s\n%s" % (e, traceback.format_exc())))
+        except Exception:
+            pass
+    finally:
+        conn.close()
+
+
 def columns(frames):
     """Frame-ovi (lista dict-ova) -> kolone (dict lista), za grafike i manji JSON."""
     keys = []
@@ -150,6 +179,79 @@ async def run_load(request):
     return web.json_response(pack(r.to_dict()), dumps=lambda o: json.dumps(o, separators=(",", ":")))
 
 
+async def live(request):
+    """WebSocket /ws/live?tactic=..&side=..: interaktivna simulacija u stvarnom vremenu.
+    Klijent šalje JSON liste (komande, vidi Sim.command), server šalje {"type": "data"|"end"|"error", ...}."""
+    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=32 * 1024 * 1024)
+    await ws.prepare(request)
+    q = request.query
+    names = {f.stem for f in paths.TACTICS.glob("*.py")}
+    tactic = q.get("tactic") if q.get("tactic") in names else None
+    try:
+        obstacles = json.loads(q.get("obstacles") or "[]")
+    except ValueError:
+        obstacles = []
+    kw = dict(name=tactic, side=q.get("side", "plava"), obstacles=obstacles, prof=request.app[STATE]["profile"])
+    ctx = mp.get_context("spawn")
+    a, b = ctx.Pipe()
+    p = ctx.Process(target=_live_worker, args=(b, kw), daemon=True)
+    p.start()
+    b.close()
+    loop = asyncio.get_running_loop()
+    dumps = lambda o: json.dumps(o, separators=(",", ":"))   # noqa: E731
+
+    async def outgoing():
+        while True:
+            try:
+                has = await loop.run_in_executor(None, a.poll, 0.2)
+                if not has:
+                    if not p.is_alive():
+                        await ws.send_str(dumps({"type": "error", "error": "proces simulacije je stao"}))
+                        return
+                    continue
+                kind, d = a.recv()
+            except (EOFError, OSError):
+                return
+            if ws.closed:
+                return
+            if kind == "data":
+                await ws.send_str(dumps({"type": "data", **d}))
+            elif kind == "end":
+                request.app[STATE]["last"] = d
+                await ws.send_str(dumps({"type": "end", "run": pack(d)}))
+                return
+            else:
+                await ws.send_str(dumps({"type": "error", "error": d}))
+                return
+
+    task = asyncio.create_task(outgoing())
+    try:
+        async for msg in ws:
+            if msg.type == web.WSMsgType.TEXT:
+                try:
+                    a.send(tuple(json.loads(msg.data)))
+                except (ValueError, OSError, BrokenPipeError):
+                    pass
+            if task.done():
+                break
+    finally:
+        if p.is_alive():
+            try:
+                a.send(("quit",))
+            except (OSError, BrokenPipeError):
+                pass
+        try:
+            await asyncio.wait_for(task, 5)
+        except (asyncio.TimeoutError, Exception):
+            task.cancel()
+        p.join(1)
+        if p.is_alive():
+            p.kill()
+        if not ws.closed:
+            await ws.close()
+    return ws
+
+
 async def index(request):
     return web.FileResponse(WEB / "index.html")
 
@@ -163,6 +265,7 @@ def make_app(prof=None):
     app.router.add_get("/api/runs", runs_list)
     app.router.add_post("/api/runs/save", run_save)
     app.router.add_get("/api/runs/{name}", run_load)
+    app.router.add_get("/ws/live", live)
     app.router.add_static("/", WEB, show_index=False)
     return app
 

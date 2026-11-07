@@ -97,3 +97,29 @@ def test_beskonacna_petlja_bez_cekanja_se_prekida(tmp_path, monkeypatch):
     (tmp_path / "zauvek.py").write_text("from tac import *\nwhile True:\n    pass\n")
     kind, msg = server.run_in_process(dict(name="zauvek", mode="test", tactics_dir=str(tmp_path)), timeout=3)
     assert kind == "err" and "nije završila" in msg
+
+
+def test_live_websocket(base):
+    import asyncio
+    import aiohttp as ah
+
+    async def go():
+        async with ah.ClientSession() as cs:
+            async with cs.ws_connect(base.replace("http", "ws") + "/ws/live?tactic=primer&side=zuta") as ws:
+                got = []
+                await ws.send_json(["speed", 50])
+                await ws.send_json(["test", "primer", "zuta"])
+                t0 = asyncio.get_running_loop().time()
+                while True:
+                    m = await ws.receive_json(timeout=20)
+                    got.append(m["type"])
+                    if m["type"] == "data" and m["t"] > 6000 and "quit" not in got:
+                        got.append("quit")
+                        await ws.send_json(["quit"])
+                    if m["type"] in ("end", "error") or asyncio.get_running_loop().time() - t0 > 30:
+                        return m, got
+
+    m, got = asyncio.run(go())
+    assert m["type"] == "end", m
+    assert m["run"]["meta"]["tactic"] == "primer" and len(m["run"]["cols"]["t"]) > 100
+    assert any(e[1] == "screen" for e in m["run"]["events"])

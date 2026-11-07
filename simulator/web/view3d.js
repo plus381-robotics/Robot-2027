@@ -88,12 +88,20 @@ export class FieldView {
     this.ghost = this._ghost();
     this.scene.add(this.ghost);
     this.robot.visible = this.ghost.visible = false;
+    this.oppGroup = new THREE.Group();             // editable opponents (independent of the run)
+    this.scene.add(this.oppGroup);
+    this.opponents = []; this.oppSel = -1; this.drag = null;
+    this.onOppSelect = null; this.onOppMove = null;
 
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
     this.onHover = null;
     this.renderer.domElement.addEventListener('mousemove', e => this._hover(e));
     this.renderer.domElement.addEventListener('mouseleave', () => this.onHover && this.onHover(null));
+    const cv = this.renderer.domElement;
+    cv.addEventListener('pointerdown', e => this._down(e));
+    cv.addEventListener('pointermove', e => this._dragMove(e));
+    cv.addEventListener('pointerup', e => this._up(e));
     this.renderer.domElement.addEventListener('dblclick', e => {
       const p = this._pick(e); if (p && this.onPick) this.onPick(p);
     });
@@ -177,9 +185,17 @@ export class FieldView {
 
   // ---------------- one run ----------------
 
+  _dispose(obj) {
+    obj.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+    });
+    obj.clear();
+  }
+
   setRun(run) {
     this.run = run;
-    this.dyn.clear();
+    this._dispose(this.dyn);
     const c = run.cols, n = c.t.length;
     const col = SIDE_COLOR[run.meta.side] || 0xffffff;
     this.robot.userData.body.material.color.setHex(col);
@@ -228,17 +244,83 @@ export class FieldView {
         this.targets.add(tg);
       }
     }
-    for (const o of run.meta.obstacles || []) {
+    this.setFrame(this.frame && this.frame < n ? this.frame : 0);
+  }
+
+  // ---------------- opponents (editable, dragged with the mouse) ----------------
+
+  setOpponents(list, sel = -1) {
+    this.opponents = list; this.oppSel = sel;
+    this._dispose(this.oppGroup);
+    list.forEach((o, i) => {
       const h = (o.z || 350) / 1000;
       const geo = o.r ? new THREE.CylinderGeometry(o.r / 1000, o.r / 1000, h, 32) : new THREE.BoxGeometry(o.w / 1000, o.h / 1000, h);
-      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xc0392b, transparent: true, opacity: 0.7 }));
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xc0392b, transparent: true, opacity: 0.75,
+        emissive: i === sel ? 0x553300 : 0x000000 }));
       if (o.r) m.rotation.x = Math.PI / 2;
-      m.position.set(o.x / 1000, o.y / 1000, h / 2);
-      m.rotation.z = (o.th || 0) * Math.PI / 180;
-      this.dyn.add(m);
-      const l = textSprite(o.name || 'opponent', '#ffb3b3', 0.04); l.position.set(o.x / 1000, o.y / 1000, h + 0.05); this.dyn.add(l);
-    }
-    this.setFrame(0);
+      const g = new THREE.Group();
+      g.add(m);
+      m.position.z = h / 2;
+      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo),
+        new THREE.LineBasicMaterial({ color: i === sel ? 0xffb547 : 0xff8080 }));
+      edges.position.copy(m.position); edges.rotation.copy(m.rotation);
+      g.add(edges);
+      const l = textSprite(o.name || 'opponent', '#ffb3b3', 0.04); l.position.set(0, 0, h + 0.05); g.add(l);
+      g.position.set(o.x / 1000, o.y / 1000, 0);
+      g.rotation.z = (o.th || 0) * Math.PI / 180;
+      m.userData.idx = i;
+      this.oppGroup.add(g);
+    });
+  }
+
+  _hitOpp(e) {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    this.mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const meshes = this.oppGroup.children.map(g => g.children[0]);
+    const hit = this.raycaster.intersectObjects(meshes)[0];
+    return hit ? hit.object.userData.idx : -1;
+  }
+
+  _down(e) {
+    if (e.button !== 0) return;
+    const i = this._hitOpp(e);
+    if (i < 0) return;
+    const p = this._pick(e), o = this.opponents[i];
+    if (!p) return;
+    this.controls.enabled = false;
+    this.drag = { i, dx: o.x - p[0], dy: o.y - p[1], moved: false };
+    this.renderer.domElement.setPointerCapture(e.pointerId);
+    if (this.onOppSelect) this.onOppSelect(i);
+  }
+
+  _dragMove(e) {
+    if (!this.drag) return;
+    const p = this._pick(e);
+    if (!p) return;
+    const d = this.drag, o = this.opponents[d.i];
+    o.x = Math.round(Math.max(0, Math.min(this.field.w, p[0] + d.dx)) / 5) * 5;
+    o.y = Math.round(Math.max(0, Math.min(this.field.h, p[1] + d.dy)) / 5) * 5;
+    d.moved = true;
+    const g = this.oppGroup.children[d.i];
+    g.position.set(o.x / 1000, o.y / 1000, 0);
+    if (this.onOppMove) this.onOppMove(d.i, false);
+  }
+
+  _up(e) {
+    if (!this.drag) return;
+    const d = this.drag;
+    this.drag = null;
+    this.controls.enabled = true;
+    if (d.moved && this.onOppMove) this.onOppMove(d.i, true);
+  }
+
+  setPose(f) {                                     // robot pose straight from a frame (live, between rebuilds)
+    this.robot.visible = true;
+    this.robot.position.set(f.x / 1000, f.y / 1000, 0);
+    this.robot.rotation.z = f.th * Math.PI / 180;
+    this.ghost.position.set(f.ox / 1000, f.oy / 1000, 0);
+    this.ghost.rotation.z = f.oth * Math.PI / 180;
   }
 
   setVisibility({ odom, targets }) {

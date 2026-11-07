@@ -38,7 +38,7 @@ def fresh_import():
 class Esp:
     """ESP strana: App, Robot, Loop, tac, kao na robotu. stm = UART objekat (SimSTM)."""
 
-    def __init__(self, make_stm, tactics_dir, workdir, screen=False, loop_extra_ms=5):
+    def __init__(self, make_stm, tactics_dir, workdir, screen=False, loop_extra_ms=5, inputs=False):
         fresh_import()
         import compat
         compat.fake = [EPOCH_MS]
@@ -68,15 +68,62 @@ class Esp:
         self.tac = tac
         self.run_tactic = run_tactic
         self.services = []                       # dodatni servisi simulatora (snimanje, scenario)
+        self.inputs = None
+        services = [("robot", self.app.update)]
+        if inputs:
+            # pravi inputs.py (enkoder i tasteri) nad lažnim pinovima; isto kao handle_inputs u main.py
+            import config as cfg
+            from inputs import Inputs
+            from machine import Pin
+            self.cfg, self.Pin = cfg, Pin
+            st = self.app.st
+            self.inputs = Inputs(cfg, lambda: st["enc_rev"])
+            services.append(("ulaz", self._handle_inputs))
+        services += [("sim", self._sim_services), ("ekran", self.app.ui.tick)]
 
         def sleep(ms):
             compat.sleep_ms(ms + loop_extra_ms)
 
-        self.loop = Loop([("robot", self.app.update), ("sim", self._sim_services), ("ekran", self.app.ui.tick)],
-                         sleep)
+        self.loop = Loop(services, sleep)
         self.app.loop = self.loop
         self.app.pump = self.loop.step
         tac.app = self.app
+
+    def _handle_inputs(self):
+        gui, app = self.app.ui, self.app
+        for ev in self.inputs.poll(gui.top.wants_hold):
+            if ev[0] == "stop":
+                app.stop()
+            else:
+                gui.input(*ev)
+        gui.hold(self.inputs.hold_ms)
+
+    # ---------------- virtuelni tasteri (kao fizički: nivo pina, 0 = pritisnut) ----------------
+
+    BUTTONS = {"back": "BTN_BACK", "ok": "BTN_OK", "stop": "BTN_STOP", "enc": "ENC_SW"}
+
+    def button(self, name, down):
+        pin = getattr(self.cfg, self.BUTTONS[name])
+        if pin is not None:
+            self.Pin.levels[pin] = 0 if down else 1
+
+    def rotate(self, clicks):
+        """Okret enkodera za clicks klikova (+ = u smeru kazaljke), kao pravi kvadraturni signal."""
+        a, b = self.cfg.ENC_A, self.cfg.ENC_B
+        seq = [(0, 1), (0, 0), (1, 0), (1, 1)] if clicks > 0 else [(1, 0), (0, 0), (0, 1), (1, 1)]
+        for _ in range(abs(clicks)):
+            for la, lb in seq:
+                self.Pin.levels[a], self.Pin.levels[b] = la, lb
+                self.Pin.handlers[a](None)
+
+    def screen(self):
+        """Poslednja nacrtana slika ekrana (128x64, 0/1) ili None ako nije bilo novog crtanja."""
+        fb = self.fb
+        if not fb or not fb.frames:
+            return None
+        px = fb.frames[-1]
+        fb.frames.clear()
+        return px
 
     def _sim_services(self):
         for fn in self.services:
