@@ -1,22 +1,16 @@
 # Meni za OLED 128x64 (SSD1306). Ne zna ništa o robotu: stavke dobijaju funkcije.
 #
-# Ulaz (main.py ga prevodi iz enkodera i tastera):
-#   ui.input("rot", n)   okret enkodera za n koraka (+ = dole / više)
-#   ui.input("ok")       klik
-#   ui.input("back")     nazad (dugi klik enkodera ili taster)
-#   ui.input("home")     nazad na početni ekran
-#   ui.hold(ms)          koliko dugo se drži OK (0 = pušten), za "drži za potvrdu"
-# Crtanje: ui.tick() u glavnoj petlji; crta samo kad se nešto promenilo.
-try:
-    from time import ticks_ms, ticks_diff
-except ImportError:                     # CPython (simulator na laptopu)
-    import time as _t
-
-    def ticks_ms():
-        return int(_t.monotonic() * 1000)
-
-    def ticks_diff(a, b):
-        return a - b
+# Značenje kontrola je isto na svim ekranima (main.py ga prevodi iz enkodera i tastera):
+#   ui.input("rot", n)   okret enkodera: izbor ili listanje (na stranicama: sledeća stranica)
+#   ui.input("ok")       klik enkodera ili OK: potvrdi / glavna radnja ekrana
+#   ui.hold(ms)          držanje OK (800 ms): opasna radnja (ekran Confirm)
+#   ui.input("back")     NAZAD: korak nazad / otkaži (na stranicama ne radi ništa)
+#   ui.input("menu")     dugi NAZAD: meni (app ga zaključava u meču)
+#   STOP                 uvek STOP robota (app.stop, ne ide kroz ui)
+# Poruke: toast() = kratko obaveštenje; alarm() = prekid preko celog ekrana, ostaje do OK.
+# Crtanje: ui.tick() u glavnoj petlji. Slika se šalje na ekran (I2C, ~30 ms) samo kad se
+# promenila; "puls" (piksel dole desno) se menja jednom u sekundi, pa se vidi da program radi.
+from compat import ticks_ms, ticks_diff
 
 W, H = 128, 64
 HEAD = 16       # naslovna traka (na dvobojnom OLED-u je to tačno žuta zona)
@@ -66,6 +60,35 @@ def text_right(fb, s, xr, y, c=1):
 
 def text_center(fb, s, y, c=1, x0=0, w=W):
     fb.text(s, x0 + (w - 8 * len(s)) // 2, y, c)
+
+
+_big_tmp = None
+
+
+def big(fb, s, x, y, k=2, c=1):
+    """Krupan tekst (k puta veći, do 8 znakova): za SPREMAN, vreme, STOP. Nikad za spiskove."""
+    import framebuf
+    global _big_tmp
+    s = s[:8]
+    if _big_tmp is None:
+        _big_tmp = framebuf.FrameBuffer(bytearray(64), 64, 8, framebuf.MONO_VLSB)
+    _big_tmp.fill(0)
+    _big_tmp.text(s, 0, 0, 1)
+    for yy in range(8):
+        for xx in range(8 * len(s)):
+            if _big_tmp.pixel(xx, yy):
+                fb.fill_rect(x + xx * k, y + yy * k, k, k, c)
+
+
+def big_center(fb, s, y, k=2, c=1):
+    big(fb, s, (W - 8 * k * len(s[:8])) // 2, y, k, c)
+
+
+def action_bar(fb, text):
+    """Traka radnje u dnu: šta radi OK (i NAZAD), uvek na istom mestu."""
+    fb.fill_rect(0, H - 10, W, 10, 0)
+    fb.hline(0, H - 11, W, 1)
+    text_center(fb, fit(text, 16), H - 8, 1)
 
 
 def fit(s, chars):
@@ -358,6 +381,9 @@ class UI:
         self._toast = None
         self._toast_until = 0
         self._toast_alert = False
+        self._alarm = None              # (naslov, razlog, posle_ok) dok se ne pritisne OK
+        self._shown = None              # poslednja poslata slika (za slanje samo na promenu)
+        self.sent = 0                   # koliko puta je slika stvarno poslata (merenje)
 
     @property
     def top(self):
@@ -385,6 +411,18 @@ class UI:
         self.dirty = True
         print("[ui]", text)
 
+    def alarm(self, title, reason="", after=None):
+        """Prekid preko celog ekrana (STOP, greška koja prekida taktiku, pad veze u meču).
+        Ostaje dok se ne pritisne OK; after() se tada pozove (npr. prikaži izveštaj)."""
+        self._alarm = (str(title), str(reason), after)
+        self.wake()
+        self.dirty = True
+        print("[ui] PREKID", title, reason)
+
+    @property
+    def alarmed(self):
+        return self._alarm is not None
+
     def wake(self):
         self.last_input = ticks_ms()
         if self.asleep:
@@ -396,10 +434,20 @@ class UI:
         return False
 
     def input(self, ev, arg=None):
-        if self.wake():
-            return                      # prvi dodir samo pali ekran
+        if self.wake() and ev != "rot":
+            return                      # OK/NAZAD posle spavanja samo pale ekran; okret je bezopasan
+        if self._alarm:                 # prekid: samo OK ga zatvara
+            if ev == "ok":
+                after = self._alarm[2]
+                self._alarm = None
+                if after:
+                    after()
+            self.dirty = True
+            return
         t = self.top
-        if ev == "rot":
+        if ev == "menu":
+            self.on_menu()
+        elif ev == "rot":
             t.rotate(self, arg)
         elif ev == "ok":
             t.ok(self)
@@ -410,8 +458,11 @@ class UI:
             self.home()
         self.dirty = True
 
+    def on_menu(self):                  # app je zamenjuje (meni, zaključavanje u meču)
+        pass
+
     def hold(self, ms):
-        if self.top.wants_hold:
+        if self.top.wants_hold and not self._alarm:
             if ms:
                 self.wake()
             self.top.hold(self, ms)
@@ -428,7 +479,8 @@ class UI:
                 self.fb.poweroff()
         if self.asleep:
             return
-        if self.dirty or (self.top.live and ticks_diff(now, self.last_draw) >= LIVE_MS):
+        live = getattr(self.top, "live_ms", LIVE_MS) if self.top.live else 1000   # 1 s: puls
+        if self.dirty or ticks_diff(now, self.last_draw) >= live:
             self.draw()
 
     def draw(self):
@@ -438,8 +490,11 @@ class UI:
         if not fb:
             return
         fb.fill(0)
-        self.top.draw(self, fb)
-        if self._toast:                    # traka na dnu, pokriva samo poslednji red
+        if self._alarm:
+            self._draw_alarm(fb)
+        else:
+            self.top.draw(self, fb)
+        if self._toast and not self._alarm:                    # traka na dnu, pokriva samo poslednji red
             s = fit(self._toast, 16)
             fb.fill_rect(0, H - 13, W, 13, 0)
             if self._toast_alert:
@@ -449,7 +504,24 @@ class UI:
                 fb.hline(0, H - 13, W, 1)
                 fb.hline(0, H - 11, W, 1)
                 text_center(fb, s, H - 9, 1)
+        fb.pixel(W - 1, H - 1, (ticks_ms() // 1000) % 2)      # puls: program radi
+        buf = getattr(fb, "buffer", None)
+        if buf is not None:
+            if self._shown is not None and self._shown == buf:
+                return                      # ista slika: ne šalji (I2C ~30 ms)
+            if self._shown is None or len(self._shown) != len(buf):
+                self._shown = bytearray(len(buf))
+            self._shown[:] = buf            # kopija u isti bafer (bez nove alokacije)
+        self.sent += 1
         fb.show()
+
+    def _draw_alarm(self, fb):
+        title, reason, _ = self._alarm
+        fb.fill(1)
+        big_center(fb, title[:5], 4, 3, 0)
+        text_center(fb, fit(reason, 16), 34, 0)
+        fb.fill_rect(0, H - 12, W, 12, 0)
+        text_center(fb, "OK = dalje", H - 10, 1)
 
     def header(self, fb, title, right=None, page=None, alert=False):
         """Naslovna traka: podebljan naslov levo, desno tekst i ikonice stanja,

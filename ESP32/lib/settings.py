@@ -8,7 +8,12 @@ DEFAULTS = {
     "enc_rev": False,     # obrnut smer enkodera
     "sleep_s": 0,         # gašenje ekrana posle N s bez dodira (0 = nikad)
     "start_pose": True,   # posle povezivanja pošalji SET_POSE iz config.START_POSE
-    "demo": False,        # lažna taktika na ekranu (samo prikaz, ništa se ne šalje robotu)
+    "demo": False,
+    "wdt_match": True,    # machine.WDT od NAORUZAN do restarta (ESP se sam restartuje ako se zaglavi)
+    "wifi_off_match": False,  # ugasi WiFi kad meč krene (u pravom meču)
+    "sel_tactic": None,   # izabrana taktika i strana (pamte se posle restarta i zamene baterije)
+    "sel_side": None,
+    "screen_match": "miran",  # ekran u meču: miran (krupno, retko crta), ugasen, detaljan        # lažna taktika na ekranu (samo prikaz, ništa se ne šalje robotu)
 }
 
 

@@ -72,23 +72,66 @@ DONE/FAIL. Ctrl+C, 10 s bez završetka ili pad veze šalju STOP. Pre pokretanja:
 ruka na prekidaču za motore. Posle testa `mpremote connect /dev/ttyUSB0 reset` vraća ekran.
 
 ## Bez kabla (WiFi)
-Na ESP-u radi upload server (port 8267, lozinka iz `webrepl_cfg.py`):
+Na ESP-u radi upload server (TCP 8267; prijava izazovom, lozinka iz `webrepl_cfg.py` se ne šalje)
+i telemetrija (UDP 8268). Server ne blokira glavnu petlju; dok taktika radi ili je meč naoružan,
+prima samo LOG, STOP i STAT.
 
-    python tools/esp_push.py                       # ceo ESP kod + restart
-    python tools/esp_push.py ESP32/lib/app.py      # samo neki fajlovi
-    python tools/flash_stm32.py pogon-blackpill/Debug/PogonskiSTM-2026-BlackPill.elf --host eurokik.local
+    python tools/esp_push.py                # šalje samo izmenjeno, atomično (STAGE + COMMIT), pa restart
+    python tools/esp_push.py --list         # samo prikaži razlike
+    python tools/esp_push.py --prune        # i obriši .py iz lib/ i tactics/ kojih lokalno nema
+    python tools/watch.py [--csv log.csv]   # poza, stanje, korak taktike i dnevnik uživo
+    python tools/flash_stm32.py pogon-blackpill/Debug/PogonskiSTM-2026-BlackPill.elf
 
-`flash_stm32.py` prima .elf ili .bin; ESP pošalje ENTER_BOOTLOADER, flešuje preko ugrađenog
-bootloader-a (AN3155, 8E1), proveri upis čitanjem i pokrene novi firmver. Radi samo ako je na
-STM32 već firmver koji zna ENTER_BOOTLOADER (protokol v2); prvi put ide preko ST-LINK-a.
-Ako se STM32 ne javlja, rezerva su žice NRST/BOOT0 (`config.STM_NRST`, `config.STM_BOOT0`).
+`lib/` se šalje prekompajliran (`.mpy`); treba `pipx install mpy-cross==1.29.0.post2` (ista verzija
+kao firmver). Razlog: kompajliranje `.py` na ESP-u pri uvozu uzme toliko RAM-a da MicroPython heap
+"pojede" memoriju WiFi drajvera i WiFi umre bez greške (izmereno: 1 KB ostane drajverima).
+`main.py` zato prvo uključi WiFi i UART, pa tek onda uveze ostatak koda. Memorija se vidi u STAT.
+
+`esp_push` prvo pita ESP šta ima (LIST, sha256 po fajlu), pošalje samo izmenjene fajlove u `/.new/`
+sa proverom sha256, pa ih COMMIT sve odjednom stavi na mesto i upiše `/version.txt` (git describe;
+vidi se u Meniju i u STAT). Prekid usred slanja ne ostavlja pola starog, pola novog koda.
+Prvi LIST posle restarta traje ~10 s (fajl sistem na WROOM-32 je spor: listdir ~0.4 s, stat ~0.05 s),
+sledeći par sekundi. Ako program na ESP-u padne, ESP ulazi u rescue režim: greška na ekranu,
+a `esp_push` i dalje radi (popravka bez kabla).
 
 ## Taktike (bez kabla)
-Taktika je fajl u `ESP32/tactics/` (vidi `primer.py`, API je u `lib/tac.py`: pose, goto, rotate,
-move, wait, log, status). Pokretanje sa laptopa preko WiFi-ja (šalje fajl, pokreće, ispisuje dnevnik):
+Taktika je fajl u `ESP32/tactics/` (vidi `primer.py`; API je u `lib/tac.py`):
 
-    python tools/tactic.py primer      # Ctrl+C = STOP
+    from tac import *
+    START = (250, 1000, 0)      # startna poza (u meču je ESP postavi kad se izvuče činč)
+    TOTAL = 4                   # broj koraka, za ekran "2/4"
+    goto(600, 1000, speed=300)  # True/False; deg=90 za završni ugao, reverse=True unazad
+    turn_to(90)                 # apsolutni ugao terena;  turn_by(-45) relativno
+    move(-200)                  # mm, minus = unazad
+    wait(1); wait_until(lambda: ..., 3); step("čekam"); log("..."); here(); remaining()
+    actuator("hvataljka", 1)                  # čeka DONE sa STM32; imena u config.ACTUATORS
+    h = actuator("lift", 300, wait=False)     # paralelno sa vožnjom...
+    goto(800, 1000); wait_done(h)             # ...pa sačekaj kraj (done(h): None/True/False)
+
+Jedinice: mm, stepeni (0° = +x, pozitivno = levo), mm/s, s. Timeout se sam računa iz dužine puta.
+Taktika se piše za **plavu** stranu; na žutoj se koordinate same ogledaju (x -> 3000 - x, ugao -> 180 - ugao).
+
+Pokretanje odmah, kao test (sa laptopa preko WiFi-ja; šalje fajl, pokreće, ispisuje dnevnik):
+
+    python tools/tactic.py primer [--side zuta]   # Ctrl+C = STOP
     python tools/tactic.py --stop
 
-Ili na robotu: dugi klik enkodera -> Taktike -> ime -> drži OK. Taster STOP uvek prekida taktiku.
-Ekran tokom taktike prikazuje korake (TAKTIKA, KORACI).
+Na robotu: dugi klik -> Taktike -> ime ->
+- `plava: mec` / `zuta: mec`: robot je NAORUZAN i na ekranu piše CEKA CINC. Kad STM32 javi početak
+  meča (činč), ESP pošalje START pozu i pokrene taktiku. Bez činča (BlackPill): Taktike -> simul. cinc.
+- `plava: test` / `zuta: test`: odmah (drži OK).
+Taster STOP uvek prekida taktiku i otkazuje naoružan meč. Od NAORUZAN radi watchdog (ESP se sam
+restartuje ako se zaglavi; isključuje se tek restartom), a opciono se gasi WiFi ("WiFi off mec").
+
+## Provera na laptopu
+    python -m pytest ESP32/tests/host     # host testovi (lažni STM32 i ekran iz ESP32/sim/)
+
+## Konvencije (ESP kod)
+- Komentari i tekst na ekranu na srpskom (latinica, bez kvačica na ekranu jer ih font nema).
+- Jedinice: mm, stepeni u taktikama (cdeg u protokolu), mm/s, sekunde u taktikama, ms u kodu.
+- Ništa ne sme da blokira glavnu petlju duže od ~100 ms (STM32 staje posle 500 ms bez PING-a):
+  dugi poslovi se rade u delovima po krugu petlje (vidi upload.py LIST). Meri se: Meni/VEZA, STAT.
+- Vreme samo iz `compat.py` (radi i na laptopu); hardver (machine, network) samo u modulima
+  koji ga stvarno koriste, da bi ostalo moglo da se testira (`ESP32/sim/`, `ESP32/tests/host/`).
+- Posle izmene: `python -m pytest ESP32/tests/host` i mpy-cross (CI radi oba).
+- `protocol.py` se ne menja ručno (protocol/gen.py).

@@ -6,12 +6,10 @@
 #   t.step("GOTO kocka B", timeout=3.0, next="ROTATE 90")   # prethodni korak se zatvara kao OK
 #   t.fail("BLOCKED")           # ili t.ok() kad se korak završi
 #   t.finish()
-try:
-    from time import ticks_ms, ticks_diff
-except ImportError:
-    from ui import ticks_ms, ticks_diff
+from compat import ticks_ms, ticks_diff
 
 HISTORY = 20
+TACTICS_DIR = "/tactics"      # gde su taktike na ESP-u (testovi ga menjaju)
 
 
 class Tracker:

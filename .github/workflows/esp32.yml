@@ -1,0 +1,30 @@
+# ESP32 kod: kompajliranje MicroPython kompajlerom, generisani protokol u skladu sa yaml-om, host testovi.
+name: ESP32
+
+on:
+  push:
+    paths: ["ESP32/**", "protocol/**", "tools/**", ".github/workflows/esp32.yml"]
+  pull_request:
+    paths: ["ESP32/**", "protocol/**", "tools/**", ".github/workflows/esp32.yml"]
+
+jobs:
+  esp32:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install mpy-cross==1.29.0.post2 pyyaml pytest
+      - name: mpy-cross (ista verzija kao firmver na ESP-u)
+        run: |
+          for f in ESP32/main.py ESP32/boot.py ESP32/config.py ESP32/lib/*.py ESP32/tactics/*.py ESP32/tests/*.py; do
+            mpy-cross -o /tmp/x.mpy "$f" || { echo "::error file=$f::mpy-cross"; exit 1; }
+          done
+      - name: protocol.py i BlackPill protocol.h u skladu sa protocol.yaml
+        run: |
+          python protocol/gen.py
+          git diff --exit-code -- ESP32/lib/protocol.py pogon-blackpill/Core/Inc/protocol.h
+      - name: host testovi
+        run: python -m pytest -q ESP32/tests/host
+      - run: python -m py_compile tools/*.py

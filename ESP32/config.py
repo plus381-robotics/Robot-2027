@@ -20,6 +20,11 @@ ENC_STEPS = 4
 # None = nije povezano (vidi dijagram povezivanja: 18 = NRST, 19 = BOOT0).
 STM_NRST, STM_BOOT0 = None, None
 
+# Aktuatori na STM32 (komanda ACTUATOR id, value): ime -> id. Taktika piše actuator("hvataljka", 1).
+# ACTUATOR_MIRROR: na drugoj strani terena (ogledanje) se levi i desni zamenjuju.
+ACTUATORS = {"hvataljka": 1, "lift": 2, "ruka_l": 3, "ruka_r": 4}
+ACTUATOR_MIRROR = {"ruka_l": "ruka_r", "ruka_r": "ruka_l"}
+
 # SET_POSE posle povezivanja sa STM32 (mm, mm, stepeni); isključuje se u Podešavanjima
 START_POSE = (250, 1000, 0)
 

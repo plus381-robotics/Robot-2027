@@ -1,15 +1,19 @@
 # Primer taktike. POKREĆE MOTORE.
-#   python tools/tactic.py primer        (bez kabla, preko WiFi-ja; Ctrl+C = STOP)
-#   ili na robotu: dugi klik -> Taktike -> primer -> drži OK
+#   python tools/tactic.py primer [--side zuta]   (odmah, kao test; Ctrl+C = STOP)
+#   na robotu: dugi klik -> Taktike -> primer -> "plava: mec" (čeka činč) ili "plava: test"
 # Taster STOP na robotu uvek prekida taktiku.
-# Jedinice: mm, stepeni (0° = +x, pozitivno = levo), mm/s, sekunde. Vidi ESP32/lib/tac.py.
+# Piše se za plavu stranu; na žutoj se koordinate same ogledaju. Vidi ESP32/lib/tac.py.
 from tac import *
 
-pose(250, 1000, 0)                                   # gde robot stoji na početku
-if not goto(600, 1000, speed=300, next="okret 90"):  # 35 cm napred
+START = (250, 1000, 0)          # startna poza; u meču je ESP postavi kad se izvuče činč
+TOTAL = 4                       # broj koraka (za ekran "2/4")
+
+if not remaining():             # test bez meča: postavi pozu ručno
+    pose(*START)
+if not goto(600, 1000, speed=300, next="okret 90"):     # 35 cm napred
     log("nije stigao, vracam se")
     move(-100)
     raise Abort("GOTO nije uspeo")
-rotate(90, next="nazad 20 cm")
+turn_to(90, next="nazad 20 cm")                          # apsolutni ugao terena
 move(-200, speed=200)
-log("poza na kraju: %s" % status())
+log("poza na kraju: %s" % (here(),))

@@ -8,7 +8,7 @@ if not s:
     raise Abort("nema STATUS-a od STM32")
 log("start: x=%d y=%d ugao=%.1f" % (s["x"], s["y"], s["theta"] / 100))
 
-if not goto(s["x"] + 100, s["y"], speed=200, name="GOTO +100 x", next="okret 180"):
+if not goto(s["x"], s["y"] + 100, speed=100, name="GOTO +100 y", next="okret 180"):
     raise Abort("GOTO nije uspeo")
 
 ugao = status()["theta"] / 100 + 180       # trenutni ugao + 180, u opsegu -180..180

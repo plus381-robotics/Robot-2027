@@ -3,6 +3,7 @@
 
     python tools/tactic.py primer            # ESP32/tactics/primer.py
     python tools/tactic.py primer --no-push  # pokreni ono što je već na ESP-u
+    python tools/tactic.py primer --side zuta # druga strana (koordinate se ogledaju)
     python tools/tactic.py --stop            # samo STOP
 """
 import argparse
@@ -19,6 +20,7 @@ def main():
     ap.add_argument("--password")
     ap.add_argument("--no-push", action="store_true")
     ap.add_argument("--stop", action="store_true")
+    ap.add_argument("--side", choices=("plava", "zuta"))
     a = ap.parse_args()
     pw = password(a.password)
     if a.stop or not a.name:
@@ -29,7 +31,7 @@ def main():
         if not request(a.host, pw, "PUT /tactics/%s.py %d" % (a.name, f.stat().st_size), f.read_bytes()):
             sys.exit(1)
     pos = int(query(a.host, pw, "LOG 0")[-1].split()[1])      # ne ispisuj stare redove
-    if not request(a.host, pw, "RUN " + a.name):
+    if not request(a.host, pw, "RUN %s %s" % (a.name, a.side or "")):
         sys.exit(1)
     try:
         running = True
