@@ -126,14 +126,3 @@ def test_except_exception_ne_guta_stop(app, stm):
     run(app, 300)
     run_tactic(app, "t")
     assert app.running is None and any(l.startswith("PREKID") for l in app.log)
-
-
-def test_ponovi_poslednju(app, stm):
-    from runner import run_tactic
-    write(app, "t", "from tac import *\nlog('strana %s' % side())\n")
-    run(app, 300)
-    app.side = "zuta"
-    run_tactic(app, "t")
-    assert app.last == ("t", "zuta")
-    m = app.test_menu()
-    assert any(it.label == "ponovi t Z" for it in m.items)

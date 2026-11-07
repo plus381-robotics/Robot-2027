@@ -325,20 +325,6 @@ class App:
         tac.current_side = self.side
         return Menu("Strana", items)
 
-    def test_menu(self):
-        """Pokretanje odmah, bez činča (opasno: drži OK)."""
-        name, side = self.st["sel_tactic"], self.st["sel_side"] or tac.REF_SIDE
-        items = []
-        if name:
-            items.append(Action("test %s %s" % (name, T.SIDE.get(side, "")),
-                                lambda u: (self.start_tactic(name, side), u.home()),
-                                ["%s (%s)" % (name, side), "POKRECE MOTORE", "STOP prekida"]))
-        if self.last and self.last[0] in self.tactics():
-            n, s = self.last
-            items.append(Action("ponovi %s %s" % (n, T.SIDE.get(s, "")), lambda u: (self.start_tactic(n, s), u.home()),
-                                ["%s (%s)" % (n, s), "POKRECE MOTORE", "STOP prekida"]))
-        return Menu("Test", items or [Info("izaberi takt.", lambda: "-")])
-
     def reports_menu(self):
         items = []
         for fn in self.reports():
@@ -358,8 +344,6 @@ class App:
             st.set("flip", v)
             self.apply_display()
         return Menu("Meni", [
-            ui.Sub("Taktike", self.tactics_menu),
-            ui.Sub("Test odmah", self.test_menu),
             ui.Sub("Mecevi", self.reports_menu),
             Choice("u mecu", [("miran", "miran"), ("ugasen", "ugasen"), ("detaljan", "detalj")],
                    lambda: st["screen_match"], lambda v: st.set("screen_match", v)),

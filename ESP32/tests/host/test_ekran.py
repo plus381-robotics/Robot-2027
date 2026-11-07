@@ -28,12 +28,14 @@ def test_kontrole_iste_svuda(app, tmp_path, monkeypatch):
     assert len(u.stack) == 1                            # u meču meni je zaključan
 
 
-def test_provera_izbor_taktike_i_strane(app, tmp_path, monkeypatch):
+def test_pocetni_ekran_opcije(app, tmp_path, monkeypatch):
+    """Početni ekran: opcije se biraju enkoderom; taktika se bira ovde, ne u meniju."""
     setup(app, tmp_path, monkeypatch)
-    u = app.ui
+    u, home = app.ui, app.pages.list[0]
+    assert [r[0] for r in home.rows()] == ["taktika", "strana", "provera", "naoruzaj", "test odmah"]
     ok, items = app.check()
     assert not ok and ("ne", "taktika", "izaberi") in items
-    u.input("ok")                                       # OK na PROVERA: izbor taktike
+    u.input("ok")                                       # taktika -> spisak
     assert u.top.title == "Taktike"
     u.input("ok")                                       # t
     assert u.top.title == "Strana"
@@ -43,11 +45,29 @@ def test_provera_izbor_taktike_i_strane(app, tmp_path, monkeypatch):
     assert app.st["sel_tactic"] == "t" and app.st["sel_side"] == "zuta"
     import json
     assert json.load(open(app.st.path))["sel_side"] == "zuta"     # pamti se posle restarta
+    u.input("rot", 1)
+    u.input("ok")                                       # strana: OK menja plava/zuta
+    assert app.st["sel_side"] == "plava"
+    u.input("rot", 2)
+    assert home.rows()[home.sel][0] == "naoruzaj"
     assert app.check()[0]
-    u.input("ok")                                       # OK = naoruzaj
+    u.input("ok")                                       # naoruzaj
     assert app.match.state == "NAORUZAN"
+    assert [r[0] for r in home.rows()][3:] == ["simul. cinc", "otkazi"]
     u.input("back")                                     # NAZAD = otkaži
     assert app.match.state == "NEMA"
+
+
+def test_okret_prelazi_sa_opcija_na_stranice(app, tmp_path, monkeypatch):
+    setup(app, tmp_path, monkeypatch)
+    u, home = app.ui, app.pages.list[0]
+    u.input("rot", 4)                                   # poslednja opcija
+    assert app.pages.page == 0 and home.sel == 4
+    u.input("rot", 1)                                   # dalje: sledeća stranica
+    assert app.pages.cur.name == "TAKTIKA"
+    u.input("rot", -1)                                  # nazad: poslednja opcija
+    assert app.pages.page == 0 and home.sel == 4
+    assert "Taktike" not in [i.label for i in app.settings_menu().items]   # nije u meniju
 
 
 def test_stop_preko_celog_ekrana(app, tmp_path, monkeypatch):
@@ -126,9 +146,10 @@ def test_okret_budi_i_izvrsi_se(app, tmp_path, monkeypatch):
     setup(app, tmp_path, monkeypatch)
     u = app.ui
     u.asleep = True
-    p0 = app.pages.page
+    home = app.pages.list[0]
+    s0 = home.sel
     u.input("rot", 1)
-    assert not u.asleep and app.pages.page == p0 + 1
+    assert not u.asleep and home.sel == s0 + 1          # okret je izvršen (pomerio izbor)
     u.asleep = True
     u.input("menu")
     assert len(u.stack) == 1                            # posle spavanja samo pali ekran

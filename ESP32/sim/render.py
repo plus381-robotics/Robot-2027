@@ -61,10 +61,11 @@ def page(name, title):
 
 
 run(400)
-page("PROVERA", "PROVERA: nije izabrana taktika")
+page("PROVERA", "Pocetni: opcije, nije izabrana")
 u.input("ok"); u.input("rot", 1); snap("TAKTIKE")
 u.input("ok"); snap("STRANA (sa startnom pozom)")
-u.input("ok"); run(300); snap("PROVERA: sve OK, OK=naoruzaj")
+u.input("ok"); run(300); snap("Pocetni: izabrano, OK")
+u.input("rot", 3); run(100); snap("Pocetni: izbor 'naoruzaj'")
 u.input("ok"); run(300); snap("NAORUZAN: ceka cinc")
 u.input("ok"); snap("simulirani cinc: drzi OK")
 u.hold(900); u.hold(0); run(100)

@@ -64,55 +64,140 @@ class Page:
         pass
 
 
-# ---------------- PROVERA: može li da krene ----------------
+# ---------------- PROVERA: početni ekran sa opcijama ----------------
 
 class Provera(Page):
+    """Početni ekran: lista opcija (taktika, strana, provera, naoružaj, test). Okret enkodera
+    pomera izbor; posle poslednjeg reda ide na sledeću stranicu, unazad se vraća na poslednji red."""
     name = "PROVERA"
     live_ms = 300
 
+    def __init__(self, app):
+        super().__init__(app)
+        self.sel = self.top = 0
+
     def title(self):
-        m = self.app.match
-        return "NAORUZAN" if m.armed else "PROVERA"
+        return "NAORUZAN" if self.app.match.armed else "PROVERA"
 
     def right(self):
         ok = self.app.check()[0]
         return ("OK", False) if ok else ("NE", True)
 
-    def ok(self, u):
-        a = self.app
-        m = a.match
+    def rows(self):
+        """[(natpis, vrednost, radnja)] za trenutno stanje."""
+        a, m = self.app, self.app.match
+        ok, items = a.check()
+        bad = [i for i in items if i[0] == "ne"]
+        summary = bad[0][1] if bad else ("OK" if ok else "upoz")    # NE je u naslovu
+        side = a.st["sel_side"] or "-"
+        rows = [("taktika", a.st["sel_tactic"] or "izaberi", self.do_tactic),
+                ("strana", side, self.do_side),
+                ("provera", summary, self.do_check)]
         if m.armed:
-            u.push(ui.Confirm("Simul. cinc", ["Taktika krece!", "%s %s" % (m.tactic, T.SIDE.get(m.side, "")),
-                                              "STOP prekida"], lambda u2: m.simulate_cord()))
-        elif not a.st["sel_tactic"] or not a.st["sel_side"]:
-            u.push(a.tactics_menu())
+            rows += [("simul. cinc", "", self.do_cord), ("otkazi", "", self.do_cancel)]
+        else:
+            rows += [("naoruzaj", "", self.do_arm), ("test odmah", "", self.do_test)]
+        return rows
+
+    def scroll(self, n):
+        """Pomeri izbor; vraća koliko koraka "preliva" na susedne stranice (0 = ostali smo ovde)."""
+        last = len(self.rows()) - 1
+        s = self.sel + n
+        if s > last:
+            self.sel = last
+            return s - last
+        if s < 0:
+            self.sel = 0
+            return s
+        self.sel = s
+        if self.sel < self.top:
+            self.top = self.sel
+        elif self.sel >= self.top + 4:
+            self.top = self.sel - 3
+        return 0
+
+    def enter_from_end(self):
+        self.sel = len(self.rows()) - 1
+        self.top = max(0, self.sel - 3)
+
+    def ok(self, u):
+        rows = self.rows()
+        self.sel = min(self.sel, len(rows) - 1)
+        rows[self.sel][2](u)
+
+    def back(self, u):
+        if self.app.match.armed:
+            self.do_cancel(u)
+        return True
+
+    # ---- radnje ----
+
+    def locked(self, u):
+        if self.app.match.armed:
+            u.toast("zakljucano u mecu")
+            return True
+        return False
+
+    def do_tactic(self, u):
+        if not self.locked(u):
+            u.push(self.app.tactics_menu())
+
+    def do_side(self, u):
+        if not self.locked(u):
+            sides = ("plava", "zuta")
+            cur = self.app.st["sel_side"]
+            self.app.select(side=sides[(sides.index(cur) + 1) % 2] if cur in sides else sides[0])
+
+    def do_check(self, u):
+        items = self.app.check()[1]
+        u.push(ui.Menu("Provera", [ui.Info("%s %s" % ({"ok": "+", "ne": "x", "upoz": "!", "ceka": "o"}[st], lb),
+                                           (lambda v: lambda: v)(val)) for st, lb, val in items]))
+
+    def do_arm(self, u):
+        a = self.app
+        if not a.st["sel_tactic"] or not a.st["sel_side"]:
+            u.toast("izaberi taktiku")
         elif a.check()[0]:
             a.arm()
         else:
             u.toast("prvo popravi")
 
-    def back(self, u):
-        if self.app.match.armed:
-            self.app.match.cancel()
-            u.toast("otkazano")
-        return True
+    def do_test(self, u):
+        a = self.app
+        name, side = a.st["sel_tactic"], a.st["sel_side"]
+        if not name:
+            return u.toast("izaberi taktiku")
+        u.push(ui.Confirm("Test", ["%s %s" % (name, side or ""), "POKRECE MOTORE", "STOP prekida"],
+                          lambda u2: a.start_tactic(name, side)))
+
+    def do_cord(self, u):
+        m = self.app.match
+        u.push(ui.Confirm("Simul. cinc", ["Taktika krece!", "%s %s" % (m.tactic, T.SIDE.get(m.side, "")),
+                                          "STOP prekida"], lambda u2: m.simulate_cord()))
+
+    def do_cancel(self, u):
+        self.app.match.cancel()
+        u.toast("otkazano")
 
     def draw(self, u, fb, r, s):
-        ok, items = self.app.check()
-        for i, (st, label, val) in enumerate(items[:3]):
-            y = R1 + 12 * i
-            icon(fb, MARK[st], 0, y + 1)
-            fb.text(fit(label, 7), 9, y, 1)
-            text_right(fb, fit(val, 8), ui.W, y, 1)
-        m = self.app.match
-        if m.armed:
-            action_bar(fb, "OK=simul <=otkazi")
-        elif not self.app.st["sel_tactic"] or not self.app.st["sel_side"]:
-            action_bar(fb, "OK = izbor takt.")
-        elif ok:
-            action_bar(fb, "OK = naoruzaj")
-        else:
-            action_bar(fb, "popravi gore")
+        rows = self.rows()
+        self.sel = min(self.sel, len(rows) - 1)
+        for i in range(4):
+            k = self.top + i
+            if k >= len(rows):
+                break
+            label, val, _ = rows[k]
+            y = ui.HEAD + 12 * i
+            c = 1
+            if k == self.sel:
+                box(fb, 0, y, 124, 12, 1)
+                c = 0
+            fb.text(fit(label, 8 if val else 15), 4, y + 2, c)
+            if val:
+                text_right(fb, fit(val, 7), 121, y + 2, c)
+        if len(rows) > 4:                           # klizač
+            th = max(4, 48 * 4 // len(rows))
+            fb.fill_rect(125, ui.HEAD + (48 - th) * self.top // (len(rows) - 4), 3, th, 1)
 
 
 # ---------------- TAKTIKA: trenutni korak (u meču miran prikaz) ----------------
@@ -360,8 +445,20 @@ class Pages(Screen):
                 self.page = i
 
     def rotate(self, u, n):
-        self.page = (self.page + n) % len(self.list)
+        """Na početnom ekranu okret prvo pomera izbor opcije; posle poslednje ide na sledeću stranicu."""
         self.t_touch = ui.ticks_ms()
+        home = self.list[0]
+        if self.page == 0:
+            n = home.scroll(n)
+            if not n:
+                return
+            n = 1 if n > 0 else -1
+        new = (self.page + n) % len(self.list)
+        if new == 0 and n < 0:
+            home.enter_from_end()                    # unazad na početni: poslednja opcija
+        elif new == 0:
+            home.sel = home.top = 0
+        self.page = new
 
     def ok(self, u):
         self.t_touch = ui.ticks_ms()
