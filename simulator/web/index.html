@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eurosim</title>
+<link rel="stylesheet" href="vendor/uPlot.min.css">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{"imports": {"three": "./vendor/three.module.min.js"}}</script>
+<script src="vendor/uPlot.iife.min.js"></script>
+</head>
+<body>
+<header id="bar">
+  <span class="brand">Eurosim</span>
+  <label>Tactic <select id="tactic"></select></label>
+  <label>Side <select id="side"><option value="plava">Blue</option><option value="zuta">Yellow</option></select></label>
+  <label>Mode <select id="mode"><option value="mec">Match (arm, cord, 100 s)</option><option value="test">Test (run now)</option></select></label>
+  <button id="run" class="primary" title="Run simulation (Ctrl+Enter)">▶ Simulate</button>
+  <span class="sep"></span>
+  <button id="save" disabled title="Save this run to simulator/runs/">Save run</button>
+  <select id="runs" title="Load a saved run"><option value="">Saved runs…</option></select>
+  <span id="msg" class="msg"></span>
+</header>
+
+<main id="main">
+  <section id="viewwrap">
+    <div id="view"></div>
+    <div id="viewtools">
+      <button id="cam3d" class="on">3D</button><button id="cam2d">Top</button>
+      <label><input type="checkbox" id="showOdom" checked> odometry</label>
+      <label><input type="checkbox" id="showTargets" checked> targets</label>
+      <label><input type="checkbox" id="follow"> follow</label>
+    </div>
+    <div id="cursor" class="mono"></div>
+    <div id="result"></div>
+  </section>
+
+  <aside id="side-panel">
+    <div class="card" id="status">
+      <h3>State</h3>
+      <div class="grid mono" id="stgrid"></div>
+      <div id="stepnow">
+        <div class="stepline"><span id="stepname">—</span><span id="stepcount" class="dim"></span></div>
+        <div class="bar"><div id="stepbar"></div></div>
+        <div class="dim small" id="stepnext"></div>
+      </div>
+    </div>
+    <div class="card grow" id="stepscard">
+      <h3>Steps</h3>
+      <table id="steps" class="mono"><thead><tr><th>#</th><th>step</th><th>result</th><th>time</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card grow" id="logcard">
+      <h3>Log <label class="small"><input type="checkbox" id="showProto"> ESP↔STM32 messages</label></h3>
+      <div id="log" class="mono"></div>
+    </div>
+  </aside>
+</main>
+
+<footer id="timeline">
+  <div class="controls">
+    <button id="prevStep" title="Previous step (Shift+←)">⏮</button>
+    <button id="prevFrame" title="Back 1 frame (←)">◀</button>
+    <button id="play" title="Play / pause (Space)">▶</button>
+    <button id="nextFrame" title="Forward 1 frame (→)">▶|</button>
+    <button id="nextStep" title="Next step (Shift+→)">⏭</button>
+    <select id="speed" title="Playback speed">
+      <option value="0.25">×0.25</option><option value="0.5">×0.5</option><option value="1" selected>×1</option>
+      <option value="2">×2</option><option value="5">×5</option><option value="10">×10</option><option value="25">×25</option>
+    </select>
+    <span id="time" class="mono">0.00 / 0.00 s</span>
+    <span id="matchtime" class="mono dim"></span>
+  </div>
+  <div id="scrub"><div id="marks"></div><input type="range" id="slider" min="0" max="0" value="0" step="1"></div>
+  <div id="charts"></div>
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

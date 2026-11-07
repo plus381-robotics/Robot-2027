@@ -1,0 +1,2 @@
+# Simulator: komandna linija radi i bez ovoga; web interfejs (sim.py serve) treba aiohttp.
+aiohttp>=3.9

@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pytest
+      - run: pip install pytest -r simulator/requirements.txt
       - name: testovi simulatora
         run: python -m pytest -q simulator/tests
       - name: sve taktike iz ESP32/tactics se izvršavaju u simulatoru

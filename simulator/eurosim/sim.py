@@ -73,6 +73,8 @@ class Sim:
         self.start = tuple(st) + (0,) * (3 - len(st))
         mx, my, mdeg = self.esp.mirror(side, *self.start)
         self.stm.plant.place(mx, my, mdeg)
+        own = side
+        self.start_in_zone = field.in_zone(own, [(x * 1000, y * 1000) for x, y in self.stm.plant.corners()])
         src = (self.tactics_dir / (name + ".py"))
         self.rec.meta = {
             "tactic": name, "side": side, "mode": mode, "source": src.read_text() if src.exists() else None,
@@ -198,7 +200,7 @@ class Sim:
             "steps": rp.get("steps"), "done": rp.get("done"), "fail": rp.get("fail"),
             "pose": [round(pl.x * 1000, 1), round(pl.y * 1000, 1), round(math.degrees(pl.th), 1)],
             "odom": [round(pl.ox * 1000, 1), round(pl.oy * 1000, 1), round(math.degrees(pl.oth), 1)],
-            "in_own_zone": field.in_zone(own, corners),
+            "in_own_zone": field.in_zone(own, corners), "start_in_zone": self.start_in_zone,
             "errors": [e[1] for e in a.errors],
             "sim_ms": self.t(), "match_over": self.stm.match_over,
             "esp_out": self.out.getvalue().splitlines()[-200:],

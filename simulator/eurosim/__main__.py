@@ -6,6 +6,7 @@
     python -m eurosim run primer --out run.json.gz   # sačuvaj snimak
     python -m eurosim run primer -v                  # i sve poruke ESP <-> STM32
     python -m eurosim list                           # taktike u ESP32/tactics
+    python -m eurosim serve                          # web interfejs na http://localhost:8270
 
 Pokreće se iz simulator/ (ili: python simulator/sim.py ...).
 """
@@ -63,6 +64,12 @@ def cmd_list(a):
     return 0
 
 
+def cmd_serve(a):
+    from .server import serve
+    serve(port=a.port, host=a.host, open_browser=not a.no_browser, prof=profmod.load(a.profile))
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="eurosim", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -81,6 +88,12 @@ def main(argv=None):
     li = sub.add_parser("list", help="taktike")
     li.add_argument("--dir")
     li.set_defaults(fn=cmd_list)
+    sv = sub.add_parser("serve", help="web interfejs")
+    sv.add_argument("--port", type=int, default=8270)
+    sv.add_argument("--host", default="127.0.0.1", help="0.0.0.0 = dostupno i sa drugih računara")
+    sv.add_argument("--no-browser", action="store_true")
+    sv.add_argument("--profile")
+    sv.set_defaults(fn=cmd_serve)
     a = ap.parse_args(argv)
     return a.fn(a)
 
