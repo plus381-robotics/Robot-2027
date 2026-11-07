@@ -260,7 +260,7 @@ class App:
 
     def tactics_menu(self):
         items = [Action(n, (lambda n: lambda u: setattr(self, "request", n))(n),
-                        ["Taktika: " + n, "POKRECE MOTORE", "STOP taster prekida"]) for n in self.tactics()]
+                        ["Taktika: " + n, "POKRECE MOTORE", "STOP prekida"]) for n in self.tactics()]
         return Menu("Taktike", items or [Info("nema", lambda: "-")])
 
     # ---------------- podešavanja ----------------
