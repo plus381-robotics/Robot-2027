@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generator: protocol.yaml -> nucleo/Core/Inc/protocol.h + ESP32/lib/protocol.py
+"""Generator: protocol.yaml -> {nucleo,pogon-blackpill}/Core/Inc/protocol.h + ESP32/lib/protocol.py
 
 Pokretanje (iz korena repoa):  python protocol/gen.py
 Generisane fajlove NIKAD ne menjati ručno.
@@ -117,6 +117,7 @@ def decode(t, payload):
 
 if __name__ == "__main__":
     check_unique()
-    (ROOT / "nucleo" / "Core" / "Inc" / "protocol.h").write_text(gen_c())
+    for robot in ("nucleo", "pogon-blackpill"):
+        (ROOT / robot / "Core" / "Inc" / "protocol.h").write_text(gen_c())
     (ROOT / "ESP32" / "lib" / "protocol.py").write_text(gen_py())
     print(f"protocol v{SPEC['version']}: generisano protocol.h i protocol.py")

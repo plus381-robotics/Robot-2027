@@ -9,7 +9,18 @@ UART_BAUD = 115200              # na 921600 tek kad sve radi
 # I2C ekran (SSD1306 128x64)
 I2C_ID, I2C_SDA, I2C_SCL = 0, 21, 22
 
-# tasteri na GND (interni pull-up)
-BTN = (25, 26, 27)
+# tasteri na GND (interni pull-up): nazad (dugo = početni ekran), OK, STOP (šalje STOP odmah)
+BTN_BACK, BTN_OK, BTN_STOP = 25, 26, 27
+
+# rotacioni enkoder: A, B, taster (None = nije povezan). STEPS: prelaza po kliku (4 ili 2).
+ENC_A, ENC_B, ENC_SW = 32, 33, 14
+ENC_STEPS = 4
+
+# STM32 NRST (open-drain) i BOOT0 za flešovanje kad softverski ulazak u bootloader ne radi.
+# None = nije povezano (vidi dijagram povezivanja: 18 = NRST, 19 = BOOT0).
+STM_NRST, STM_BOOT0 = None, None
+
+# SET_POSE posle povezivanja sa STM32 (mm, mm, stepeni); isključuje se u Podešavanjima
+START_POSE = (250, 1000, 0)
 
 WIFI_TIMEOUT_S = 10             # posle toga pravi sopstvenu mrežu

@@ -1,64 +1,74 @@
-# 1) WiFi + WebREPL  2) test protokola sa Nucleom
+# Ekran sa telemetrijom (enkoder + tasteri), veza sa STM32, WiFi + WebREPL i upload u pozadini,
+# i pokretanje taktika iz /tactics (sa ekrana ili preko WiFi-ja: tools/tactic.py).
 # Ctrl+C u bilo kom trenutku prekida program (mpremote i Thonny to rade automatski).
 import time
 from machine import UART
 
 import config as cfg
-import state
-import net
-import protocol as P
-from link import build_frame, FrameParser
-from screen import show
+from screen import oled
+from net import Net
+from robot import Robot
+from settings import Settings
+from inputs import Inputs
+from app import App
+from upload import Upload
+from tactic import tracker
+import tac
 
-show("eurokik", "start...", "WiFi...")
-net.connect()
-show("eurokik.local", state.MODE + " " + state.IP, state.SSID, "", "WebREPL :8266")
+st = Settings()
+UART_ARGS = dict(baudrate=cfg.UART_BAUD, tx=cfg.UART_TX, rx=cfg.UART_RX, rxbuf=1024)
+uart = UART(cfg.UART_ID, timeout=0, **UART_ARGS)
+app = App(Robot(uart), st, oled)               # odmah primenjuje kontrast i okretanje ekrana
+inp = Inputs(cfg, lambda: st["enc_rev"])
+net = Net()                                    # ne blokira: ikonica WiFi trepće dok se povezuje
+gui = app.ui
+upload = Upload(app, UART_ARGS, cfg)          # port 8267: esp_push, flash_stm32, tactic
 
 
-def send(uart, name, seq=0, **fields):
-    t, payload = P.encode(name, **fields)
-    uart.write(build_frame(t, seq, payload))
-
-
-uart = UART(cfg.UART_ID, baudrate=cfg.UART_BAUD, tx=cfg.UART_TX, rx=cfg.UART_RX, rxbuf=1024, timeout=0)
-parser = FrameParser()
-version = status = None
-last_ping = last_rx = last_draw = 0
-pose_sent = False
-while True:
-    now = time.ticks_ms()
-    if time.ticks_diff(now, last_ping) >= 150:          # heartbeat (Nucleo staje posle 500 ms tišine)
-        send(uart, "PING")
-        last_ping = now
-    data = uart.read()
-    if data:
-        for t, seq, payload in parser.feed(data):
-            last_rx = now
-            name, d = P.decode(t, payload)
-            if name == "PONG":
-                version = d["version"]
-            elif name == "STATUS":
-                status = d
-            elif name == "LOG":
-                print("[nucleo]", d["text"])
-            elif name in ("ACK", "DONE", "FAIL"):
-                print(name, "seq", seq, d)
-    if version == P.VERSION and not pose_sent:          # probna komanda: postavi poziciju
-        send(uart, "SET_POSE", 1, x=250, y=1000, theta=0)
-        pose_sent = True
-    if time.ticks_diff(now, last_draw) >= 200:
-        last_draw = now
-        alive = time.ticks_diff(now, last_rx) < 500
-        if not alive:
-            link = "Nucleo: nema"
-        elif version != P.VERSION:
-            link = "verzija N%s/E%d" % (version, P.VERSION)
+def step():
+    """Jedan krug glavne petlje. Taktika ga zove dok čeka (tac.py), pa ekran i veza rade."""
+    net.poll()
+    upload.poll()
+    app.update()                               # UART: PING, STATUS, odgovori
+    for ev in inp.poll(gui.top.wants_hold):
+        if ev[0] == "stop":
+            app.stop()                         # i prekida taktiku
         else:
-            link = "Nucleo OK v%d" % version
-        s = status or {}
-        show("eurokik.local", link,
-             "x=%s y=%s" % (s.get("x", "-"), s.get("y", "-")),
-             "th=%s" % (s.get("theta", 0) / 100 if s else "-"),
-             "v=%s mm/s" % s.get("v", "-"),
-             "greske: %d" % parser.errors, log=False)
+            gui.input(*ev)
+    gui.hold(inp.hold_ms)
+    gui.tick()                                 # crta samo kad se nešto promenilo
     time.sleep_ms(5)
+
+
+def run_tactic(name):
+    app.running, app.abort = name, None
+    tracker.start(name)
+    app.tlog("START " + name)
+    t0 = time.ticks_ms()
+    try:
+        with open("/tactics/%s.py" % name) as f:
+            src = f.read()
+        exec(src, {"__name__": "taktika"})
+        tracker.finish()
+        app.tlog("KRAJ %s %.1fs" % (name, time.ticks_diff(time.ticks_ms(), t0) / 1000))
+    except tac.Abort as e:
+        app.robot.send("STOP")
+        tracker.fail(str(e))
+        tracker.finish()
+        app.tlog("PREKID: %s" % e)
+    except Exception as e:
+        app.robot.send("STOP")
+        tracker.fail("GRESKA")
+        tracker.finish()
+        app.tlog("GRESKA: %r" % e)
+        gui.toast("taktika: greska", 3000, alert=True)
+    app.running = None
+
+
+app.pump = step
+tac.app = app
+while True:
+    step()
+    if app.request:
+        name, app.request = app.request, None
+        run_tactic(name)
