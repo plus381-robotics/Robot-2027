@@ -7,16 +7,7 @@
 #   ui.input("home")     nazad na početni ekran
 #   ui.hold(ms)          koliko dugo se drži OK (0 = pušten), za "drži za potvrdu"
 # Crtanje: ui.tick() u glavnoj petlji; crta samo kad se nešto promenilo.
-try:
-    from time import ticks_ms, ticks_diff
-except ImportError:                     # CPython (simulator na laptopu)
-    import time as _t
-
-    def ticks_ms():
-        return int(_t.monotonic() * 1000)
-
-    def ticks_diff(a, b):
-        return a - b
+from compat import ticks_ms, ticks_diff
 
 W, H = 128, 64
 HEAD = 16       # naslovna traka (na dvobojnom OLED-u je to tačno žuta zona)

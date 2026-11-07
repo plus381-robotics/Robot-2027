@@ -4,10 +4,7 @@
 # Ulazak u bootloader:
 #   - softverski: komanda ENTER_BOOTLOADER (radi dok je na STM32 firmver sa njom)
 #   - hardverski (rezerva): ako su u config.py STM_NRST i STM_BOOT0, BOOT0 = 1 i reset
-try:
-    from time import ticks_ms, ticks_diff, sleep_ms
-except ImportError:
-    pass
+from compat import ticks_ms, ticks_diff, sleep_ms
 
 ACK, NACK = 0x79, 0x1F
 BASE = 0x08000000
@@ -136,7 +133,7 @@ def flash_file(uart, path, uart_args, robot=None, cfg=None, log=print):
         while not robot.ok and ticks_diff(ticks_ms(), t0) < 1500:
             robot.poll()
             sleep_ms(5)
-    if robot is not None and robot.ok:
+    if robot is not None and robot.ok and robot.can("bootloader"):
         # Posle ove komande ESP ne sme ništa da šalje (ni PING): bootloader po prvom
         # primljenom bajtu meri brzinu i mora da to bude 0x7F.
         seq = robot.send("ENTER_BOOTLOADER")

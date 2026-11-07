@@ -10,7 +10,7 @@
 # goto/rotate/move vraćaju True (DONE) ili False (FAIL, nema odgovora, isteklo vreme).
 # Dok taktika čeka, glavna petlja radi dalje (ekran, PING, WiFi); taster STOP ili
 # `tools/tactic.py` Ctrl+C prekidaju taktiku i šalju STOP.
-from time import ticks_ms, ticks_diff
+from compat import ticks_ms, ticks_diff
 import protocol as P
 from tactic import tracker
 
@@ -60,12 +60,25 @@ def _cmd(name, label, timeout, next, motion, **f):
                 tracker.ok()
                 log("%s: OK %.1fs" % (label, ticks_diff(ticks_ms(), t0) / 1000))
                 return True
+            if kind == "timeout" and motion and reason != "SUPERSEDED":
+                _stop_and_wait(r)       # STM32 je komandu možda primio, a izgubljeni su samo ACK-ovi
             tracker.fail(reason or kind)
             log("%s: %s" % (label, reason or kind))
             return False
-    r.send("STOP")
+    _stop_and_wait(r)
     tracker.fail("TIMEOUT")
     log("%s: isteklo %.0fs, STOP" % (label, timeout))
+    return False
+
+
+def _stop_and_wait(r, ms=300):
+    """STOP i čekanje njegovog ACK-a (najviše ms), da robot sigurno stoji pre sledećeg koraka."""
+    seq = r.send("STOP")
+    t0 = ticks_ms()
+    while ticks_diff(ticks_ms(), t0) < ms:
+        app.pump()
+        if any(s == seq and kind == "ok" for s, _, kind, _ in app.events):
+            return True
     return False
 
 

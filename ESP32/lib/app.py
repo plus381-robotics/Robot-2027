@@ -168,9 +168,10 @@ class Pages(Screen):
         fb.text("STM32", 0, R1, 1)
         text_right(fb, ("OK v%d" % r.version) if r.ok else ("v%s?" % r.version if r.alive else "nema"), ui.W, R1)
         fb.text("%d/s" % r.fps, 0, R2, 1)
-        text_right(fb, "CRC %d" % r.parser.errors, ui.W, R2)
-        fb.text("pon %d" % r.retries, 0, R3, 1)
-        text_right(fb, "bez odg %d" % r.noreply, ui.W, R3)
+        text_right(fb, "CRC%d pon%d" % (r.parser.errors, r.retries), ui.W, R2)
+        lp = getattr(self.app, "loop", None)       # najduži krug petlje i najduža pauza PING-a
+        fb.text("krug %d" % (lp.step_max if lp else 0), 0, R3, 1)
+        text_right(fb, "PING %d" % r.ping_gap, ui.W, R3)
         if not state.MODE:
             ip = "WiFi %s..." % (state.SSID or "")
         else:
@@ -223,11 +224,14 @@ class App:
             name = SHORT.get(label, label)
             if kind == "fail":
                 self.ui.toast("%s: %s" % (name, REASON.get(reason, reason)), 2500, alert=True)
-            elif kind == "timeout":
+            elif kind == "timeout" and reason != "SUPERSEDED":
                 self.ui.toast("%s: nema odg." % name, 2500, alert=True)
-        if r.ok and not self._pose_sent:
+        # Auto poza samo za razvoj: posle povezivanja, i to samo ako STATUS kaže da ne traje meč
+        # i robot ne vozi, i ne radi taktika. Restart ESP-a usred meča ne sme da pregazi odometriju.
+        if r.ok and not self._pose_sent and r.status is not None:
             self._pose_sent = True
-            if self.st["start_pose"]:
+            quiet = not (r.status["state"] & (P.State.MATCH_RUNNING | P.State.MATCH_OVER | P.State.MOVING))
+            if self.st["start_pose"] and quiet and not (self.running or self.request):
                 x, y, th = cfg.START_POSE
                 r.send("SET_POSE", x=x, y=y, theta=th * 100)
         if tracker.demo and not self.running:
@@ -241,6 +245,7 @@ class App:
     def stop(self):
         """Taster STOP: radi uvek, i bez veze i dok je ekran ugašen."""
         self.robot.send("STOP")
+        self.request = None                    # izabrana taktika koja još nije krenula ne kreće
         if self.running:
             self.abort = "STOP"
         self.ui.wake()
@@ -254,12 +259,19 @@ class App:
     def tactics(self):
         import os
         try:
-            return sorted(f[:-3] for f in os.listdir("/tactics") if f.endswith(".py"))
+            import tactic
+            return sorted(f[:-3] for f in os.listdir(tactic.TACTICS_DIR) if f.endswith(".py"))
         except OSError:
             return []
 
+    def start_tactic(self, name):
+        if not (self.running or self.request):
+            self.request = name
+
     def tactics_menu(self):
-        items = [Action(n, (lambda n: lambda u: setattr(self, "request", n))(n),
+        if self.running:                       # dok taktika radi, nova ne može da se izabere
+            return Menu("Taktike", [Info("radi", lambda: self.running or "-")])
+        items = [Action(n, (lambda n: lambda u: self.start_tactic(n))(n),
                         ["Taktika: " + n, "POKRECE MOTORE", "STOP prekida"]) for n in self.tactics()]
         return Menu("Taktike", items or [Info("nema", lambda: "-")])
 
