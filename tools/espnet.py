@@ -29,3 +29,11 @@ def request(host, pw, command, data=b"", timeout=60):
             print("  " + line)
             last = line
     return last.startswith("OK")
+
+
+def query(host, pw, command, timeout=10):
+    """Kao request(), ali bez ispisa: vraća listu redova odgovora."""
+    with socket.create_connection((host, PORT), timeout=5) as s:
+        s.settimeout(timeout)
+        s.sendall(pw.encode() + b"\n" + command.encode() + b"\n")
+        return [l.rstrip("\n") for l in s.makefile("r", encoding="utf-8", errors="replace")]

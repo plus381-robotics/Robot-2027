@@ -8,7 +8,7 @@ import config as cfg
 import protocol as P
 import state
 import ui
-from ui import Menu, Toggle, Number, Choice, Info, Screen, icon, box, text_right, text_center, fit
+from ui import Menu, Toggle, Number, Choice, Info, Action, Screen, icon, box, text_right, text_center, fit
 from tactic import tracker, Demo
 
 TAGS = ((P.State.MOVING, "VOZI"), (P.State.BLOCKED, "BLOK"),
@@ -183,6 +183,13 @@ class App:
         self.robot, self.st, self.fb = robot, settings, fb
         self._pose_sent = False
         self._seen_start = None
+        self.events = []                   # događaji iz poslednjeg robot.poll() (za tac.py)
+        self.abort = None                  # razlog prekida taktike (STOP)
+        self.request = None                # ime taktike koju treba pokrenuti
+        self.running = None                # ime taktike koja radi
+        self.log = []                      # dnevnik taktike (tools/tactic.py ga čita preko WiFi-ja)
+        self.log_n = 0                     # ukupno redova ikad (za čitanje od mesta)
+        self.pump = None                   # jedan krug glavne petlje (postavlja main.py)
         self.demo = Demo(tracker)
         tracker.demo = self.st["demo"]
         self.pages = Pages(self)
@@ -211,7 +218,8 @@ class App:
 
     def update(self):
         r = self.robot
-        for seq, label, kind, reason in r.poll():
+        self.events = r.poll()
+        for seq, label, kind, reason in self.events:
             name = SHORT.get(label, label)
             if kind == "fail":
                 self.ui.toast("%s: %s" % (name, REASON.get(reason, reason)), 2500, alert=True)
@@ -222,7 +230,7 @@ class App:
             if self.st["start_pose"]:
                 x, y, th = cfg.START_POSE
                 r.send("SET_POSE", x=x, y=y, theta=th * 100)
-        if tracker.demo:
+        if tracker.demo and not self.running:
             self.demo.update()
         if tracker.running and tracker.t_start != self._seen_start:   # nova taktika: prikaži je
             self._seen_start = tracker.t_start
@@ -233,8 +241,27 @@ class App:
     def stop(self):
         """Taster STOP: radi uvek, i bez veze i dok je ekran ugašen."""
         self.robot.send("STOP")
+        if self.running:
+            self.abort = "STOP"
         self.ui.wake()
         self.ui.toast("STOP", 1500, alert=True)
+
+    def tlog(self, text):
+        print("[taktika]", text)
+        self.log = (self.log + [text])[-40:]
+        self.log_n += 1
+
+    def tactics(self):
+        import os
+        try:
+            return sorted(f[:-3] for f in os.listdir("/tactics") if f.endswith(".py"))
+        except OSError:
+            return []
+
+    def tactics_menu(self):
+        items = [Action(n, (lambda n: lambda u: setattr(self, "request", n))(n),
+                        ["Taktika: " + n, "POKRECE MOTORE", "STOP taster prekida"]) for n in self.tactics()]
+        return Menu("Taktike", items or [Info("nema", lambda: "-")])
 
     # ---------------- podešavanja ----------------
 
@@ -250,7 +277,8 @@ class App:
         def flip(v):
             st.set("flip", v)
             self.apply_display()
-        return Menu("Ekran", [
+        return Menu("Meni", [
+            ui.Sub("Taktike", self.tactics_menu),
             Number("kontrast", lambda: st["contrast"], lambda v: (st.set("contrast", v), self.apply_display()),
                    0, 255, 15, preview=lambda v: self.apply_display(v)),
             Toggle("okreni 180", lambda: st["flip"], flip),

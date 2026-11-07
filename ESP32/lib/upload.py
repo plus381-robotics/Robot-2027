@@ -4,6 +4,9 @@
 #   PUT <putanja> <dužina>   upiši fajl na ESP (preko privremenog fajla, pa preimenuj)
 #   FLASH <dužina>           primi STM32 .bin u /stm.bin i flešuj ga (stmflash.py)
 #   RESET                    restartuj ESP
+#   RUN <ime>                pokreni /tactics/<ime>.py (odgovara odmah)
+#   STOP                     prekini taktiku i pošalji STOP robotu
+#   LOG <od>                 redovi dnevnika taktike od rednog broja <od>; poslednji red "OK <n> <radi>"
 # Odgovor: redovi napretka, na kraju "OK ..." ili "ERR ...". Lozinka je ista kao za WebREPL.
 import socket
 import os
@@ -63,6 +66,12 @@ class Upload:
         return b.decode().strip()
 
     def _recv_file(self, c, path, n):
+        d = path.rsplit("/", 1)[0]
+        if d:
+            try:
+                os.mkdir(d)
+            except OSError:
+                pass
         tmp = path + ".tmp"
         buf = bytearray(1024)
         left = n
@@ -90,7 +99,28 @@ class Upload:
             path, n = args[1], int(args[2])
             self._recv_file(c, path, n)
             c.write(("OK %s %d B\n" % (path, n)).encode())
+        elif args[0] == "RUN":
+            if self.app.running or self.app.request:
+                c.write(b"ERR taktika vec radi\n")
+            elif args[1] not in self.app.tactics():
+                c.write(("ERR nema /tactics/%s.py\n" % args[1]).encode())
+            else:
+                self.app.request = args[1]
+                c.write(b"OK\n")
+        elif args[0] == "STOP":
+            self.app.stop()
+            c.write(b"OK\n")
+        elif args[0] == "LOG":
+            a = self.app
+            first = a.log_n - len(a.log)          # redni broj najstarijeg sačuvanog reda
+            for i, line in enumerate(a.log):
+                if first + i >= int(args[1]):
+                    c.write((line + "\n").encode())
+            c.write(("OK %d %d\n" % (a.log_n, 1 if (a.running or a.request) else 0)).encode())
         elif args[0] == "FLASH":
+            if self.app.running:
+                c.write(b"ERR taktika radi\n")
+                return
             n = int(args[1])
             ui.toast("STM32: prijem", 60000)
             ui.draw()
