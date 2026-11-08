@@ -99,6 +99,7 @@ class Sim:
         self.speed = 1.0
         self._anchor = None                      # (virtuelno ms, zid s) za ritam u stvarnom vremenu
         self._sent = (0, 0)                      # koliko frame-ova i događaja je poslato
+        self._meta_dirty = False                 # meta promenjena (strana, taktika): pošalji je UI-ju
         self._t_emit = 0.0
         self.esp.services.append(self._service)
         self._hook_lines()
@@ -111,6 +112,7 @@ class Sim:
         own = side
         self.start_in_zone = field.in_zone(own, [(x * 1000, y * 1000) for x, y in self.stm.plant.corners()])
         src = self.tactics_dir / ((name or "") + ".py")
+        self._placed = (name, side)              # za koju taktiku i stranu je robot postavljen na sto
         self.rec.meta = {
             "tactic": name, "side": side, "mode": mode, "source": src.read_text(encoding="utf-8") if name and src.exists() else None,
             "start": list(self.start), "start_field": [mx, my, mdeg], "total": meta.get("TOTAL"),
@@ -259,6 +261,7 @@ class Sim:
                 src = self.tactics_dir / (tr.name + ".py")
                 self.rec.meta.update(tactic=tr.name, side=a.side, total=tr.total,
                                      source=src.read_text(encoding="utf-8") if src.exists() else None)
+                self._meta_dirty = True
         if tr.step_name and tr.idx != self._step_idx:
             self._step_idx = tr.idx
             self.rec.event(t, "step", [tr.idx, tr.step_name, tr.timeout_ms, tr.next])
@@ -343,10 +346,14 @@ class Sim:
         elif k == "cord":
             self.stm.pull_cord()
         elif k == "arm":
+            self._place_for(c[1], c[2])
             a.select(c[1], c[2])
             a.arm()
         elif k == "test":
+            self._place_for(c[1], c[2])
             a.start_tactic(c[1], c[2])
+        elif k == "side":                       # UI: promenjena strana ili taktika dok robot miruje
+            self._place_for(c[1], c[2])
         elif k == "stop":
             self.event("sim", {"text": "STOP (iz simulatora)"})
             a.stop()
@@ -374,6 +381,30 @@ class Sim:
             self.quit = True
             if a.running:
                 a.abort = "sim: kraj"
+
+    def _idle(self):
+        a = self.app
+        return not (a.running or a.request or a.match.armed) and self.stm.phase == "IDLE" and not self.stm.motion_seq
+
+    def _place_for(self, name, side):
+        """Live: robot stoji na START-u za (taktika, strana). Kad se izabere druga strana ili taktika, a robot
+        miruje, prenese se na START te taktike ogledan po strani (kao kad ga čovek prenese na drugu stranu
+        stola). Ranije je ostajao gde je postavljen pri pokretanju Live-a, pa je na plavoj vozio po žutoj."""
+        if (name, side) == self._placed or not self._idle():
+            return
+        meta = self.esp.tactic_meta(name) if name else {}
+        st = meta.get("START") or (250, 1000, 0)
+        start = tuple(st) + (0,) * (3 - len(st))
+        mx, my, mdeg = self.esp.mirror(side, *start)
+        self.stm.plant.place(mx, my, mdeg)
+        self._placed = (name, side)
+        self.start, self.start_meta = start, meta.get("START")
+        src = self.tactics_dir / ((name or "") + ".py")
+        self.rec.meta.update(tactic=name, side=side, start=list(start), start_field=[mx, my, mdeg],
+                             total=meta.get("TOTAL"),
+                             source=src.read_text(encoding="utf-8") if name and src.exists() else None)
+        self._meta_dirty = True
+        self.event("sim", {"text": "robot prenet na START: %s, %s (%d, %d, %d°)" % (name, side, mx, my, mdeg)})
 
     def _poll_control(self):
         if self.control:
@@ -406,7 +437,8 @@ class Sim:
         a = self.app
         self.emit({"frames": self.rec.frames[nf:], "events": self.rec.events[ne:], "t": self.t(),
                    "paused": self.paused, "speed": self.speed, "running": a.running, "mec": a.match.state,
-                   "meta": self.rec.meta if final or nf == 0 else None, "final": final})
+                   "meta": self.rec.meta if final or nf == 0 or self._meta_dirty else None, "final": final})
+        self._meta_dirty = False
         self._sent = (len(self.rec.frames), len(self.rec.events))
 
     def _run_live(self):

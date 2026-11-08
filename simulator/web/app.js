@@ -852,6 +852,14 @@ async function main() {
   $('edBtn').onclick = () => toggleEditor().catch(e => msg('editor: ' + e.message, true));
   $('edFile').onchange = e => edLoad(e.target.value);
   $('tactic').addEventListener('change', e => { if (ed) edLoad(e.target.value); });
+  // Strana/taktika: u Live-u robot (dok miruje) prelazi na START izabrane strane (ranije je ostajao na
+  // strani sa kojom je Live pokrenut); inače se prikazani snimak odmah ponovo simulira za novu stranu.
+  const selChanged = () => {
+    if (live && live.kind !== 'robot') liveSend(['side', curTactic(), $('side').value]);
+    else if (!live && run && run.meta && !run.meta.host) simulate();
+  };
+  $('side').addEventListener('change', selChanged);
+  $('tactic').addEventListener('change', () => { if (live && live.kind !== 'robot') selChanged(); });
   $('edNew').onclick = edNew;
   $('edSave').onclick = () => edSave();
   $('edRun').onclick = () => simulate();

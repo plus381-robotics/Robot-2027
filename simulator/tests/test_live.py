@@ -58,7 +58,7 @@ def test_live_enkoder_pomera_izbor_na_pocetnom_ekranu():
 
 def test_live_protivnik_postavljen_tokom_voznje_blokira():
     s, r, _ = live([(300, ("test", "primer", "plava")),
-                    (1300, ("obstacles", [{"x": 800, "y": 1000, "w": 300, "h": 300}]))])
+                    (1300, ("obstacles", [{"x": 2200, "y": 1000, "w": 300, "h": 300}]))])   # plava: GOTO 600 -> 2400
     assert r.steps()[0][3] == "BLOCKED"              # GOTO (START pozu u testu postavlja runner, nije korak)
     assert r.of("obstacles")
 
@@ -68,3 +68,22 @@ def test_live_ritam_prati_stvarno_vreme():
     s, r, _ = live([(1500, ("pause", False))], speed=2.0)
     wall = time.time() - t0
     assert 2.0 < wall < 4.5                           # 1.5 s + 3 s do quit, ×2 = ~2.25 s
+
+
+def test_live_promena_strane_prenese_robota_na_start_te_strane():
+    """Bag (plan S1): Live pokrenut na žutoj, pa izabrana plava: robot je ostajao na žutoj i tamo vozio
+    ogledanu taktiku, a odometrija i ciljevi su bili na plavoj (greška ~1840 mm)."""
+    s, r, emitted = live([(300, ("arm", "primer", "plava")), (1300, ("cord",)), (6500, ("stop",))], side="zuta")
+    f0 = next(f for f in r.frames if f["t"] >= 1000)
+    assert f0["x"] > 2500                                          # na plavoj startnoj zoni pre činča
+    f = r.frames[-1]
+    assert f["x"] > 1500 and abs(f["x"] - f["ox"]) < 20 and abs(f["y"] - f["oy"]) < 20
+    metas = [m["meta"] for m in emitted if m.get("meta")]
+    assert metas[-1]["side"] == "plava"                            # UI dobija novu stranu (boja, koordinate)
+    assert any("robot prenet na START" in e[2]["text"] for e in r.of("sim"))
+
+
+def test_live_promena_strane_ne_pomera_robota_u_mecu():
+    s, r, _ = live([(300, ("arm", "primer", "zuta")), (1300, ("cord",)), (2500, ("side", "primer", "plava"))],
+                   side="zuta")
+    assert r.frames[-1]["x"] < 1500                                # meč traje: robot ostaje gde jeste
