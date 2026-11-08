@@ -570,8 +570,18 @@ async def index(request):
     return web.FileResponse(paths.WEB / "index.html")
 
 
+@web.middleware
+async def no_stale_ui(request, handler):
+    """Interfejs se ne kešira bez provere: posle git pull / nove verzije pregledač mora da dobije nove
+    index.html i *.js (inače ostaje stari UI). Lokalno je provera jeftina (304 Not Modified)."""
+    resp = await handler(request)
+    if not request.path.startswith(("/api/", "/ws/")):
+        resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
 def make_app(prof=None):
-    app = web.Application(client_max_size=8 * 1024 * 1024)
+    app = web.Application(client_max_size=8 * 1024 * 1024, middlewares=[no_stale_ui])
     app[STATE] = {"profile": prof or profmod.load(), "last": None}
     app.router.add_get("/", index)
     app.router.add_get("/api/info", info)
@@ -604,6 +614,14 @@ def make_app(prof=None):
 
 def serve(port=PORT, host="127.0.0.1", open_browser=True, prof=None):
     url = "http://%s:%d/" % ("localhost" if host in ("127.0.0.1", "0.0.0.0") else host, port)
+    import socket
+    with socket.socket() as so:                       # port zauzet: verovatno već radi (stari) Eurosim
+        try:
+            so.bind((host, port))
+        except OSError:
+            raise SystemExit("port %d je zauzet: verovatno već radi Eurosim (možda stara verzija).\n"
+                             "Zatvori ga (Ctrl+C u njegovom prozoru) pa pokreni ponovo, ili: serve --port %d"
+                             % (port, port + 1))
     print("simulator: %s  (Ctrl+C za kraj)" % url)
     if open_browser:
         try:
