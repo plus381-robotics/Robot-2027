@@ -2,7 +2,8 @@
 #  - push na bilo koju granu / PR (simulator ili ESP kod): testovi + Linux fajl kao "artifact"
 #  - push na main ili tag sim-v* (npr. sim-v0.1.0): testovi + Linux i Windows fajl + GitHub Release
 #    (main: verzija sim-v0.2.<broj runa>, tag: ime taga). Releases uvek ima poslednji fajl za oba sistema.
-#  - ručno (Actions -> Simulator -> Run workflow): i Windows fajl, bez Release-a
+#  - ručno (Actions -> Simulator -> Run workflow): i Windows fajl; ako se upiše "release" (npr. sim-v0.1.0),
+#    i Release sa tim imenom (tag napravi GitHub, ne treba git push taga)
 name: Simulator
 
 on:
@@ -15,6 +16,11 @@ on:
     paths: ["simulator/**", "ESP32/lib/**", "ESP32/sim/**", "ESP32/tactics/**", "ESP32/config.py",
             "tools/espnet.py", ".github/workflows/simulator.yml"]
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Ime verzije za GitHub Release (npr. sim-v0.1.0); prazno = samo fajlovi u Artifacts"
+        required: false
+        default: ""
 
 jobs:
   test:
@@ -75,7 +81,7 @@ jobs:
 
   release:
     needs: [build-linux, build-windows]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/sim-v'))
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/sim-v'))) || (github.event_name == 'workflow_dispatch' && inputs.release != '')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -85,8 +91,12 @@ jobs:
           path: art
       - name: imena fajlova i verzija
         id: v
+        env:
+          IN_RELEASE: ${{ inputs.release }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then TAG="${GITHUB_REF#refs/tags/}"; else TAG="sim-v0.2.${GITHUB_RUN_NUMBER}"; fi
+          if [[ -n "$IN_RELEASE" ]]; then TAG="$IN_RELEASE"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then TAG="${GITHUB_REF#refs/tags/}"
+          else TAG="sim-v0.2.${GITHUB_RUN_NUMBER}"; fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           mkdir out
           cp art/eurosim-linux/eurosim "out/eurosim-$TAG-linux"
