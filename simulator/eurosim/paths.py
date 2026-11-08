@@ -4,7 +4,10 @@
 #    profili i snimci su u repou (ESP32/, simulator/), pa se izmene vide odmah i idu u git;
 #  - samostalno (izvršni fajl van repoa, npr. skinut sa GitHub-a): ESP kod je spakovan u fajl, a taktike,
 #    profili i snimci su u ~/Eurosim (prvi put se tamo kopiraju primeri).
-# Repo se traži od trenutnog foldera i od foldera izvršnog fajla naviše, ili se zada sa EUROSIM_ROOT.
+# Repo se traži od trenutnog foldera i od foldera izvršnog fajla naviše, ili se zada sa EUROSIM_ROOT, ili je to
+# repo koji je korisnik ranije izabrao u aplikaciji ("Open repo folder" / "Clone repo", plan S10), zapamćen u
+# ~/.eurosim.json.
+import json
 import os
 import pathlib
 import shutil
@@ -19,7 +22,30 @@ def _is_repo(p):
     return (p / "ESP32" / "lib" / "tac.py").exists() and (p / "simulator").is_dir()
 
 
+USER_CFG = pathlib.Path(os.environ.get("EUROSIM_CONFIG") or pathlib.Path.home() / ".eurosim.json")
+
+
+def user_cfg():
+    try:
+        return json.loads(USER_CFG.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def remember_repo(path):
+    """Zapamti izabrani repo za sledeće pokretanje (i kad se exe pokrene van repoa)."""
+    cfg = user_cfg()
+    cfg["repo"] = str(pathlib.Path(path).resolve())
+    USER_CFG.write_text(json.dumps(cfg, indent=1), encoding="utf-8")
+
+
+def is_repo(p):
+    return _is_repo(pathlib.Path(p))
+
+
 def find_repo():
+    if os.environ.get("EUROSIM_NO_REPO") == "1":      # testovi: kao exe pokrenut van repoa
+        return None
     env = os.environ.get("EUROSIM_ROOT")
     if env:
         return pathlib.Path(env).resolve()
@@ -32,6 +58,9 @@ def find_repo():
         for p in [s, *s.parents]:
             if _is_repo(p):
                 return p
+    saved = user_cfg().get("repo")
+    if saved and _is_repo(pathlib.Path(saved)):
+        return pathlib.Path(saved)
     return None
 
 
@@ -72,7 +101,8 @@ def configure(root=None, home=None):
 
 def describe():
     return {"mode": MODE, "root": str(ROOT) if ROOT else None, "home": str(HOME) if HOME else None,
-            "tactics": str(TACTICS), "profiles": str(PROFILES), "runs": str(RUNS), "frozen": FROZEN}
+            "tactics": str(TACTICS), "profiles": str(PROFILES), "runs": str(RUNS), "frozen": FROZEN,
+            "user_home": str(pathlib.Path.home()), "app": str(pathlib.Path(sys.executable).name) if FROZEN else None}
 
 
 configure()

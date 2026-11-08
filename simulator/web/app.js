@@ -569,7 +569,9 @@ async function edSave(force = false) {
     info = await api('/api/info');
     fillTacticSelects();
     edState();
-    msg(`saved ESP32/tactics/${ed.name}.py`);
+    msg(info.where && info.where.mode !== 'repo' ? `saved ONLY on this computer: ${info.where.tactics}/${ed.name}.py`
+      : `saved ESP32/tactics/${ed.name}.py`);
+    repoRefresh();
   } catch (e) {
     if (e.status === 409 && !force &&
         confirm(`ESP32/tactics/${ed.name}.py was changed on disk after you opened it.\n\nOverwrite it with your version?`)) {
@@ -939,6 +941,77 @@ async function saveProfile() {
   } catch (e) { msg(e.message, true); }
 }
 
+// ---------------- repo kao radni prostor (plan S10) ----------------
+
+function showRepoBanner() {
+  const w = info.where || {};
+  const b = $('repoBanner');
+  if (w.mode === 'repo') { b.hidden = true; document.body.classList.remove('has-banner'); document.title = 'Eurosim'; return; }
+  let local = false;
+  try { local = sessionStorage.getItem('eurosim.norepo') === '1'; } catch (e) { /* ignore */ }
+  b.hidden = false; document.body.classList.add('has-banner');
+  b.classList.toggle('local', local);
+  $('rbLocal').hidden = local;
+  $('repoBannerText').textContent = local
+    ? `⚠ No repo: tactics and profiles are saved ONLY on this computer (${w.home}). Nobody else sees them.`
+    : '⚠ Eurosim is not in the Robot-2027 repo. Tactics and the robot profile are NOT saved to the team repo and ' +
+      'nobody else will see them. Put this file in the root of the cloned repo, or:';
+  document.title = 'Eurosim (NO REPO)';
+}
+
+async function repoOpen() {
+  const def = (info.where.user_home || '') + (info.where.user_home && info.where.user_home.includes('\\') ? '\\' : '/') + 'Robot-2027';
+  const path = prompt('Folder of the Robot-2027 repo on this computer (where ESP32 and simulator are):', def);
+  if (!path) return;
+  try { const d = await api('/api/repo/open', { path }); await repoSwitched(d); } catch (e) { alert(e.message); }
+}
+
+async function repoClone() {
+  const parent = prompt('Clone the team repo into which folder? (a Robot-2027 folder is made inside it)\n' +
+    'Needs Git; GitHub may ask you to sign in.', info.where.user_home || '');
+  if (!parent) return;
+  msg('cloning Robot-2027 from GitHub… (this can take a minute)');
+  try { const d = await api('/api/repo/clone', { parent }); await repoSwitched(d); } catch (e) { msg(e.message, true); alert(e.message); }
+}
+
+async function repoSwitched(d) {
+  if (d.note) alert(d.note);
+  if (info.where.frozen && confirm(`Copy Eurosim into ${d.root} so that next time it starts right in the repo?`)) {
+    try { const c = await api('/api/repo/copyapp', {}); if (c.copied) alert(`Copied to ${c.copied}. Start that one from now on.`); }
+    catch (e) { alert(e.message); }
+  }
+  location.reload();                                // sve (taktike, profil, putanje) iz novog repoa
+}
+
+async function repoRefresh(fetch = false) {
+  if (!info.where || info.where.mode !== 'repo') { $('repoBtn').hidden = true; return null; }
+  let st;
+  try { st = await api('/api/repo/status' + (fetch ? '?fetch=1' : '')); } catch (e) { st = { error: e.message }; }
+  const badge = $('repoBadge');
+  const n = (st.changed || []).length, behind = st.behind || 0, prof = (st.profile_changed_upstream || []).length;
+  badge.hidden = !(n || behind || prof);
+  badge.textContent = [behind ? `↓${behind}` : '', prof ? '! profile' : '', n ? `●${n}` : ''].filter(Boolean).join(' ');
+  badge.title = [behind ? `${behind} new commit(s) on GitHub: Pull latest` : '', prof ? 'the robot profile was changed on GitHub' : '',
+    n ? `${n} changed file(s) not saved to GitHub` : ''].filter(Boolean).join('\n');
+  if (!$('repoDialog').hidden) renderRepo(st);
+  return st;
+}
+
+function renderRepo(st) {
+  $('repoRoot').textContent = st.root || '';
+  const b = [];
+  if (st.error) b.push(`<p class="err">${esc(st.error)}</p>`);
+  if (st.branch) b.push(`<p>branch <b>${esc(st.branch)}</b> · ${esc(st.commit || '')}</p>`);
+  if (st.behind != null) b.push(`<p>${st.behind ? `<span class="warn">${st.behind} new on GitHub</span>` : 'up to date with GitHub'}` +
+    `${st.ahead ? ` · ${st.ahead} of yours not pushed yet` : ''}</p>`);
+  else if (st.branch) b.push('<p class="dim">this branch is not on GitHub yet</p>');
+  if ((st.profile_changed_upstream || []).length) b.push(`<p class="warn">The robot profile was changed on GitHub (${st.profile_changed_upstream.map(esc).join(', ')}): Pull latest.</p>`);
+  const ch = st.changed || [];
+  b.push(ch.length ? `<p>Changed here, not on GitHub yet:</p><ul>${ch.map(c => `<li><code>${esc(c.state)}</code> ${esc(c.file)}</li>`).join('')}</ul>`
+    : '<p class="dim">No changed tactics or profiles.</p>');
+  $('repoBody').innerHTML = b.join('');
+}
+
 // ---------------- start ----------------
 
 async function main() {
@@ -950,6 +1023,25 @@ async function main() {
     for (const k of ['tactic', 'side', 'mode']) if (sel[k]) $(k).value = sel[k];
   } catch (e) { /* ignore */ }
   fillRuns(info.runs);
+  showRepoBanner();
+  $('rbOpen').onclick = repoOpen;
+  $('rbClone').onclick = repoClone;
+  $('rbLocal').onclick = () => { try { sessionStorage.setItem('eurosim.norepo', '1'); } catch (e) { /* ignore */ } showRepoBanner(); };
+  $('repoBtn').onclick = async () => {
+    const d = $('repoDialog'); d.hidden = !d.hidden;
+    if (!d.hidden) { $('repoBody').textContent = 'checking GitHub…'; renderRepo(await repoRefresh(true) || {}); }
+  };
+  $('repoClose').onclick = () => { $('repoDialog').hidden = true; };
+  $('repoFetch').onclick = async () => { $('repoBody').textContent = 'checking GitHub…'; renderRepo(await repoRefresh(true) || {}); };
+  $('repoPull').onclick = async () => {
+    try { renderRepo(await api('/api/repo/pull', {})); info = await api('/api/info'); fillTacticSelects(); msg('pulled the latest from GitHub'); repoRefresh(); }
+    catch (e) { alert(e.message); }
+  };
+  $('repoSave').onclick = async () => {
+    try { renderRepo(await api('/api/repo/save', { message: $('repoMsg').value })); $('repoMsg').value = ''; msg('saved to GitHub'); repoRefresh(); }
+    catch (e) { alert(e.message); }
+  };
+  repoRefresh();
   view = new FieldView($('view'), info);
   charts = new Charts($('charts'), t => seek(t));
   view.onHover = p => {

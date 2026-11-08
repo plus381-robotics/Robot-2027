@@ -41,11 +41,29 @@
     <button id="rEnd" title="Disconnect; the session stays as a recording">Disconnect</button>
   </span>
   <span class="sep"></span>
+  <button id="repoBtn" title="Team repo (GitHub): get the latest tactics and robot profile, save yours">⎇ Repo <span id="repoBadge" class="badge" hidden></span></button>
   <button id="profBtn" title="Robot profile: dimensions, drive, control, IR (simulator/profiles)">⚙ Robot profile</button>
   <button id="save" disabled title="Save this run to simulator/runs/">Save run</button>
   <select id="runs" title="Load a saved run"><option value="">Saved runs…</option></select>
   <span id="msg" class="msg"></span>
 </header>
+
+<div id="repoBanner" hidden>
+  <span id="repoBannerText"></span>
+  <button id="rbClone" title="Download the team repo from GitHub into a folder (needs Git)">Clone repo…</button>
+  <button id="rbOpen" title="Use a Robot-2027 folder that is already on this computer">Open repo folder…</button>
+  <button id="rbLocal" title="Keep working without the repo: files are saved only on this computer">Continue without repo</button>
+</div>
+
+<div id="repoDialog" class="overlay pop" hidden>
+  <div class="ov-title">Team repo <span id="repoRoot" class="dim small"></span><button id="repoClose">✕</button></div>
+  <div id="repoBody" class="small"></div>
+  <div class="row"><button id="repoFetch" title="Check GitHub for news (git fetch)">Check for updates</button>
+    <button id="repoPull" title="Get the latest tactics and robot profile (git pull)">⭳ Pull latest</button></div>
+  <div class="row"><input id="repoMsg" placeholder="what did you change? (e.g. x100: faster approach)">
+    <button id="repoSave" class="primary" title="Commit your tactics and profile changes and push them to GitHub">⭱ Save to GitHub</button></div>
+  <div class="dim small">Save sends only ESP32/tactics and simulator/profiles. Needs Git (GitHub Desktop or Git for Windows).</div>
+</div>
 
 <div id="robotConnect" class="overlay pop" hidden>
   <div class="ov-title">Connect to the robot</div>

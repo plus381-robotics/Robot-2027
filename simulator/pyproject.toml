@@ -1,0 +1,14 @@
+# Za pokretanje iz repoa bez instaliranja Python-a: start.sh / start.bat u korenu repoa (uv sam skine Python i
+# ove biblioteke, zaključane u uv.lock). Ručno: uv run --project simulator python simulator/sim.py serve
+[project]
+name = "eurosim"
+version = "0.2.0"
+description = "Simulator i radno okruženje za Robot-2027 (ESP32 taktike + simulirani STM32)"
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp>=3.9",               # web interfejs
+    "mpy-cross==1.29.0.post2",    # provera taktike (ista verzija kao firmver na ESP-u)
+]
+
+[tool.uv]
+package = false                   # samo okruženje za pokretanje, ne paket

@@ -3,6 +3,28 @@
 Pušta taktike iz `ESP32/tactics/` bez robota, sa **istim ESP kodom** koji radi na robotu
 (`tac.py`, `robot.py`, `runner.py`, `match.py`, `app.py`...) i simuliranim STM32-jem.
 
+## Za tim: repo je radni prostor
+
+Taktike (`ESP32/tactics/`) i profil robota (`simulator/profiles/`) žive u repou, pa ih svi dele, a git čuva
+istoriju. Aplikacija se zato pokreće **iz kloniranog repoa**:
+
+1. Jednom: `git clone https://github.com/plus381-robotics/Robot-2027` (ili GitHub Desktop → Clone).
+2. Pokretanje bez instaliranja Python-a: dvoklik na **`start.bat`** (Windows) ili `./start.sh` (Linux/Mac) u
+   korenu repoa. Prvi put [uv](https://docs.astral.sh/uv/) skine Python i biblioteke (~1 min, pita pre
+   skidanja uv-a); posle radi i bez interneta. Uvek je to verzija iz repoa: posle pull-a samo ponovo pokreni.
+3. Ili exe sa Releases stavljen **u koren repoa** (pored `ESP32/` i `simulator/`).
+4. U aplikaciji **⎇ Repo**: šta je novo na GitHub-u (i da li je promenjen profil robota), **Pull latest**,
+   i **Save to GitHub** (commit + push samo taktika i profila, sa porukom šta je promenjeno). Treba Git
+   (GitHub Desktop ili Git for Windows) i nalog sa pristupom repou.
+
+Ako se aplikacija pokrene **van repoa**, na vrhu stoji crvena traka: taktike i profil se NE čuvaju u timski
+repo. Dugmad: **Clone repo…** (klonira u izabrani folder i ponudi da se exe kopira u njega), **Open repo
+folder…** (postojeći klon; putanja se pamti u `~/.eurosim.json`, pa sledeći put radi bez pitanja) ili
+**Continue without repo** (žuta traka: čuva se samo na tom računaru u `~/Eurosim/`).
+
+Predlog pravila: taktike svako u svom fajlu; profil robota menja mehanika (najbolje preko PR-a); `ESP32/lib`
+i `protocol/` samo preko PR-a.
+
 ## Jedan fajl, bez instalacije (Linux; Windows kasnije)
 
 Na GitHub-u: **Releases** (poslednja verzija: `eurosim-…-linux` i `eurosim-…-windows.exe`). Release se pravi
