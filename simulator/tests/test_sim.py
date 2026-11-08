@@ -85,3 +85,12 @@ def test_snimak_se_cuva_i_ucitava(tmp_path):
     r.save(tmp_path / "x.json.gz")
     q = Recording.load(tmp_path / "x.json.gz")
     assert q.meta["tactic"] == "primer" and len(q.frames) == len(r.frames) and q.result["ok"]
+
+
+def test_esp_moduli_citaju_utf8_i_na_windowsu():
+    """ESP kod otvara taktike sa open(path) (na ESP-u uvek UTF-8); na Windows-u CPython bi uzeo cp1252."""
+    import sys
+    from eurosim.esp import _open_utf8
+    Sim("primer", mode="test")
+    for n in ("runner", "match", "app", "settings"):
+        assert sys.modules[n].open is _open_utf8

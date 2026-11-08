@@ -24,6 +24,22 @@ def _esp_module_names():
     return names
 
 
+def _open_utf8(file, mode="r", *a, **k):
+    """open() kao u MicroPython-u: tekst je uvek UTF-8 (na Windows-u CPython inače uzme cp1252)."""
+    import builtins
+    if "b" not in mode and not a and "encoding" not in k:
+        k["encoding"] = "utf-8"
+    return builtins.open(file, mode, *a, **k)
+
+
+def utf8_modules():
+    """Svim učitanim ESP modulima podesi open() na UTF-8 (globalno ime u modulu, ESP kod se ne menja)."""
+    for n in _esp_module_names():
+        m = sys.modules.get(n)
+        if m is not None and getattr(m, "open", None) is not _open_utf8:
+            m.open = _open_utf8
+
+
 def micropython_shims():
     """Funkcije koje postoje samo u MicroPython-u, a ESP kod ih zove (npr. upload STAT -> gc.mem_free).
     Samo u procesu simulacije; vrednosti su izmišljene (simulator nema ESP memoriju)."""
@@ -100,6 +116,8 @@ class Esp:
         self.app.loop = self.loop
         self.app.pump = self.loop.step
         tac.app = self.app
+        import match  # noqa: F401  (koristi ga App; ovde samo da dobije UTF-8 open)
+        utf8_modules()
 
     def _handle_inputs(self):
         gui, app = self.app.ui, self.app

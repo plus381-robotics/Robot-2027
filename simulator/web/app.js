@@ -296,7 +296,11 @@ function load(d, label, keepTime = null) {
   $('slider').max = Math.max(0, run.cols.t.length - 1);
   $('save').disabled = false;
   if (label) msg(label);
-  if (d.meta && d.meta.obstacles) { opponents = d.meta.obstacles.map(o => ({ ...o })); oppSel = -1; refreshOpponents(); }
+  if (d.meta && d.meta.obstacles) {
+    opponents = d.meta.obstacles.map(o => ({ ...o }));
+    if (oppSel >= opponents.length || keepTime == null) oppSel = -1;     // ponovljena simulacija: izbor ostaje
+    refreshOpponents();
+  }
   if (keepTime != null) { seek(keepTime); return; }
   seek(0);
   setPlaying(true);

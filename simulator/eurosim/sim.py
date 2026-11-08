@@ -108,7 +108,7 @@ class Sim:
         self.start_in_zone = field.in_zone(own, [(x * 1000, y * 1000) for x, y in self.stm.plant.corners()])
         src = self.tactics_dir / ((name or "") + ".py")
         self.rec.meta = {
-            "tactic": name, "side": side, "mode": mode, "source": src.read_text() if name and src.exists() else None,
+            "tactic": name, "side": side, "mode": mode, "source": src.read_text(encoding="utf-8") if name and src.exists() else None,
             "start": list(self.start), "start_field": [mx, my, mdeg], "total": meta.get("TOTAL"),
             "profile": self.prof.get("name"), "body": self.prof["body"], "drive": self.prof["drive"],
             "field": field.describe(), "obstacles": [o.to_dict() for o in self.stm.plant.obstacles],
@@ -127,6 +127,8 @@ class Sim:
         self.upload = upload.Upload(self.app, {}, None, port=net.get("upload", upload.PORT))
         self.telem = telem.Telem(self.app, port=net.get("telem", telem.PORT))
         self.esp.services.insert(0, self.telem.poll)
+        from .esp import utf8_modules
+        utf8_modules()
         self.esp.services.insert(0, self.upload.poll)
 
     # ---------------- linije koda (za editor) ----------------
@@ -229,7 +231,7 @@ class Sim:
             if self.mode == "live":
                 src = self.tactics_dir / (tr.name + ".py")
                 self.rec.meta.update(tactic=tr.name, side=a.side, total=tr.total,
-                                     source=src.read_text() if src.exists() else None)
+                                     source=src.read_text(encoding="utf-8") if src.exists() else None)
         if tr.step_name and tr.idx != self._step_idx:
             self._step_idx = tr.idx
             self.rec.event(t, "step", [tr.idx, tr.step_name, tr.timeout_ms, tr.next])

@@ -65,9 +65,9 @@ def test_telemetrija_neuspeli_korak_iz_dnevnika():
 def test_profil_iz_interfejsa_cuva_komentare(tmp_path):
     f = tmp_path / "p.toml"
     shutil.copy(paths.DEFAULT_PROFILE, f)
-    before = f.read_text()
+    before = f.read_text(encoding="utf-8")
     P.update_file(f, {"drive.wheel_track": 180, "ir.see_walls": True})
-    after = f.read_text()
+    after = f.read_text(encoding="utf-8")
     assert P.load(f)["drive"]["wheel_track"] == 180 and P.load(f)["ir"]["see_walls"] is True
     assert after.count("#") == before.count("#")                                   # komentari ostaju
     sec = {s["name"]: s for s in P.describe(f)}

@@ -30,7 +30,7 @@ def default_password():
     import re
     f = paths.ESP / "webrepl_cfg.py"
     if f.exists():
-        m = re.search(r"PASS\s*=\s*['\"](.*)['\"]", f.read_text())
+        m = re.search(r"PASS\s*=\s*['\"](.*)['\"]", f.read_text(encoding="utf-8"))
         if m:
             return m.group(1)
     return ""

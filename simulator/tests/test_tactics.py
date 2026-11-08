@@ -25,7 +25,7 @@ def test_api_iz_tac_py(api):
 
 @pytest.mark.parametrize("name", sorted(p.stem for p in paths.TACTICS.glob("*.py")))
 def test_postojece_taktike_bez_gresaka(name, api):
-    errs = [m for m in msgs((paths.TACTICS / (name + ".py")).read_text(), api) if m[1] == "error"]
+    errs = [m for m in msgs((paths.TACTICS / (name + ".py")).read_text(encoding="utf-8"), api) if m[1] == "error"]
     assert errs == []
 
 
