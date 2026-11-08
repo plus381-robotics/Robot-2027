@@ -955,7 +955,7 @@ function showRepoBanner() {
   $('repoBannerText').textContent = local
     ? `⚠ No repo: tactics and profiles are saved ONLY on this computer (${w.home}). Nobody else sees them.`
     : '⚠ Eurosim is not in the Robot-2027 repo. Tactics and the robot profile are NOT saved to the team repo and ' +
-      'nobody else will see them. Put this file in the root of the cloned repo, or:';
+      'nobody else will see them. Start it from the cloned repo (start.bat / start.sh), or:';
   document.title = 'Eurosim (NO REPO)';
 }
 
@@ -976,10 +976,6 @@ async function repoClone() {
 
 async function repoSwitched(d) {
   if (d.note) alert(d.note);
-  if (info.where.frozen && confirm(`Copy Eurosim into ${d.root} so that next time it starts right in the repo?`)) {
-    try { const c = await api('/api/repo/copyapp', {}); if (c.copied) alert(`Copied to ${c.copied}. Start that one from now on.`); }
-    catch (e) { alert(e.message); }
-  }
   location.reload();                                // sve (taktike, profil, putanje) iz novog repoa
 }
 

@@ -39,8 +39,6 @@ ESP32/webrepl_cfg.py
 # ---- Simulator: izvršni fajl (PyInstaller) ----
 /dist/
 
-# ---- Eurosim: uv (start.sh/start.bat) i izvršni fajl stavljen u koren repoa ----
+# ---- Eurosim: uv (start.sh/start.bat) ----
 /.tools/
 /simulator/.venv/
-/eurosim
-/eurosim.exe

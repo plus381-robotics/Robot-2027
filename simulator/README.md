@@ -12,34 +12,19 @@ istoriju. Aplikacija se zato pokreće **iz kloniranog repoa**:
 2. Pokretanje bez instaliranja Python-a: dvoklik na **`start.bat`** (Windows) ili `./start.sh` (Linux/Mac) u
    korenu repoa. Prvi put [uv](https://docs.astral.sh/uv/) skine Python i biblioteke (~1 min, pita pre
    skidanja uv-a); posle radi i bez interneta. Uvek je to verzija iz repoa: posle pull-a samo ponovo pokreni.
-3. Ili exe sa Releases stavljen **u koren repoa** (pored `ESP32/` i `simulator/`).
-4. U aplikaciji **⎇ Repo**: šta je novo na GitHub-u (i da li je promenjen profil robota), **Pull latest**,
+3. U aplikaciji **⎇ Repo**: šta je novo na GitHub-u (i da li je promenjen profil robota), **Pull latest**,
    i **Save to GitHub** (commit + push samo taktika i profila, sa porukom šta je promenjeno). Treba Git
    (GitHub Desktop ili Git for Windows) i nalog sa pristupom repou.
 
 Ako se aplikacija pokrene **van repoa**, na vrhu stoji crvena traka: taktike i profil se NE čuvaju u timski
-repo. Dugmad: **Clone repo…** (klonira u izabrani folder i ponudi da se exe kopira u njega), **Open repo
+repo. Dugmad: **Clone repo…** (klonira u izabrani folder), **Open repo
 folder…** (postojeći klon; putanja se pamti u `~/.eurosim.json`, pa sledeći put radi bez pitanja) ili
 **Continue without repo** (žuta traka: čuva se samo na tom računaru u `~/Eurosim/`).
 
 Predlog pravila: taktike svako u svom fajlu; profil robota menja mehanika (najbolje preko PR-a); `ESP32/lib`
 i `protocol/` samo preko PR-a.
 
-## Jedan fajl, bez instalacije (Linux; Windows kasnije)
-
-Na GitHub-u: **Releases** (poslednja verzija: `eurosim-…-linux` i `eurosim-…-windows.exe`). Release se pravi
-sam na svaki push na `main` (`sim-v0.2.<n>`) i za svaki tag `sim-v*`; fajl sa druge grane je u
-**Actions → Simulator → run → Artifacts**. To je jedan fajl (~23 MB) sa svim unutra (Python, server, interfejs, ESP kod, mpy-cross):
-
-    chmod +x eurosim && ./eurosim          # otvara browser na http://localhost:8270
-
-- Pokrenut **unutar repoa** (ili `EUROSIM_ROOT=/put/do/repoa`): koristi ESP kod, taktike, profile i snimke iz
-  repoa, kao `python simulator/sim.py`.
-- Pokrenut **bilo gde drugde**: ESP kod je iz fajla, a taktike, profili i snimci su u `~/Eurosim/`
-  (prvi put se tamo kopiraju primeri). Gore levo (Eurosim) piše koji je režim.
-- Isti argumenti kao `sim.py`: `./eurosim run primer --side zuta`, `./eurosim robot`, `./eurosim serve --port 8300`.
-- Pravljenje lokalno: `pip install pyinstaller -r simulator/requirements.txt && pyinstaller simulator/eurosim.spec`
-  (rezultat u `dist/`).
+Exe i GitHub Release se više ne prave: iz repoa je uvek najnovija verzija.
 
 ## Web interfejs
 

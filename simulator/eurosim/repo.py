@@ -73,17 +73,6 @@ def clone(parent):
     return open_repo(dst)
 
 
-def copy_app_into(root):
-    """Izvršni fajl (exe) u koren repoa, da sledeći put radi odmah iz repoa. Samo za spakovanu aplikaciju."""
-    if not paths.FROZEN:
-        return None
-    src = pathlib.Path(sys.executable)
-    dst = pathlib.Path(root) / src.name
-    if src.resolve() != dst.resolve():
-        shutil.copy2(src, dst)
-    return str(dst)
-
-
 def status(fetch=False):
     if paths.MODE != "repo":
         return {"repo": False}

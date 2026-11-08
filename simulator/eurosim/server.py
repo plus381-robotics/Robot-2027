@@ -388,11 +388,6 @@ async def repo_save(request):
     return await _repo_call(repo.save, q.get("message", ""))
 
 
-async def repo_copyapp(request):
-    from . import repo
-    return await _repo_call(lambda: {"copied": repo.copy_app_into(paths.ROOT)})
-
-
 async def tactic_rename(request):
     q = await request.json()
     try:
@@ -600,7 +595,6 @@ def make_app(prof=None):
     app.router.add_post("/api/repo/clone", repo_clone)
     app.router.add_post("/api/repo/pull", repo_pull)
     app.router.add_post("/api/repo/save", repo_save)
-    app.router.add_post("/api/repo/copyapp", repo_copyapp)
     app.router.add_post("/api/tactic/delete", tactic_delete)
     app.router.add_post("/api/check", check)
     app.router.add_post("/api/stage", stage)
