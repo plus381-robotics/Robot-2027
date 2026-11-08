@@ -119,7 +119,10 @@ def run_tactic(app, name):
         app.on_tactic_end(name, "Ctrl+C")
         raise
     except tac.Abort as e:
-        _stop(app, "PREKID: %s" % e)
+        if str(e) == "kraj meca":           # L9: 100 s je normalan kraj, ne prekid
+            _stop(app, "KRAJ MECA")
+        else:
+            _stop(app, "PREKID: %s" % e)
         app.on_tactic_end(name, str(e))
     except BaseException as e:          # i SystemExit iz taktike: ne sme da ugasi main.py
         _stop(app, "GRESKA: %r" % (e,))

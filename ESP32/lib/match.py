@@ -64,18 +64,31 @@ def stm_reset():
 
 
 def read_meta(name):
-    """START i TOTAL sa vrha taktike, bez izvršavanja (redovi 'START = (x, y, ugao)', 'TOTAL = n')."""
+    """START i TOTAL sa vrha taktike, bez izvršavanja: redovi 'START = (x, y[, ugao])' i 'TOTAL = n'.
+    Ime mora biti tačno START / TOTAL (ne START_ZONA). Ugao se dopunjuje nulom. Red koji ne može da se
+    pročita daje meta["greska"] (PROVERA je tada crvena, ne pada tek na činč)."""
     meta = {}
     try:
         with open("%s/%s.py" % (tactic.TACTICS_DIR, name)) as f:
             for line in f:
                 line = line.split("#")[0].strip()
-                for key in ("START", "TOTAL"):
-                    if line.startswith(key) and "=" in line:
-                        v = line.split("=", 1)[1].strip().strip("()")
-                        nums = [float(n) for n in v.split(",") if n.strip()]
-                        meta[key] = nums if key == "START" else int(nums[0])
-    except (OSError, ValueError, IndexError):
+                if "=" not in line:
+                    continue
+                key, val = line.split("=", 1)
+                key = key.strip()
+                if key not in ("START", "TOTAL"):
+                    continue
+                try:
+                    nums = [float(n) for n in val.strip().strip("()[]").split(",") if n.strip()]
+                    if key == "START":
+                        if len(nums) not in (2, 3):
+                            raise ValueError
+                        meta["START"] = nums + [0.0] * (3 - len(nums))
+                    else:
+                        meta["TOTAL"] = int(nums[0])
+                except (ValueError, IndexError):
+                    meta["greska"] = "%s necitljiv" % key
+    except OSError:
         pass
     return meta
 
@@ -97,12 +110,22 @@ class Match:
         self._restore = None           # obnova posle restarta: ("pose"|"start", seq, vreme)
         self._retry = False            # obnova nije potvrđena: sledeći pokušaj nije nov restart
         self._settle = -1              # status_n posle obnove: stari STATUS (bez meča) se ne računa
+        self._pose_try = 0             # pokušaji START poze na činč (L14)
+        self._was_running = None       # prethodni bit MATCH_RUNNING (činč bez naoružavanja, L4)
         self._idle_seen = False        # posle naoružavanja viđen STATUS bez meča (čeka se NOV činč)
         self._boot_seen = False
 
     @property
     def armed(self):
-        return self.state in (RESET, ARMED, POSE, MATCH)
+        """Naoružan ili meč traje: meni, test i upload su zaključani. Meč traje do 100 s od činča, i kad
+        se taktika završi ranije (L8)."""
+        if self.state in (RESET, ARMED, POSE, MATCH):
+            return True
+        return self.state == DONE and self.t_cord is not None and self.elapsed() < MATCH_MS
+
+    def waiting(self):
+        """Naoružan, čeka činč (može da se otkaže)."""
+        return self.state in (RESET, ARMED)
 
     def restoring(self):
         """Obnova posle restarta STM32 u toku: tac.py ne šalje komande dok se ne završi."""
@@ -122,7 +145,18 @@ class Match:
         r = self.app.robot
         s = r.status if r.alive else None
         meta = read_meta(name)
+        if meta.get("greska"):
+            self.app.error("%s: %s" % (name, meta["greska"]))
+            return False
+        try:                            # prevedi sada (ne na činč: prevođenje na ESP-u traje, PROBLEMI 6)
+            import runner
+            runner._compiled(name)
+        except Exception as e:          # noqa: BLE001
+            self.app.error("%s: %s" % (name, type(e).__name__))
+            return False
+        self.app.errors, self.app.unseen = [], 0     # nov meč: stare greške se brišu sada, ne na start taktike
         self.tactic, self.side, self.start = name, side, meta.get("START")
+        self.t_cord, self._pose_try = None, 0
         if self._stale(s):
             if not self._hw_reset("STM32 u starom mecu"):
                 self.app.error("STM32 vec u mecu: restartuj STM32")
@@ -139,6 +173,13 @@ class Match:
                 self.app.tlog("WDT: %s" % e)
         return True
 
+    def stopped(self):
+        """Taster STOP (ili STOP preko WiFi-ja) usred meča: meč je namerno prekinut, zaključavanje prestaje.
+        Ponovno naoružavanje tada ide preko zaštite starog meča (NRST ili "restartuj STM32")."""
+        if self.state in (POSE, MATCH, DONE) and self.t_cord is not None:
+            self.state, self.t_cord = IDLE, None
+            self.app.tlog("mec prekinut (STOP)")
+
     def _hw_reset(self, why):
         """NRST impuls (ako postoji) i čekanje da se STM32 javi bez meča. False = nema NRST-a."""
         if not self.hw:
@@ -149,7 +190,7 @@ class Match:
         return True
 
     def cancel(self):
-        if self.state in (RESET, ARMED, POSE):
+        if self.state in (RESET, ARMED):
             self.state = IDLE
             self.app.tlog("otkazano")
 
@@ -165,12 +206,19 @@ class Match:
             self.hw.poll()
         r, a = self.app.robot, self.app
         s = r.status if r.alive else None
-        if s and not self._boot_seen:
-            self._boot_seen = True
-            if self.state == IDLE and s["state"] & P.State.MATCH_RUNNING:
-                a.tlog("MEC U TOKU posle restarta ESP-a: robot stoji")
-                a.error("ESP restart u mecu")
-                a.ui.alarm("MEC U TOKU", "ESP restart: robot stoji")
+        if s:
+            run = bool(s["state"] & P.State.MATCH_RUNNING)
+            if not self._boot_seen:
+                self._boot_seen = True
+                if self.state == IDLE and run:
+                    a.tlog("MEC U TOKU posle restarta ESP-a: robot stoji")
+                    a.error("ESP restart u mecu")
+                    a.ui.alarm("MEC U TOKU", "ESP restart: robot stoji")
+            elif run and self._was_running is False and self.state in (IDLE, DONE):
+                a.tlog("CINC, a robot nije naoruzan: stoji")   # L4: npr. meč otkazan, a činč izvučen
+                a.error("cinc bez naoruzavanja")
+                a.ui.alarm("NIJE NAORUZAN", "cinc izvucen, robot stoji")
+            self._was_running = run
         if self.state == RESET:
             if s and r.ok and not self._stale(s):
                 self.state, self._idle_seen = ARMED, True
@@ -189,20 +237,23 @@ class Match:
             self.t_cord = ticks_ms()
             a.tlog("CINC: start")
             if self.start:
-                x, y, deg = self.start
-                tac.current_side = self.side
-                mx, my = tac.mirror_xy(x, y)
-                self._pose_seq = r.send("SET_POSE", x=int(mx), y=int(my), theta=int(tac.mirror_deg(deg) * 100))
-                self._t = ticks_ms()
+                self._send_pose(r)
                 self.state = POSE
             else:
                 self._go()
         elif self.state == POSE:
-            if any(sq == self._pose_seq and k == "ok" for sq, _, k, _ in a.events):
+            ev = [k for sq, _, k, _ in a.events if sq == self._pose_seq]
+            if "ok" in ev:
                 self._go()
-            elif ticks_diff(ticks_ms(), self._t) > 500:
-                a.tlog("POZA nije potvrdjena, krecem")
-                self._go()
+            elif ev or ticks_diff(ticks_ms(), self._t) > 300:
+                # L14: odbijena (FAIL) ili bez odgovora. Robot na činč stoji: STOP pa ponovo, najviše 3 puta.
+                if self._pose_try < 3:
+                    r.send("STOP")
+                    self._send_pose(r)
+                else:
+                    a.error("START poza nije postavljena")
+                    a.tlog("POZA nije potvrdjena (3 puta), krecem")
+                    self._go()
         elif self.state == MATCH and not a.running and not a.request:
             self.state = DONE
             a.tlog("KRAJ meca")
@@ -256,6 +307,14 @@ class Match:
                 a.tlog("STM32 obnovljen: poza i mec, nastavljam")
         elif ticks_diff(ticks_ms(), t) > 1000:
             self._restore, self._retry = None, True     # sledeći STATUS bez meča: novi pokušaj
+
+    def _send_pose(self, r):
+        x, y, deg = self.start
+        tac.current_side = self.side
+        mx, my = tac.mirror_xy(x, y)
+        self._pose_try += 1
+        self._pose_seq = r.send("SET_POSE", x=int(mx), y=int(my), theta=int(tac.mirror_deg(deg) * 100))
+        self._t = ticks_ms()
 
     def _go(self):
         self.state = MATCH

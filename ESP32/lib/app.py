@@ -13,6 +13,7 @@ import ui
 import tekst as T
 from compat import ticks_ms, ticks_diff
 from ui import Menu, Toggle, Number, Choice, Info, Action
+import tactic
 from tactic import tracker, Demo
 from pages import Pages, RETURN_MS
 from match import Match
@@ -99,6 +100,8 @@ class App:
         self.events = r.poll()
         for seq, label, kind, reason in self.events:
             name = T.SHORT.get(label, label)
+            if reason == "MATCH_OVER":
+                continue                        # kraj meča nije greška (L9)
             if kind == "fail" or (kind == "timeout" and reason != "SUPERSEDED"):
                 self.error("%s: %s" % (name, T.reason(reason or kind)))
                 self.ui.toast("%s: %s" % (name, T.reason(reason or kind)), 2000)
@@ -137,6 +140,7 @@ class App:
         self.robot.send("STOP")
         self.request = None                    # izabrana taktika koja još nije krenula ne kreće
         self.match.cancel()                    # naoružan meč se otkazuje
+        self.match.stopped()                   # meč u toku: STOP ga namerno završava (otključava, L8)
         if self.running:
             self.abort = "STOP"
         self.ui.alarm("STOP", "taster STOP" if not self.running else "taktika prekinuta")
@@ -159,8 +163,11 @@ class App:
             return []
 
     def busy(self):
-        """Taktika radi, čeka da krene ili je meč naoružan: servisi (upload) tada ne smeju da smetaju."""
-        return bool(self.running or self.request or self.match.armed)
+        """Taktika radi, čeka da krene, meč je naoružan ili traje (i kad je ESP restartovan usred meča, po
+        STATUS-u): servisi (upload, meni, test) tada ne smeju da smetaju."""
+        s = self.robot.status if self.robot.alive else None
+        return bool(self.running or self.request or self.match.armed
+                    or (s and s["state"] & P.State.MATCH_RUNNING))
 
     def select(self, name=None, side=None):
         """Izbor taktike i strane (pamti se u settings.json, preživi restart i zamenu baterije)."""
@@ -172,20 +179,37 @@ class App:
             self.side = side
 
     def tactic_ok(self):
-        """Izabrana taktika postoji i kompajlira se (jednom po izboru)."""
+        """Izabrana taktika postoji, START/TOTAL se čitaju i kompajlira se. Ponovo se proverava kad se fajl
+        promeni (veličina, vreme izmene: posle PUT/esp_push), najviše jednom u sekundi (L5)."""
         name = self.st["sel_tactic"]
-        if not name or name not in self.tactics():
-            return False, "nema fajla"
         c = getattr(self, "_compiled", None)
-        if c is None or c[0] != name:
+        now = ticks_ms()
+        if c and c[0] == name and ticks_diff(now, c[4]) < 1000:
+            return c[2], c[3]
+        try:
+            st = os.stat("%s/%s.py" % (tactic.TACTICS_DIR, name)) if name else None
+        except OSError:
+            st = None
+        if st is None:
+            self._compiled = (name, None, False, "nema fajla", now)
+            return False, "nema fajla"
+        key = (st[6], st[8])
+        if c and c[0] == name and c[1] == key:
+            self._compiled = c[:4] + (now,)
+            return c[2], c[3]
+        import match
+        meta = match.read_meta(name)
+        ok, why = True, ""
+        if meta.get("greska"):
+            ok, why = False, meta["greska"]
+        else:
             try:
                 import runner
                 runner._compiled(name)
-                c = (name, True, "")
-            except Exception as e:
-                c = (name, False, type(e).__name__)
-            self._compiled = c
-        return c[1], c[2]
+            except Exception as e:      # noqa: BLE001
+                ok, why = False, type(e).__name__
+        self._compiled = (name, key, ok, why, now)
+        return ok, why
 
     def check(self):
         """PROVERA: (sve_ok, [(stanje, naziv, vrednost)]), stavke koje ne valjaju prve.
@@ -238,13 +262,18 @@ class App:
         r = self.robot
         self._run = {"t0": ticks_ms(), "crc": r.parser.errors, "retries": r.retries,
                      "noreply": r.noreply, "ping_max": 0}
-        self.errors, self.unseen = [], 0
+        if self.match.state != "MEC":           # u meču su greške obrisane pri naoružavanju (L14)
+            self.errors, self.unseen = [], 0
 
     def on_tactic_end(self, name, how):
         """how: None = završila normalno, inače razlog prekida. Pravi izveštaj, čuva ga, prikazuje."""
         r, run = self.robot, self._run or {"t0": ticks_ms(), "crc": 0, "retries": 0, "noreply": 0, "ping_max": 0}
         h = list(tracker.history)
-        fail = next(((i, n, rs) for i, n, ok, rs, d in h if not ok), None)
+        end = how == "kraj meca"                # L9: kraj meča (100 s) nije prekid ni greška
+        fail = next(((i, n, rs) for i, n, ok, rs, d in h if not ok and not (end and rs in ("KRAJ", "KRAJ MECA", "MATCH_OVER"))),
+                    None)
+        if end:
+            how = None
         s = r.status
         self.report = {
             "name": name, "side": self.side, "ok": how is None and fail is None,
@@ -254,7 +283,7 @@ class App:
             "link": {"crc": r.parser.errors - run["crc"], "retries": r.retries - run["retries"],
                      "noreply": r.noreply - run["noreply"], "ping_max": run["ping_max"]},
             "pose": [s["x"], s["y"], round(s["theta"] / 100)] if s else None,
-            "match": self.match.state in ("MEC", "KRAJ"),
+            "match": self.match.state in ("MEC", "KRAJ"), "match_end": end,
         }
         self._run = None
         self.save_report(self.report)

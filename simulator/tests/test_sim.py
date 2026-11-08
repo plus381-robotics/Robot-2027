@@ -51,7 +51,7 @@ def test_100s_prekida_taktiku(tmp_path):
     d = write(tmp_path, "t", "START = (250, 1000, 0)\nwhile True:\n    move(300)\n    move(-300)\n")
     r = simulate("t", tactics_dir=d, mode="mec")
     assert r.result["match_over"]
-    assert any("kraj meca" in l for l in r.logs())
+    assert any("kraj meca" in l.lower() for l in r.logs())
     assert 100000 < r.result["sim_ms"] < 106000
 
 

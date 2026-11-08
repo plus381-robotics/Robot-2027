@@ -82,7 +82,7 @@ def test_zaglavljen_stm32_u_mecu_nrst_pa_obnova(tmp_path):
 def test_esp_sat_zaustavlja_posle_100s_i_kad_stm32_broji_ispocetka(tmp_path):
     s, r = live([(300, ("arm", "t", "zuta")), (1000, ("cord",)), (50000, ("stm_reset",))], tmp_path,
                 end_ms=110000)
-    assert any("kraj meca" in l for l in r.logs())
+    assert any("kraj meca" in l.lower() for l in r.logs())
     cord = 1000
     assert moved(r, cord + 100500, 110000) < 3                 # posle 100 s od činča robot stoji
     assert not s.stm.match_over                                 # a STM32 (restartovan na 50 s) misli da meč traje

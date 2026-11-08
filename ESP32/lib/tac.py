@@ -184,6 +184,9 @@ def _cmd(name, label, timeout, next, motion, long=None, **f):
                 tracker.ok()
                 log("%s: OK %.1fs" % (label, ticks_diff(ticks_ms(), t0) / 1000))
                 return True
+            if reason == "MATCH_OVER":
+                tracker.fail("KRAJ")
+                raise Abort("kraj meca")        # L9: odmah kraj, bez još jedne komande koja bi pala
             if kind == "timeout" and motion and reason != "SUPERSEDED":
                 _stop_and_wait(r)       # STM32 je komandu možda primio, a izgubljeni su samo ACK-ovi
             tracker.fail(reason or kind)

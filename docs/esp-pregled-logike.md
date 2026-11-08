@@ -7,6 +7,11 @@
 > `ESP32/tests/host/test_mec_zastita.py`, `simulator/tests/test_match_guard.py`.
 > L6: protokol v3: STATUS nosi `last_seq`/`last_result` (ishod poslednje završene komande kretanja), pa
 > ESP zna tačan ishod i kad se DONE/FAIL izgubi; sa starim STM32 (v1/v2) ostaje procena, označena u dnevniku.
+> L3 (START sa 2 broja, tačna imena, nečitljiv START crven u PROVERA), L4 (NAZAD ne otkazuje; "otkazi" + drži OK;
+> činč bez naoružavanja -> alarm), L5 (PROVERA prevodi ponovo kad se fajl promeni; prevod pri naoružavanju),
+> L8 (meč zaključan do 100 s i kad taktika završi ranije; STOP namerno otključava), L9 (kraj meča = "MEC GOTOV",
+> bez alarma i grešaka; MATCH_OVER odmah završava taktiku), L14 (odbijena START poza: STOP i ponovo do 3 puta,
+> greške se brišu pri naoružavanju). Testovi: `ESP32/tests/host/test_mec_zastita.py`.
 
 Datum: 2026-11-08. Obim: `ESP32/lib/*.py`, `ESP32/main.py`, `boot.py`, `config.py`, `ESP32/tactics/*.py`,
 `ESP32/tests/goto_test.py`, `tools/*.py`, `protocol/protocol.yaml`, a za drugu stranu veze

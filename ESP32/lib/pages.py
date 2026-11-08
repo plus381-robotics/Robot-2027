@@ -77,7 +77,14 @@ class Provera(Page):
         self.sel = self.top = 0
 
     def title(self):
-        return "NAORUZAN" if self.app.match.armed else "PROVERA"
+        m = self.app.match
+        if m.state == "RESET":
+            return "RESET STM32"
+        if m.waiting() or m.state == "POZA":
+            return "NAORUZAN"
+        if m.armed:
+            return "MEC TRAJE"
+        return "PROVERA"
 
     def right(self):
         ok = self.app.check()[0]
@@ -93,8 +100,11 @@ class Provera(Page):
         rows = [("taktika", a.st["sel_tactic"] or "izaberi", self.do_tactic),
                 ("strana", side, self.do_side),
                 ("provera", summary, self.do_check)]
-        if m.armed:
-            rows += [("simul. cinc", "", self.do_cord), ("otkazi", "", self.do_cancel)]
+        if m.waiting():
+            rows += [("simul. cinc", "", self.do_cord), ("otkazi", "drzi OK", self.do_cancel)]
+        elif m.armed:
+            rem = a.remaining()
+            rows += [("mec traje", "%ds" % rem if rem is not None else "", lambda u: u.toast("zakljucano u mecu"))]
         else:
             rows += [("naoruzaj", "", self.do_arm), ("test odmah", "", self.do_test)]
         return rows
@@ -126,8 +136,8 @@ class Provera(Page):
         rows[self.sel][2](u)
 
     def back(self, u):
-        if self.app.match.armed:
-            self.do_cancel(u)
+        if self.app.match.waiting():            # L4: NAZAD ne otkazuje meč (lako se pritisne slučajno)
+            u.toast("otkazi: drzi OK")
         return True
 
     # ---- radnje ----
@@ -176,8 +186,9 @@ class Provera(Page):
                                           "STOP prekida"], lambda u2: m.simulate_cord()))
 
     def do_cancel(self, u):
-        self.app.match.cancel()
-        u.toast("otkazano")
+        m = self.app.match
+        u.push(ui.Confirm("Otkazi mec", ["%s %s" % (m.tactic, T.SIDE.get(m.side, "")), "robot nece krenuti",
+                                         "na cinc"], lambda u2: (m.cancel(), u2.toast("otkazano"))))
 
     def draw(self, u, fb, r, s):
         rows = self.rows()
@@ -394,7 +405,7 @@ class Izvestaj(Page):
             text_center(fb, "jos nema meca", R2 + 6)
             return
         if self.view == 0:
-            word = "GOTOVO" if rp["ok"] else "PAO"
+            word = ("MEC GOTOV" if rp.get("match_end") else "GOTOVO") if rp["ok"] else "PAO"
             big(fb, word, 0, R1, 2)
             text_right(fb, "%d/%d" % (rp["done"], rp["total"] or rp["steps"]), ui.W, R1 + 4, 1)
             fb.text(fit("%s %s %s" % (T.secs(rp["ms"]), rp["name"], T.SIDE.get(rp["side"], "")), 16), 0, R3 - 4, 1)

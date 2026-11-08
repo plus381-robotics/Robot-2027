@@ -54,7 +54,13 @@ def test_pocetni_ekran_opcije(app, tmp_path, monkeypatch):
     u.input("ok")                                       # naoruzaj
     assert app.match.state == "NAORUZAN"
     assert [r[0] for r in home.rows()][3:] == ["simul. cinc", "otkazi"]
-    u.input("back")                                     # NAZAD = otkaži
+    u.input("back")                                     # NAZAD ne otkazuje (L4: lako se pritisne slučajno)
+    assert app.match.state == "NAORUZAN"
+    u.input("rot", 1)
+    assert home.rows()[home.sel][0] == "otkazi"
+    u.input("ok")                                       # otkazi -> potvrda: drži OK
+    assert u.top.title == "Otkazi mec" and app.match.state == "NAORUZAN"
+    u.hold(5000)
     assert app.match.state == "NEMA"
 
 

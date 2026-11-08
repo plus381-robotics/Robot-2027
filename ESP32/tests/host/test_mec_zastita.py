@@ -23,8 +23,18 @@ def odigraj_mec(app, stm):
     run(app, 200)
 
 
+def test_posle_kraja_taktike_mec_ostaje_zakljucan_do_100s(app, stm):
+    """L8: taktika završena pre 100 s: meni, test, upload i naoružavanje zaključani dok meč traje."""
+    odigraj_mec(app, stm)
+    assert app.match.state == "KRAJ" and app.match.armed and app.busy()
+    assert not app.match.arm("m", "zuta")
+    run(app, 100500)
+    assert not app.match.armed
+
+
 def test_stari_mec_bez_nrst_odbija_naoruzavanje(app, stm):
     odigraj_mec(app, stm)
+    app.stop()                                                   # STOP: meč namerno prekinut
     assert stm.state & P.State.MATCH_RUNNING                    # STM32 i dalje broji (BlackPill ne briše)
     n = len(stm.sent)
     assert not app.match.arm("m", "zuta")
@@ -86,3 +96,108 @@ def test_restart_stm32_u_mecu_vraca_pozu(app, stm):
     assert th == 4500 and 600 <= x <= 610 and 900 <= y <= 910     # poslednja poza + 25 ms vožnje (v = 300)
     assert [n for n, _ in stm.sent].count("MATCH_START") >= 2   # simulirani činč + obnova
     assert app.match.stm_resets == 1
+
+
+def test_start_dva_broja_i_slicna_imena(app, stm):
+    """L3: START bez ugla radi (ugao 0); START_ZONA/TOTAL_MS se ne mešaju; nečitljiv START je crven."""
+    import match
+    write(app, "a", "from tac import *\nSTART = (250, 1000)\nSTART_ZONA = (0, 500)\nTOTAL = 2\nTOTAL_MS = 9\n")
+    assert match.read_meta("a") == {"START": [250.0, 1000.0, 0.0], "TOTAL": 2}
+    write(app, "b", "from tac import *\nSTART = (X0, 1000)\n")
+    assert match.read_meta("b")["greska"] == "START necitljiv"
+    app.select("b", "zuta")
+    ok, items = app.check()
+    assert not ok and ("ne", "taktika", "START necitljiv") in items
+    assert not app.match.arm("b", "zuta")
+    run(app, 300)
+    assert app.match.arm("a", "zuta")
+    run(app, 100)
+    app.match.simulate_cord()
+    for _ in range(100):
+        app.pump()
+        if app.request:
+            break
+    assert app.request == "a"                                    # ranije: ValueError u svakoj petlji
+    assert [d for n, d in stm.sent if n == "SET_POSE"][-1] == {"x": 250, "y": 1000, "theta": 0}
+
+
+def test_provera_vidi_novu_verziju_fajla(app, stm):
+    """L5: posle izmene fajla (PUT/esp_push) PROVERA prevodi ponovo."""
+    import compat
+    import os
+    write(app, "t", "from tac import *\nSTART = (250, 1000, 0)\n")
+    app.select("t", "zuta")
+    assert app.tactic_ok() == (True, "")
+    write(app, "t", "from tac import *\nif True\n")
+    p = str(app.tactics_dir / "t.py")
+    os.utime(p, (1, 2))                                          # druga vremena izmene
+    compat.fake[0] += 1500
+    assert app.tactic_ok() == (False, "SyntaxError")
+
+
+def test_cinc_bez_naoruzavanja_alarm(app, stm):
+    """L4: meč otkazan (ili nije naoružan), a činč izvučen: robot stoji, ali to se vidi."""
+    run(app, 300)
+    app.robot.send("MATCH_START")
+    run(app, 300)
+    assert app.ui.alarmed and any("cinc bez naoruzavanja" in t for _, t in app.errors)
+    assert app.request is None
+
+
+def test_kraj_meca_nije_prekid(app, stm):
+    """L9: taktika koja radi do 100 s: izveštaj MEC GOTOV, bez alarma i grešaka."""
+    from runner import run_tactic
+    write(app, "m", "from tac import *\nSTART = (250, 1000, 0)\nwhile True:\n    move(100)\n    move(-100)\n")
+    stm.motion_ms = 2000
+    run(app, 300)
+    assert app.match.arm("m", "zuta")
+    run(app, 100)
+    app.match.simulate_cord()
+    while not app.request:
+        app.pump()
+    name, app.request = app.request, None
+    run_tactic(app, name)
+    rp = app.report
+    assert rp["ok"] and rp["match_end"] and rp["how"] is None
+    assert not app.ui.alarmed and app.unseen == 0
+
+
+def _do_cinca(app, stm):
+    write(app, "m", "from tac import *\nSTART = (250, 1000, 0)\nwait(0.2)\n")
+    run(app, 300)
+    assert app.match.arm("m", "zuta")
+    run(app, 100)
+    n0 = len(stm.sent)
+    app.match.simulate_cord()
+    while not app.request:
+        app.pump()
+    return n0
+
+
+def test_odbijena_start_poza_stop_pa_ponovo(app, stm):
+    """L14: STM32 odbije SET_POSE na činč (npr. još "vozi"): STOP pa ponovo; ovde drugi put uspe."""
+    stm.motion = (99, 10 ** 9)
+    n0 = _do_cinca(app, stm)
+    names = [n for n, _ in stm.sent[n0:]]
+    assert names[:4] == ["MATCH_START", "SET_POSE", "STOP", "SET_POSE"]
+    assert not any("START poza" in t for _, t in app.errors)
+
+
+def test_stalno_odbijena_start_poza_3_puta_pa_greska_ostaje(app, stm):
+    from runner import run_tactic
+    frame = stm._frame
+
+    def odbij(t, seq, pl):                                       # STM32 uvek odbija SET_POSE
+        name, d = P.decode(t, pl)
+        if name == "SET_POSE" and seq != stm.last_seq:
+            stm.last_seq = seq
+            stm.sent.append((name, d))
+            stm._send("FAIL", seq, reason=P.Reason.INVALID)
+            return
+        frame(t, seq, pl)
+    stm._frame = odbij
+    n0 = _do_cinca(app, stm)
+    assert [n for n, _ in stm.sent[n0:]].count("SET_POSE") == 3
+    name, app.request = app.request, None
+    run_tactic(app, name)
+    assert any("START poza nije postavljena" in t for _, t in app.errors)   # ne briše se na start taktike
