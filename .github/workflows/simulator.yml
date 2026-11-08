@@ -2,6 +2,7 @@
 #  - push na bilo koju granu / PR (simulator ili ESP kod): testovi + Linux fajl kao "artifact"
 #  - push na main ili tag sim-v* (npr. sim-v0.1.0): testovi + Linux i Windows fajl + GitHub Release
 #    (main: verzija sim-v0.2.<broj runa>, tag: ime taga). Releases uvek ima poslednji fajl za oba sistema.
+#  - commit čija poruka sadrži "[release sim-vX.Y.Z]" (bilo koja grana): i Release sa tim imenom
 #  - ručno (Actions -> Simulator -> Run workflow): i Windows fajl; ako se upiše "release" (npr. sim-v0.1.0),
 #    i Release sa tim imenom (tag napravi GitHub, ne treba git push taga)
 name: Simulator
@@ -60,7 +61,7 @@ jobs:
   # Windows: za Release (main, tag) i ručno; ne na svaki push, da ne pravi crvene runove.
   build-windows:
     needs: test
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/sim-v')))
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/sim-v') || contains(github.event.head_commit.message, '[release ')))
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -81,7 +82,7 @@ jobs:
 
   release:
     needs: [build-linux, build-windows]
-    if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/sim-v'))) || (github.event_name == 'workflow_dispatch' && inputs.release != '')
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/sim-v') || contains(github.event.head_commit.message, '[release '))) || (github.event_name == 'workflow_dispatch' && inputs.release != '')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -93,8 +94,11 @@ jobs:
         id: v
         env:
           IN_RELEASE: ${{ inputs.release }}
+          MSG: ${{ github.event.head_commit.message }}
         run: |
+          FROM_MSG=$(printf '%s' "$MSG" | grep -o '\[release [A-Za-z0-9._-]*\]' | head -1 | sed 's/\[release \(.*\)\]/\1/')
           if [[ -n "$IN_RELEASE" ]]; then TAG="$IN_RELEASE"
+          elif [[ -n "$FROM_MSG" ]]; then TAG="$FROM_MSG"
           elif [[ "$GITHUB_REF" == refs/tags/* ]]; then TAG="${GITHUB_REF#refs/tags/}"
           else TAG="sim-v0.2.${GITHUB_RUN_NUMBER}"; fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
