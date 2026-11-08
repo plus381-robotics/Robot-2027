@@ -226,8 +226,8 @@ def preview(source, side="zuta", ref_side="zuta", field_x=field.W, mode="mec"):
 
     fk.g = g
     with _lock:
-        old = sys.modules.get("tac")
-        sys.modules["tac"] = _module(fk)
+        old = sys.modules.get("tac"), sys.modules.get("gambit")
+        sys.modules["tac"] = sys.modules["gambit"] = _module(fk)       # Gambit Micro: oba imena
         try:
             sys.settrace(tracer)
             exec(code, g)
@@ -244,10 +244,11 @@ def preview(source, side="zuta", ref_side="zuta", field_x=field.W, mode="mec"):
             out["error"] = {"line": line or 1, "msg": "%s: %s" % (type(e).__name__, e)}
         finally:
             sys.settrace(None)
-            if old is None:
-                sys.modules.pop("tac", None)
-            else:
-                sys.modules["tac"] = old
+            for name, mod in zip(("tac", "gambit"), old):
+                if mod is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = mod
     st = g.get("START")
     if isinstance(st, (tuple, list)) and len(st) >= 2:
         sx, sy = fk.field_xy(float(st[0]), float(st[1]))

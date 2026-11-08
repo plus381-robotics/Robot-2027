@@ -97,14 +97,16 @@ sledeći par sekundi. Ako program na ESP-u padne, ESP ulazi u rescue režim: gre
 a `esp_push` i dalje radi (popravka bez kabla).
 
 ## Taktike (bez kabla)
-Taktika je fajl u `ESP32/tactics/` (vidi `primer.py`; API je u `lib/tac.py`):
+Taktika je fajl u `ESP32/tactics/` (vidi `primer.py`, `sve_komande.py`, `kamenolomi.py`). API se zove
+**Gambit Micro** (kod je u `lib/tac.py`; `lib/gambit.py` je samo ime, pa radi i staro `from tac import *`):
 
-    from tac import *
+    from gambit import *
     START = (250, 1000, 0)      # startna poza: ESP je postavi na činč, a i u testu (podešavanje test_start)
     TOTAL = 4                   # broj koraka, za ekran "2/4"
     goto(600, 1000, speed=300)  # True/False; deg=90 za završni ugao, reverse=True unazad
     turn_to(90)                 # apsolutni ugao terena;  turn_by(-45) relativno
     move(-200)                  # mm, minus = unazad
+    goto(750, 1770, near=True)  # prilaz elementu (kamenolom): IR ne zaustavlja robota, najviše 200 mm/s (protokol v5)
     wait(1); wait_until(lambda: ..., 3); step("čekam"); log("..."); here(); remaining()
     actuator("hvataljka", 1)                  # čeka DONE sa STM32; imena u config.ACTUATORS
     h = actuator("lift", 300, wait=False)     # paralelno sa vožnjom...

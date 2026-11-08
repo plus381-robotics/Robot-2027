@@ -16,7 +16,7 @@ from . import field, paths
 
 NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,40}$")
 TEMPLATE = '''# Nova taktika. Piše se za žutu stranu (tac.REF_SIDE); na drugoj se koordinate same ogledaju.
-from tac import *
+from gambit import *            # Gambit Micro (isto što i staro `from tac import *`)
 
 START = (250, 1000, 0)          # startna poza (x, y, ugao); u meču je ESP postavi kad se izvuče činč
 TOTAL = 2                       # broj koraka (za ekran "1/2")
@@ -199,17 +199,19 @@ def static_check(source, api=None):
         out += mp
     nv = _Names()
     nv.visit(tree)
-    uses_tac = "tac" in nv.star or any(isinstance(n, ast.ImportFrom) and n.module == "tac" for n in ast.walk(tree))
+    api_mods = ("tac", "gambit")                    # Gambit Micro: from gambit import * (isto što i tac)
+    uses_tac = any(m in nv.star for m in api_mods) or \
+        any(isinstance(n, ast.ImportFrom) and n.module in api_mods for n in ast.walk(tree))
     known = nv.defined | set(dir(builtins)) | {"__name__", "__file__"}
-    if "tac" in nv.star:
+    if any(m in nv.star for m in api_mods):
         known |= set(funcs)
-    other_star = [m for m in nv.star if m != "tac"]
+    other_star = [m for m in nv.star if m not in api_mods]
     if not other_star:
         seen = set()
         for n in nv.used:
             if n.id not in known and n.id not in seen:
                 seen.add(n.id)
-                hint = " (fali `from tac import *`?)" if n.id in funcs and not uses_tac else ""
+                hint = " (fali `from gambit import *`?)" if n.id in funcs and not uses_tac else ""
                 out.append(_diag(n, "nepoznato ime `%s`%s" % (n.id, hint), "error", "names"))
     # pozivi tac funkcija
     for n in ast.walk(tree):

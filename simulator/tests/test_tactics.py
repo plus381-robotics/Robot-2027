@@ -44,7 +44,14 @@ def test_sintaksa(api):
 
 
 def test_bez_from_tac_import(api):
-    assert any("from tac import" in t for _, _, t in msgs("START = (250, 1000, 0)\ngoto(1, 2)\n", api))
+    assert any("from gambit import" in t for _, _, t in msgs("START = (250, 1000, 0)\ngoto(1, 2)\n", api))
+
+
+def test_gambit_micro_ime_modula(api):
+    """from gambit import * (Gambit Micro) radi isto kao staro from tac import *."""
+    for mod in ("gambit", "tac"):
+        assert not [t for _, sev, t in msgs("from %s import *\nSTART = (250, 1000, 0)\ngoto(600, 1000)\n" % mod, api)
+                    if sev == "error"]
 
 
 def test_mpy_cross(api):
