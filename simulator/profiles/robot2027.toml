@@ -9,6 +9,12 @@ length = 165           # napred-nazad
 height = 350           # (P) najveća dozvoljena visina
 axle_offset = 0        # (P) osovina točkova u odnosu na sredinu dužine (+ = napred)
 
+[model]
+# 3D model za prikaz (GLB u simulator/web/, napred = +x, pod = z 0). Pravi se iz CAD-a:
+#   python simulator/tools/cad_to_glb.py robot.step --out simulator/web/models/robot.glb
+# Sada: samo pogonska ploča (Fusion, novembar 2026); ostatak robota je providna kutija iz [body].
+file = "models/pogon2027.glb"
+
 [drive]
 # Točkovi: unutrašnje ivice 126 mm, spoljne 206 mm, širina 40 mm -> sredine točkova 166 mm.
 # Razmak se menja (126..206 po ivicama), pa se menja samo ovaj broj.

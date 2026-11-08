@@ -148,7 +148,7 @@ async def info(request):
     return web.json_response({
         "tactics": tactics, "field": field.describe(),
         "profile": {"name": prof.get("name"), "body": prof["body"], "drive": prof["drive"],
-                    "odometry": prof["odometry"], "ir": prof.get("ir", {})},
+                    "odometry": prof["odometry"], "ir": prof.get("ir", {}), "model": prof.get("model", {})},
         "sides": ["zuta", "plava"], "ref_side": tacmod.tac_api()["ref_side"], "runs": _runs(), "where": paths.describe(),
     })
 

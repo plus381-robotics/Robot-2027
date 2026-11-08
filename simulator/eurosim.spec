@@ -15,7 +15,7 @@ def files(pattern, dest):
 
 
 datas = []
-for sub in ("", "vendor"):
+for sub in ("", "vendor", "vendor/loaders", "vendor/utils", "models"):
     datas += files("simulator/web/%s/*.*" % sub if sub else "simulator/web/*.*", "simulator/web/" + sub)
 datas += files("simulator/profiles/*.toml", "simulator/profiles")
 datas += files("ESP32/lib/*.py", "ESP32/lib")

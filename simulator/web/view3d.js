@@ -2,6 +2,7 @@
 // field coordinates as on the robot: x 0..3, y 0..2, angle 0 = +x, positive = counter-clockwise.
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
+import { GLTFLoader } from './vendor/loaders/GLTFLoader.js';
 
 const SIDE_COLOR = { plava: 0x2f7fc1, zuta: 0xf7b500 };
 
@@ -200,6 +201,16 @@ export class FieldView {
     arrow.position.z = Hh + 0.002;
     g.add(arrow);
     g.userData.body = body; g.userData.plate = plate;
+    const file = this.profile.model && this.profile.model.file;
+    if (file) {                                    // CAD model (simulator/tools/cad_to_glb.py): umesto ploče i točkova
+      new GLTFLoader().load(file, gltf => {
+        g.add(gltf.scene);
+        plate.visible = false;
+        for (const c of g.children) if (c.geometry && c.geometry.type === 'CylinderGeometry') c.visible = false;
+        body.material.opacity = 0.16;
+        this.cadLoaded = true;
+      }, undefined, err => console.warn('model robota:', file, err));
+    }
     return g;
   }
 

@@ -160,3 +160,13 @@ def test_cuvanje_preko_servera(base, tmp_path, monkeypatch):
     assert st == 409 and d2["sha"] == d["sha"]
     st, _ = post(base + "/api/tactic/save", {"name": "../x", "source": ""})
     assert st == 400
+
+
+def test_model_robota_iz_cad_a(base):
+    d = get(base + "/api/info")
+    f = d["profile"]["model"]["file"]
+    with urllib.request.urlopen(base + "/" + f, timeout=10) as r:
+        data = r.read()
+    assert data[:4] == b"glTF" and len(data) > 100000                   # GLB iz simulator/tools/cad_to_glb.py
+    with urllib.request.urlopen(base + "/vendor/loaders/GLTFLoader.js", timeout=10) as r:
+        assert r.status == 200

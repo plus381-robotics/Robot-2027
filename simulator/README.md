@@ -95,10 +95,26 @@ kao referenca, pa ista taktika na robotu.
 Sve vrednosti iz `profiles/*.toml` (dimenzije, pogon, odometrija, regulacija, IR, aktuatori) sa komentarima;
 **(P)** = pretpostavka. Save upisuje u fajl (komentari ostaju) i sledeća simulacija ga koristi.
 
-### Sto
+### Sto i elementi igre 2027
 
 Izgled stola je slika iz pravila 2027 (dodatak G.1, slika 8; `web/table2027.jpg`, x nadesno, y nagore);
-"rules table" prebacuje na običnu mrežu.
+"rules table" prebacuje na običnu mrežu. Taktike se pišu za **žutu** stranu (`tac.REF_SIDE`, startna zona
+x 0..500), na plavoj se ogledaju.
+
+**Elementi igre** (`eurosim/field.py`, položaji izmereni sa slike 8, 1 px = 1 mm): 10 kamenoloma po 3 kamena
+(320 x 110 x 110 mm, 330 mm visoko) su prepreke: sudar zaustavlja robota (BLOCKED), a IR ih vidi
+(`ir.see_elements` u profilu). Zone bedema (kule, zidovi), kapije i štale su u `field.ZONES`. Prekidač
+"game elements" (ili `--no-elements`) ih isključuje. Kamenje se još ne pomera (hvatanje i guranje: kasnije).
+
+### 3D model robota (CAD)
+
+Profil `[model] file` pokazuje GLB koji se crta umesto kutije; ostatak robota je providna kutija iz `[body]`.
+Sada: pogonska ploča iz Fusion-a (`web/models/pogon2027.glb`). Iz STEP-a:
+
+    pip install cascadio trimesh
+    python simulator/tools/cad_to_glb.py robot.step --out simulator/web/models/robot.glb --front +y
+
+`--front` = CAD osa koja gleda napred (pretpostavka za ploču: +y; ako je robot okrenut obrnuto, `-y`).
 
 ### Protivnik
 
