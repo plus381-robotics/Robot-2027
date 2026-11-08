@@ -4,6 +4,9 @@
 # dok čeka (tac.py), pa ekran, heartbeat i WiFi rade i tokom taktike. Ugnežđeni poziv step()
 # (npr. iz callback-a koji je pozvan iz step()) se preskače.
 # Meri se najduže trajanje svake faze (ms) u poslednjoj sekundi: app.loop.max, ekran VEZA, upload STAT.
+# Greška u jednom servisu ne ruši petlju: hvata se (Exception), broji (Loop.errors) i javlja preko
+# on_error (app.error), jednom dok se ne promeni. Ostali servisi rade dalje, pa PING ka STM32 ne staje.
+# KeyboardInterrupt (Ctrl+C) i SystemExit (RESET) se ne hvataju.
 from compat import ticks_ms, ticks_us, ticks_diff
 import tactic
 from tactic import tracker
@@ -11,8 +14,11 @@ import tac
 
 
 class Loop:
-    def __init__(self, services, sleep_ms, pause_ms=5):
+    def __init__(self, services, sleep_ms, pause_ms=5, on_error=None):
         self.services, self.sleep_ms, self.pause_ms = services, sleep_ms, pause_ms
+        self.on_error = on_error        # fn(faza, tekst): javi grešku servisa (main.py: app.error)
+        self.errors = {}                # faza -> koliko puta je pukla (od pokretanja)
+        self._err_last = {}             # faza -> poslednji tekst greške (javlja se samo kad se promeni)
         self.max = {}                   # faza -> najduže trajanje u prethodnoj sekundi (ms)
         self.step_max = 0               # najduži ceo krug u prethodnoj sekundi (ms)
         self._cur, self._cur_step = {}, 0
@@ -27,7 +33,10 @@ class Loop:
             t0 = ticks_us()
             for name, fn in self.services:
                 t = ticks_us()
-                fn()
+                try:
+                    fn()
+                except Exception as e:  # noqa: BLE001  (jedan servis ne sme da ugasi ostale)
+                    self._error(name, e)
                 d = ticks_diff(ticks_us(), t) // 1000
                 if d > self._cur.get(name, 0):
                     self._cur[name] = d
@@ -41,6 +50,24 @@ class Loop:
         finally:
             self._in = False
         self.sleep_ms(self.pause_ms)
+
+    def _error(self, name, e):
+        self.errors[name] = self.errors.get(name, 0) + 1
+        text = "%s %s" % (type(e).__name__, e)
+        if self._err_last.get(name) == text:
+            return
+        self._err_last[name] = text
+        print("servis %s:" % name, text)
+        try:
+            import sys
+            sys.print_exception(e)          # MicroPython: ceo trag u konzolu (mpremote, Thonny)
+        except AttributeError:
+            pass
+        if self.on_error:
+            try:
+                self.on_error(name, text)
+            except Exception:               # noqa: BLE001  (javljanje greške ne sme da obori petlju)
+                pass
 
     def slowest(self):
         """(faza, ms) najsporije faze u prethodnoj sekundi."""

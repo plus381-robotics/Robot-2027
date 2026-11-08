@@ -1,5 +1,7 @@
 # ESP32 kod: analiza za čišćenje i olakšavanje
 
+> Rešeno posle analize: 5.1 (try po servisu u glavnoj petlji), `tactics/x100.py` (here() umesto status()).
+
 Datum: 2026-11-08. Obim: `ESP32/` (main, boot, config, `lib/`, `tactics/`, `tests/`, `sim/`), `tools/*.py`,
 `protocol/`, `.github/workflows/esp32.yml`, i iz simulatora samo ono što koristi ESP API
 (`simulator/eurosim/esp.py`, `sim.py`, `stm.py`, `tactics.py`, `robotlink.py`, `server.py`).
@@ -277,6 +279,10 @@ plus slanje. **[PROCENA]** nekoliko ms CPU-a u sekundi na WROOM-32. Predlozi (od
 (Postojeće stavke u `ESP32/PROBLEMI.md` se ne ponavljaju; ovde su veze i novi nalazi.)
 
 ### 5.1 Izuzetak u servisu ruši sve — visoka
+
+**✅ REŠENO:** `runner.Loop` hvata `Exception` po servisu, broji (`Loop.errors`) i javlja preko
+`on_error` -> `app.error` (jednom dok se greška ne promeni); Ctrl+C i RESET prolaze. Host testovi:
+`ESP32/tests/host/test_runner.py`.
 
 `Loop.step` (`runner.py:22-43`) nema `try` po servisu. Posledice:
 - van taktike: izuzetak iz `ekran`, `telem`, `upload`, `net` izađe iz `main()` → `rescue.run` → nema

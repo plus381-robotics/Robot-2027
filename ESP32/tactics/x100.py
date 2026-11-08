@@ -1,20 +1,18 @@
-# Pomeri se 100 mm u +x osi od mesta gde stoji, pa se okreni za 180°. POKREĆE MOTORE.
+# Pomeri se 100 mm u +y (teren) od mesta gde stoji, pa se okreni za 180°. POKREĆE MOTORE.
 #   python tools/tactic.py x100        (Ctrl+C = STOP)
 # Poza se ne postavlja: kreće od onoga što trenutno pokazuje odometrija.
+# here() vraća pozu u koordinatama naše strane (kao goto), pa radi isto na obe strane terena.
+# (status() je sirov STATUS u koordinatama terena: ne sme direktno u goto, jer bi se na drugoj strani
+#  ogledao dvaput.)
 from tac import *
 
-s = status()
-if not s:
-    raise Abort("nema STATUS-a od STM32")
-log("start: x=%d y=%d ugao=%.1f" % (s["x"], s["y"], s["theta"] / 100))
+x, y, ugao = here()
+log("start: x=%d y=%d ugao=%.1f" % (x, y, ugao))
 
-if not goto(s["x"], s["y"] + 100, speed=100, name="GOTO +100 y", next="okret 180"):
+if not goto(x, y + 100, speed=100, name="GOTO +100 y", next="okret 180"):
     raise Abort("GOTO nije uspeo")
 
-ugao = status()["theta"] / 100 + 180       # trenutni ugao + 180, u opsegu -180..180
-if ugao > 180:
-    ugao -= 360
-rotate(ugao, name="ROTATE na %d" % ugao)
+turn_by(180, name="okret 180")
 
-s = status()
-log("kraj: x=%d y=%d ugao=%.1f" % (s["x"], s["y"], s["theta"] / 100))
+x, y, ugao = here()
+log("kraj: x=%d y=%d ugao=%.1f" % (x, y, ugao))

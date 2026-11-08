@@ -112,7 +112,8 @@ class Esp:
         def sleep(ms):
             compat.sleep_ms(ms + loop_extra_ms)
 
-        self.loop = Loop(services, sleep)
+        self.loop = Loop(services, sleep,
+                         on_error=lambda faza, tekst: self.app.error("%s: %s" % (faza, tekst)))   # kao main.py
         self.app.loop = self.loop
         self.app.pump = self.loop.step
         tac.app = self.app

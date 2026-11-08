@@ -49,7 +49,8 @@ def main():
 
     telem = Telem(app)                         # UDP 8268: tools/watch.py
     loop = Loop([("net", net.poll), ("upload", upload.poll), ("telem", telem.poll), ("robot", app.update),
-                 ("ulaz", handle_inputs), ("ekran", gui.tick)], sleep_ms)
+                 ("ulaz", handle_inputs), ("ekran", gui.tick)], sleep_ms,
+                on_error=lambda faza, tekst: app.error("%s: %s" % (faza, tekst)))
     app.pump = loop.step                       # taktika ga zove dok čeka (tac.py)
     app.loop = loop
     tac.app = app
