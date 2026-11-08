@@ -1,6 +1,9 @@
 # Plan: gornja traka, prikaz IR senzora, kalibracija robota
 
-Nacrt, 2026-11-08. **Ništa još nije urađeno.** Radi se posle odobrenja, lokalni commit-i; na `main` kad kažeš.
+Nacrt, 2026-11-08. **Odluke (posle pregleda):** U1 i U2 odobreni. Odometrija se računa ručno (bez
+čarobnjaka). K2b i K3 otpadaju. Ostaje: simulacija što bliža pravom robotu u dinamici (trzaj, ubrzanje,
+kašnjenje): sada **K-sync** (parametri regulacije iz C koda), a **K0 + K1** (fit iz snimka) kad robot vozi
+(procena 2-3 meseca). **Ništa još nije urađeno.** Radi se posle odobrenja, lokalni commit-i; na `main` kad kažeš.
 
 ---
 
@@ -168,12 +171,37 @@ simulator iz njih podesi profil (`simulator/profiles/robot2027.toml`). Na kraju:
 | **Veza** (PING pauze, ponavljanja) | već se meri (`ping_max`, `retries`); u izveštaju kalibracije | upozorenje pre meča |
 | **Baterija** | brzine iz K1 pri punoj i praznoj bateriji; treba napon u STATUS-u (STM, protokol) | profil za "slabu bateriju" ili upozorenje |
 
+### Koliko simulacija može da prati robota samo iz koda (odgovor)
+
+- **Regulacija je prepisana iz C koda** (BlackPill `control.c` + `signal.c`, Lazar), korak po korak na 1 kHz:
+  profil brzine sa ograničenim trzajem (J_MAX, J_MAX_STOP, J_ROT_MAX...), ograničenja V/W, uslovi za kraj
+  kretanja, zaglavljivanje. Taj deo je veran **ako su brojevi u profilu isti kao u firmveru** (K-sync).
+  Ista je i greška PROBLEMI 3: referenca brzine skače odmah na V_MAX, pa profil trzaja zapravo ne radi; i u
+  simulatoru i na robotu.
+- **Fizika robota se ne može dobiti iz koda:**
+  - koliko brzo motor i drajver prate referencu (`motor_tau`) i najveće ubrzanje točka (`wheel_a_max`);
+    zavise od mase, motora, baterije i trenja;
+  - proklizavanje;
+  - brzinski PID (`pid.c`), koji se ne prepisuje, već je zamenjen kašnjenjem prvog reda.
+  
+  Te vrednosti su sada procene (P). Zato se oblik kretanja i trajanje poklapaju grubo; tačno ubrzanje i
+  klizanje na kraju tek posle merenja (K1).
+- **Novi robot (Nucleo):** `regulacija.c` (Lea) za sada ima samo regulaciju brzine (40 redova), bez
+  regulacije položaja. Kad Lea napiše svoju, simulator treba da je prepiše isto kao BlackPill (nova klasa u
+  `control.py`, izbor u profilu), inače simulira BlackPill regulaciju.
+- **Zaključak:** fit (K1) ima smisla tek kad robot vozi; do tada K-sync drži simulaciju u skladu sa kodom.
+
+### K-sync (sada, malo): parametri regulacije iz firmvera
+
+- Test u simulatoru čita dodele iz `pogon-blackpill/Core/Lib/control.c` (`V_MIN_ = 0.15;`, `J_MAX_ = 36.0;`...)
+  i `comm_port.c` (`#define W_GOTO ...`) i poredi sa `[control]` u profilu. Kad Lazar promeni broj u C-u, a
+  profil ostane star, test pada i kaže tačno koji broj.
+- Kasnije isto za Nucleo regulaciju.
+
 ### Redosled za kalibraciju
 
-K0 (telemetrija, ESP) -> K2a (metar, odmah korisno i za firmver) -> K1 (dinamika) -> K3 (aktuatori, IR)
--> K2b (ivica stola, `wall_reset`).
-
----
+K-sync (sada) -> K0 + K1 kad robot vozi (2-3 meseca). Odometrija: ručno izmereni brojevi u profil
+(`[odometry]`) i u firmver.
 
 ## Ukupan redosled (predlog)
 
@@ -181,11 +209,9 @@ K0 (telemetrija, ESP) -> K2a (metar, odmah korisno i za firmver) -> K1 (dinamika
 |---|---|---|
 | U1 | gornja traka i editor | - |
 | U2 | slika IR senzora (snimak, Live, klik pali/gasi) | - |
-| K0 | telemetrija za kalibraciju (`w`, IR, 20 Hz) | ESP: da |
-| K2a | čarobnjak za odometriju sa metrom | - (i brojevi za firmver) |
-| K1 | kalibracija pogona (fit) | - |
-| K3 | aktuatori i IR iz snimaka | - |
-| K2b | ivica stola, `wall_reset` u taktici | ESP i STM (protokol): da |
+| K-sync | parametri regulacije iz C koda (test) | - |
+| K0 | telemetrija za kalibraciju (`w`, IR, 20 Hz), kad robot vozi | ESP: da |
+| K1 | kalibracija pogona (fit iz snimka), kad robot vozi | - |
 
 ## Pitanja
 
