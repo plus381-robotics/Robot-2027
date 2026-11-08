@@ -174,16 +174,30 @@ class Plant:
                             self.th if th is None else th, self.length, self.width, self.offset)
 
     def collides(self, poly):
-        wall, hits = self.hits(poly)
-        return wall or bool(hits)
+        """Brza provera (robot, svake ms): prva prepreka ili ivica. Ko je udaren: hits()."""
+        W, H = field.W / 1000, field.H / 1000
+        if any(px < 0 or px > W or py < 0 or py > H for px, py in poly):
+            return True
+        cx, cy = sum(p[0] for p in poly) / 4, sum(p[1] for p in poly) / 4
+        rr = self.reach
+        for o in self.obstacles:
+            if math.hypot(o.x / 1000 - cx, o.y / 1000 - cy) > rr + o.radius():
+                continue
+            if o.r:
+                if circle_poly_hit(o.x / 1000, o.y / 1000, o.r / 1000, poly):
+                    return True
+            elif poly_hit(poly, o.poly()):
+                return True
+        return False
 
-    def hits(self, poly, ignore=(), first=False):
-        """(udara u ivicu stola, [prepreke koje dodiruje])."""
+    def hits(self, poly, ignore=(), first=False, rr=None):
+        """(udara u ivicu stola, [prepreke koje dodiruje]). rr: poluprečnik oblika (m), ako je poznat."""
         W, H = field.W / 1000, field.H / 1000
         if any(px < 0 or px > W or py < 0 or py > H for px, py in poly):
             return True, []
         cx, cy = sum(p[0] for p in poly) / len(poly), sum(p[1] for p in poly) / len(poly)
-        rr = max(math.hypot(px - cx, py - cy) for px, py in poly)
+        if rr is None:
+            rr = max(math.hypot(px - cx, py - cy) for px, py in poly)
         out = []
         for o in self.obstacles:
             if o in ignore or math.hypot(o.x / 1000 - cx, o.y / 1000 - cy) > rr + o.radius():
@@ -231,8 +245,9 @@ class Plant:
         if (v or w) and self.collides(self.corners(nx, ny, nth)):
             blocked = True
             # kamenolom ispred: gura se (robot sporije), ako ima mesta; inače točkovi proklizavaju, telo stoji
-            wall, objs = self.hits(self.corners(nx, ny, nth))
-            if self.push_on and not wall and objs and all(o.pushable for o in objs) and abs(v) > 1e-4:
+            wall, objs = self.hits(self.corners(nx, ny, nth), rr=self.reach) if self.push_on and abs(v) > 1e-4 \
+                else (True, [])
+            if not wall and objs and all(o.pushable for o in objs):
                 f = 1.0 - self.push_resist
                 v, w = v * f, w * f
                 th_mid = self.th + w * dt / 2
@@ -261,7 +276,9 @@ class Plant:
 
     def sensor_layout(self):
         """[(ime, x, y, smer, z)] u koordinatama robota (m; x napred, y levo; smer +1 napred, -1 nazad)."""
-        out = []
+        if getattr(self, "_layout", None):
+            return self._layout
+        out = self._layout = []
         for pre, d, n in (("F", 1, self.ir_n[0]), ("B", -1, self.ir_n[1])):
             x = d * self.length / 2 + self.offset          # prednja ili zadnja ivica tela
             for k in range(n):

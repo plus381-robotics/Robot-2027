@@ -79,6 +79,7 @@ class Sim:
         self.elements = [Obstacle(**field.element(e)) for e in el if field.element(e)["stones"] > 0]
         self.opponents = [o if isinstance(o, Obstacle) else Obstacle(**o) for o in obstacles]
         self.stm.plant.obstacles = self.elements + self.opponents
+        self._opp_init(side)
         self.schedule = sorted(schedule, key=lambda s: s[0])
         self.t0 = self.esp.now()
         self.rec = Recording()
@@ -214,10 +215,40 @@ class Sim:
 
     # ---------------- servis u ESP petlji (radi i dok taktika čeka) ----------------
 
+    def _opp_init(self, side):
+        """Protivnici sa taktikom (plan E4): kreću na početak meča (činč) ili, u testu, na start naše taktike."""
+        from . import opponents as oppmod
+        self.opp_runners = oppmod.make_runners(self.opponents, side)
+        self._opp_t = None                      # sim ms kad su protivnici krenuli
+        self._opp_last = None
+        for r in self.opp_runners:
+            if r.error:
+                self.event("sim", {"text": "protivnik %s: greška u taktici %s, red %s: %s"
+                                   % (r.o.name, r.name, r.error["line"], r.error["msg"])})
+
+    def _opp_update(self, t):
+        if not self.opp_runners:
+            return
+        st = self.stm
+        if self._opp_t is None:
+            if not (st.match_running or self.app.running):
+                return
+            self._opp_t = self._opp_last = t
+            self.event("sim", {"text": "protivnici krenuli: " + ", ".join("%s (%s)" % (r.o.name, r.name)
+                                                                         for r in self.opp_runners)})
+        dt = (t - self._opp_last) / 1000
+        self._opp_last = t
+        if dt <= 0:
+            return
+        robot = st.plant.corners()
+        for r in self.opp_runners:
+            r.step(dt, st.plant, robot)
+
     def _service(self):
         self._watch_nrst()
         self.stm.advance()
         t = self.t()
+        self._opp_update(t)
         if self.app.running:
             self._started = True
         while self.schedule and self.schedule[0][0] * 1000 <= t:
@@ -291,6 +322,8 @@ class Sim:
                      tac=tr.name, i=tr.idx, n=tr.total, step=tr.step_name, el=tr.elapsed(), to=tr.timeout_ms)
             if st.acts or st.act_state:
                 s["act"] = {str(k): v for k, v in st.act_state.items()}
+            if self.opp_runners:                # pozicije protivnika sa taktikom (za puštanje snimka)
+                s["opp"] = [[round(o.x), round(o.y), round(o.th or 0, 1)] for o in self.opponents]
             self.rec.frame(s)
             if st.plant.pushed and t - getattr(self, "_el_t", -1000) >= 100:   # gurnut kamenolom: novo stanje stola
                 st.plant.pushed = False
@@ -366,6 +399,7 @@ class Sim:
         elif k == "obstacles":
             self.opponents = [Obstacle(**o) for o in c[1]]
             self.stm.plant.obstacles = self.elements + self.opponents
+            self._opp_init(self.rec.meta.get("side", "zuta"))
             self.rec.meta["obstacles"] = [o.to_dict() for o in self.opponents]
             self.event("obstacles", self.rec.meta["obstacles"])
         elif k == "elements":                   # UI: izmenjeni kamenolomi (ukloni/dodaj kamen, pomeri)

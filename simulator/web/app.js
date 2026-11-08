@@ -490,6 +490,8 @@ function refreshOpponents() {
   $('oppX').value = o.x; $('oppY').value = o.y;
   $('oppW').value = round ? o.r * 2 : o.w; $('oppH').value = o.h; $('oppH').disabled = round;
   $('oppTh').value = o.th || 0; $('oppZ').value = o.z || 350; $('oppRound').checked = round;
+  $('oppTac').innerHTML = '<option value="">stands still</option>' + (info.opp_tactics || []).map(n => `<option>${n}</option>`).join('');
+  $('oppTac').value = o.tactic || ''; $('oppSeed').value = o.seed || 1;
 }
 
 let oppTimer = null;
@@ -509,6 +511,7 @@ function editOpponent() {
   const o = opponents[oppSel]; if (!o) return;
   const round = $('oppRound').checked;
   o.x = +$('oppX').value; o.y = +$('oppY').value; o.th = +$('oppTh').value; o.z = +$('oppZ').value;
+  o.tactic = $('oppTac').value || undefined; o.seed = Math.max(1, +$('oppSeed').value || 1);
   if (round) { o.r = Math.max(10, +$('oppW').value / 2); } else { o.r = 0; o.w = +$('oppW').value; o.h = +$('oppH').value; }
   refreshOpponents();
   opponentsChanged(true);
@@ -1172,6 +1175,13 @@ async function main() {
     refreshOpponents();
     opponentsChanged(true);
   };
+  $('addPami').onclick = () => {              // PAMI: mali robot na protivnikovoj strani, kreće u poslednjih 15 s
+    const blue = $('side').value === 'zuta', n = opponents.filter(o => o.kind === 'pami').length;
+    opponents.push({ name: 'PAMI ' + (n + 1), kind: 'pami', x: blue ? 2900 : 100, y: 1700 - n * 150, w: 150, h: 120, th: blue ? 180 : 0,
+      z: 130, r: 0, tactic: (info.opp_tactics || []).includes('pami_napred') ? 'pami_napred' : undefined });
+    oppSel = opponents.length - 1; refreshOpponents(); opponentsChanged(true);
+  };
+  $('oppTac').onchange = editOpponent; $('oppSeed').onchange = editOpponent;
   $('oppDel').onclick = () => { opponents.splice(oppSel, 1); oppSel = -1; refreshOpponents(); opponentsChanged(true); };
   for (const id of ['oppX', 'oppY', 'oppW', 'oppH', 'oppTh', 'oppZ', 'oppRound']) $(id).onchange = editOpponent;
   $('liveBtn').onclick = () => (live ? liveSend(['quit']) : startLive());

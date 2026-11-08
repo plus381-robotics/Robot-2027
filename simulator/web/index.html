@@ -135,6 +135,7 @@
         <label><input type="checkbox" id="follow"> follow the robot</label>
       </div>
       <button id="addOpp" title="Add an opponent (drag it on the table)">+ Opponent</button>
+      <button id="addPami" title="Add a PAMI (small opponent robot): waits, moves in the last 15 s of the match">+ PAMI</button>
       <select id="scenLoad" title="Load a saved table: quarries and opponents (simulator/scenarios)"><option value="">load scenario…</option></select>
       <button id="scenSave" title="Save the table (changed quarries) and opponents as a scenario">Save scenario</button>
       <button id="elReset" title="Quarries as in the 2027 rules">Reset table</button>
@@ -160,6 +161,8 @@
         <label>w <input type="number" id="oppW" step="10" min="20"></label><label>h <input type="number" id="oppH" step="10" min="20"></label>
         <label>∠ <input type="number" id="oppTh" step="5"></label><label>z <input type="number" id="oppZ" step="10" min="10"></label>
         <label class="wide"><input type="checkbox" id="oppRound"> round (diameter = w)</label>
+        <label class="wide">tactic <select id="oppTac" title="What the opponent does (simulator/opponents/*.py); stands still without one"></select></label>
+        <label class="wide">seed <input type="number" id="oppSeed" min="1" step="1" title="For random tactics: same seed = same match"></label>
       </div>
       <div class="dim small">drag on the table to move · simulation re-runs on release</div>
     </div>

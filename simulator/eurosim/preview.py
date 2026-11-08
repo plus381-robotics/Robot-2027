@@ -37,9 +37,10 @@ def _wrap(deg):
 
 
 class _Fake:
-    def __init__(self, side, ref_side, field_x, in_match):
+    def __init__(self, side, ref_side, field_x, in_match, start=None, timed=False):
         self.side, self.ref, self.fx, self.match = side, ref_side, field_x, in_match
-        self.x, self.y, self.th = 250.0, 1000.0, 0.0      # naša strana (koordinate taktike)
+        self.x, self.y, self.th = start or (250.0, 1000.0, 0.0)     # naša strana (koordinate taktike)
+        self.timed = timed                                 # protivnik (plan E4): wait_until čeka u vremenu
         self.t = 0.0
         self.cmds = []
         self.started = False
@@ -148,7 +149,17 @@ def _module(fk):
         fk._add("wait", "pauza %.1f s" % s, fk.x, fk.y, fk.x, fk.y, float(s))
 
     def wait_until(cond, timeout, name=None):
-        return True
+        if not fk.timed:
+            return True                                     # nacrt: sve uspeva odmah
+        fk.begin()
+        t_end = fk.t + timeout                              # protivnik: vreme teče dok uslov ne bude ispunjen
+        while fk.t < t_end:
+            if cond():
+                return True
+            fk.t += 0.05
+            if fk.t >= MAX_S:
+                raise _Stop("kraj meča")
+        return False
 
     def done(h):
         return True
@@ -213,10 +224,10 @@ def _module(fk):
     return m
 
 
-def preview(source, side="zuta", ref_side="zuta", field_x=field.W, mode="mec"):
+def preview(source, side="zuta", ref_side="zuta", field_x=field.W, mode="mec", start=None, timed=False):
     """{"cmds": [...], "start": [x, y, ugao] (teren), "t": procena s, "error": None | {line, msg},
     "truncated": None | razlog}. Ne baca izuzetke."""
-    fk = _Fake(side, ref_side, field_x, mode == "mec")
+    fk = _Fake(side, ref_side, field_x, mode == "mec", start=start, timed=timed)
     out = {"cmds": fk.cmds, "start": None, "t": 0.0, "error": None, "truncated": None}
     try:
         code = compile(source, FILENAME, "exec")

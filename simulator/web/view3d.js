@@ -687,6 +687,12 @@ export class FieldView {
     this.ghost.visible = this.showOdom !== false && diff;
     this.pathDone.geometry.setDrawRange(0, 6 * i);
     this.setIr(c.irh ? c.irh[i] : null, c.irm && c.irm[i] != null ? c.irm[i] : 0xFF);
+    if (c.opp && c.opp[i] && !this.drag) {           // protivnici sa taktikom: gde su bili u tom trenutku
+      c.opp[i].forEach(([x, y, th], j) => {
+        const g = this.oppGroup.children[j];
+        if (g) { g.position.set(x / 1000, y / 1000, 0); g.rotation.z = th * Math.PI / 180; }
+      });
+    }
     let k = 0, lo = 0, hi = this.odomSeg.length;          // segments ending at or before frame i
     while (lo < hi) { const m = (lo + hi) >> 1; if (this.odomSeg[m] <= i) lo = m + 1; else hi = m; }
     k = lo;

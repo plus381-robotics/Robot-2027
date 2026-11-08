@@ -1,6 +1,8 @@
 # Plan: koraci na mapi, IR senzori, elementi igre, taktike protivnika
 
-Nacrt, 2026-11-08. **Ništa od ovoga još nije urađeno.** Posle odobrenja se radi po fazama, sa lokalnim
+Nacrt, 2026-11-08. **Stanje: E1-E4 urađeni (lokalni commit-i), E5 nije.** Odluke: `near` izbačen; samo gornji
+senzori (340 mm), imena F1-F4/B1-B4; guranje jednostavno (najčešće se kamen odmah hvata); jedan veliki
+protivnik + PAMI-ji koji kreću u poslednjih 15 s. Ostatak teksta je plan kakav je bio pre rada. Posle odobrenja se radi po fazama, sa lokalnim
 commit-ima (na `main` tek kad kažeš). Izmene u `ESP32/`, `protocol/` i STM delu protokola tek posle "da" za
 tu fazu; ostali kod na Nucleo-u je Lein.
 

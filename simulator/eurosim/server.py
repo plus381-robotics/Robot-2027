@@ -157,6 +157,7 @@ async def info(request):
                     "odometry": prof["odometry"], "ir": prof.get("ir", {}), "model": prof.get("model", {}),
                     "ir_sensors": _ir_layout(prof)},
         "sides": ["zuta", "plava"], "ref_side": tacmod.tac_api()["ref_side"], "runs": _runs(), "where": paths.describe(),
+        "opp_tactics": __import__("eurosim.opponents", fromlist=["available"]).available(),
     })
 
 

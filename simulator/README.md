@@ -109,9 +109,18 @@ Izgled stola je slika iz pravila 2027 (dodatak G.1, slika 8; `web/table2027.jpg`
 x 0..500), na plavoj se ogledaju.
 
 **Elementi igre** (`eurosim/field.py`, položaji izmereni sa slike 8, 1 px = 1 mm): 10 kamenoloma po 3 kamena
-(320 x 110 x 110 mm, 330 mm visoko) su prepreke: sudar zaustavlja robota (BLOCKED), a IR ih vidi
-(`ir.see_elements` u profilu). Zone bedema (kule, zidovi), kapije i štale su u `field.ZONES`. Prekidač
-"game elements" (ili `--no-elements`) ih isključuje. Kamenje se još ne pomera (hvatanje i guranje: kasnije).
+(320 x 110 x 110 mm, 330 mm visoko). IR senzori su iznad njih (340 mm), pa ih ne vide; robot koji naleti
+na kamenolom ga **gura** (sporije, `[elements] push_resist`), osim kad iza nema mesta (ivica, druga prepreka):
+tada se zaglavi (BLOCKED). Zone bedema (kule, zidovi), kapije i štale su u `field.ZONES`. Prekidač
+"game elements" (ili `--no-elements`) ih isključuje.
+
+**Menjanje stola:** klik na kamenolom -> panel (− / + kamen, okreni 90°, ukloni), prevlačenje mišem, **Reset
+table** = po pravilima. **Save scenario / load scenario…** čuva kamenolome i protivnike u
+`simulator/scenarios/<ime>.json` (deli se kroz git). U snimku se vidi kako je kamenolom gurnut.
+
+**IR senzori** (`[ir]` u profilu): 4 napred (F1..F4) i 4 nazad (B1..B4), s leva na desno, na visini `z`.
+Taktika ih gasi i pali: `ir_off("F")`, `ir_on()`, `ir_sees("F2")` (protokol v5). Zraci na robotu imaju imena;
+isključeni su tamni, crveni vide nešto.
 
 ### 3D model robota (CAD)
 
@@ -129,6 +138,12 @@ Sada: pogonska ploča iz Fusion-a (`web/models/pogon2027.glb`). Iz STEP-a:
 ugao, visina i oblik (pravougaonik ili krug) menjaju se u panelu dole levo. IR senzori ga vide (zavisno
 od visine), sudar zaustavlja robota. U brzom režimu simulacija se sama ponovi kad pustiš protivnika (ostaje
 isti trenutak); u Live režimu protivnik se pomera dok robot vozi. Protivnici se pamte u browseru.
+
+**Taktika protivnika:** u panelu protivnika `tactic` (fajlovi u `simulator/opponents/`, vidi tamošnji README):
+`patrola`, `ka_kamenolomu` (blokira naš srednji kamenolom), `nasumicno` (seme u panelu), `pami_napred`.
+Piše se kao naša taktika, za žutu stranu; simulator je ogleda na protivnikovu stranu i kreće od činča.
+Protivnik stoji kad bi udario u naš robot, a kamenolome gura. **+ PAMI** dodaje mali robot (150 x 120, 130 mm)
+na protivnikovoj strani koji kreće u poslednjih 15 s meča (IR na 340 mm ga ne vidi, sudar ga vidi).
 
 ## Komandna linija
 
