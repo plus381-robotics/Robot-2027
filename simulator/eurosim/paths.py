@@ -66,7 +66,7 @@ def find_repo():
 
 def configure(root=None, home=None):
     """Postavi globalne putanje (root = repo ili None za samostalni rad)."""
-    global ROOT, ESP, TACTICS, SIM, PROFILES, RUNS, TOOLS, DEFAULT_PROFILE, HOME, MODE
+    global ROOT, ESP, TACTICS, SIM, PROFILES, RUNS, TOOLS, DEFAULT_PROFILE, HOME, MODE, SCENARIOS
     if root:
         os.environ["EUROSIM_ROOT"] = str(root)        # i za procese simulacije (spawn)
     if home:
@@ -80,6 +80,7 @@ def configure(root=None, home=None):
         SIM = ROOT / "simulator"
         PROFILES = SIM / "profiles"
         RUNS = SIM / "runs"
+        SCENARIOS = SIM / "scenarios"              # izmenjen sto (kamenolomi, protivnici), deli se kroz git
         TOOLS = ROOT / "tools"
     else:
         MODE = "standalone"
@@ -88,6 +89,7 @@ def configure(root=None, home=None):
         SIM = BUNDLE / "simulator"
         TOOLS = BUNDLE / "tools"
         TACTICS, PROFILES, RUNS = HOME / "tactics", HOME / "profiles", HOME / "runs"
+        SCENARIOS = HOME / "scenarios"
         for d, src in ((TACTICS, ESP / "tactics"), (PROFILES, SIM / "profiles")):
             if not d.exists():
                 d.mkdir(parents=True)

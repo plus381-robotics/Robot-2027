@@ -64,6 +64,13 @@ ZONES = (
 )
 
 
+def element(d):
+    """Kamenolom iz dict-a (UI, scenario): broj kamenova određuje visinu (za IR i crtanje)."""
+    L, Wd, H = STONE
+    n = max(0, min(6, int(d.get("stones", 3))))
+    return dict(d, kind="kamenolom", w=d.get("w", L), h=d.get("h", Wd), z=n * H, stones=n)
+
+
 def elements():
     """Prepreke na početku meča: kamenolomi (3 kamena, 330 mm). Za plant.Obstacle(**d)."""
     L, Wd, H = STONE

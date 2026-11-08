@@ -160,6 +160,50 @@ async def info(request):
     })
 
 
+def _elements_arg(v):
+    """Kamenolomi iz zahteva: True/False/"1"/"0" (po pravilima ili bez) ili lista (izmenjen sto, JSON)."""
+    if isinstance(v, str):
+        if v in ("0", "1", ""):
+            return v != "0"
+        try:
+            v = json.loads(v)
+        except ValueError:
+            return True
+    return v if isinstance(v, list) else bool(v)
+
+
+# ---------------- scenariji: izmenjen sto (kamenolomi) i protivnici, plan E3 ----------------
+
+def _scen_dir():
+    d = paths.SCENARIOS
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+async def scenarios_list(request):
+    return web.json_response({"scenarios": sorted(p.stem for p in _scen_dir().glob("*.json"))})
+
+
+async def scenario_get(request):
+    n = request.match_info["name"]
+    if not tacmod.NAME_RE.match(n):
+        return web.json_response({"error": "ime"}, status=400)
+    p = _scen_dir() / (n + ".json")
+    if not p.exists():
+        return web.json_response({"error": "nema scenarija " + n}, status=404)
+    return web.json_response(json.loads(p.read_text(encoding="utf-8")))
+
+
+async def scenario_save(request):
+    q = await request.json()
+    n = q.get("name", "")
+    if not tacmod.NAME_RE.match(n or ""):
+        return web.json_response({"error": "ime: slova, cifre i _"}, status=400)
+    data = {"elements": q.get("elements"), "opponents": q.get("opponents") or [], "note": q.get("note", "")}
+    (_scen_dir() / (n + ".json")).write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
+    return web.json_response({"saved": n, "scenarios": sorted(p.stem for p in _scen_dir().glob("*.json"))})
+
+
 async def run(request):
     q = await request.json()
     name = q.get("tactic")
@@ -178,7 +222,7 @@ async def run(request):
         return web.json_response({"error": "taktika ima sintaksnu grešku", "diagnostics": diags}, status=422)
     kw = dict(source=source, name=name, side=q.get("side", "zuta"), mode=q.get("mode", "mec"),
               cord_s=float(q.get("cord_s", 1.0)), obstacles=q.get("obstacles") or [],
-              elements=bool(q.get("elements", True)),
+              elements=_elements_arg(q.get("elements", True)),
               prof=request.app[STATE]["profile"])
     if q.get("max_s"):
         kw["max_s"] = float(q["max_s"])
@@ -242,7 +286,7 @@ async def live(request):
     except ValueError:
         obstacles = []
     kw = dict(name=tactic, side=q.get("side", "zuta"), obstacles=obstacles, prof=request.app[STATE]["profile"],
-              elements=q.get("elements", "1") != "0")
+              elements=_elements_arg(q.get("elements", "1")))
     if staged:
         kw["name"], kw["source"] = staged
     ctx = mp.get_context("spawn")
@@ -597,6 +641,9 @@ def make_app(prof=None):
     app.router.add_post("/api/tactic/save", tactic_save)
     app.router.add_post("/api/tactic/rename", tactic_rename)
     app.router.add_post("/api/preview", preview)
+    app.router.add_get("/api/scenarios", scenarios_list)
+    app.router.add_post("/api/scenarios/save", scenario_save)
+    app.router.add_get("/api/scenarios/{name}", scenario_get)
     app.router.add_get("/api/repo/status", repo_status)
     app.router.add_post("/api/repo/open", repo_open)
     app.router.add_post("/api/repo/clone", repo_clone)

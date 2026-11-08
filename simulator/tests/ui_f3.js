@@ -38,8 +38,10 @@ const { chromium } = require('playwright');
   await p.click('#addOpp');
   await p.click('#run');
   await p.waitForFunction(() => /^OK/.test(document.getElementById('result').textContent));
-  const box = await p.locator('#view').boundingBox();
-  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  // položaj protivnika na ekranu (projekcija iz 3D prikaza; sto nije baš u sredini kadra)
+  const [cx, cy] = await p.evaluate(() => { const v = window.eurosim.view; const g = v.oppGroup.children[0];
+    const pr = g.position.clone().project(v.camera); const r = v.renderer.domElement.getBoundingClientRect();
+    return [r.left + (pr.x + 1) / 2 * r.width, r.top + (1 - pr.y) / 2 * r.height]; });
   await p.mouse.move(cx, cy); await p.mouse.down();
   for (let k = 1; k <= 10; k++) await p.mouse.move(cx - k * 30, cy);
   await p.mouse.up();

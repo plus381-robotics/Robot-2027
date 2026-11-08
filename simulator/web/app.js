@@ -61,13 +61,14 @@ function buildRun(d) {
         text: `${kind === 'rx' ? 'ESP→STM' : 'STM→ESP'} ${x.name} #${x.seq} ${f}` });
     }
   }
+  const elEvents = d.events.filter(e => e[1] === 'elements').map(([t, , x]) => ({ t, list: x }));   // gurnuti kamenolomi
   const screens = d.events.filter(e => e[1] === 'screen').map(([t, , x]) => ({ t, ...x }));
   const screenAt = t => {
     let r = null;
     for (const sc of screens) { if (sc.t <= t) r = sc; else break; }
     return r;
   };
-  return { ...d, frameAt, steps, tactics, excLines, log, screens, screenAt, duration: ts.length ? ts[ts.length - 1] : 0 };
+  return { ...d, frameAt, steps, tactics, excLines, log, screens, screenAt, elEvents, duration: ts.length ? ts[ts.length - 1] : 0 };
 }
 
 // ---------------- formatting ----------------
@@ -285,6 +286,7 @@ function seek(t, keepPlaying = false) {
 function show() {
   if (!run.cols.t || !run.cols.t.length) return;
   const i = run.frameAt(play.t);
+  showElementsAt(play.t);
   esp.setScreen(run.screenAt(play.t));
   edMarks();
   view.setFrame(i);
@@ -343,7 +345,8 @@ async function api(path, body) {
 function load(d, label, keepTime = null) {
   run = buildRun(d);
   view.setRun(run);
-  view.setElements(d.meta && d.meta.elements ? d.meta.elements : []);
+  elShownKey = null;
+  drawElements();
   view.setVisibility({ odom: $('showOdom').checked, targets: $('showTargets').checked });
   charts.setRun(run);
   renderSteps(); renderLog(); renderResult(); renderMarks();
@@ -363,7 +366,7 @@ function load(d, label, keepTime = null) {
 async function simulate(keepTime = null) {
   if (live) return;
   const body = { tactic: $('tactic').value, side: $('side').value, mode: $('mode').value, obstacles: opponents,
-    elements: $('showElements').checked };
+    elements: elementsArg() };
   localStorage.setItem('eurosim.sel', JSON.stringify(body));
   if (ed) { body.tactic = ed.name; body.source = ed.editor.text(); }
   $('run').disabled = true;
@@ -385,6 +388,90 @@ function fillRuns(list) {
   const s = $('runs');
   s.innerHTML = '<option value="">Saved runs…</option>' + list.map(n => `<option>${n}</option>`).join('');
   $('cmpRun').innerHTML = '<option value="">compare with…</option>' + list.map(n => `<option>${n}</option>`).join('');
+}
+
+// ---------------- kamenolomi (plan E3): izmenjen sto, scenariji ----------------
+
+let tableEl = null, elSel = -1, elShownKey = null;     // tableEl: izmenjeni kamenolomi (null = po pravilima)
+
+const curElements = () => (tableEl ? tableEl : JSON.parse(JSON.stringify(info.field.elements)));
+const elementsArg = () => ($('showElements').checked ? (tableEl || true) : false);
+
+function drawElements() {                       // trenutno (izmenljivo) stanje stola; za vreme puštanja: showElementsAt
+  elShownKey = 'edit';
+  const list = $('showElements').checked ? curElements() : [];
+  if (elSel >= list.length) elSel = -1;
+  view.setElements(list, { editable: $('showElements').checked, sel: elSel });
+  refreshElPanel();
+}
+
+function showElementsAt(t) {                    // snimak: kamenolomi kako ih je robot (ili protivnik) pomerio
+  if (!run || !run.elEvents || !run.elEvents.length) { if (elShownKey !== 'edit') drawElements(); return; }
+  let k = -1;
+  for (let j = 0; j < run.elEvents.length && run.elEvents[j].t <= t; j++) k = j;
+  const key = k < 0 ? 'edit' : 'ev' + k;
+  if (key === elShownKey) return;
+  if (k < 0) { drawElements(); return; }
+  elShownKey = key;
+  view.setElements(run.elEvents[k].list, { editable: false });
+}
+
+function refreshElPanel() {
+  const list = $('showElements').checked ? curElements() : [];
+  const e = view.elements[elSel] || list[elSel];
+  $('elEdit').hidden = !e || elSel < 0;
+  if (!e || elSel < 0) return;
+  $('elName').textContent = e.name || '';
+  $('elStones').textContent = e.stones ?? 3;
+  $('elPos').textContent = `${Math.round(e.x)}, ${Math.round(e.y)} · ${e.th || 0}°`;
+}
+
+function elEdit(fn) {
+  const l = curElements();
+  if (!l[elSel]) return;
+  fn(l[elSel]);
+  if (l[elSel].stones === 0) { l.splice(elSel, 1); elSel = -1; }
+  tableEl = l;
+  drawElements();
+  elementsChanged(true);
+}
+
+let elTimer = null;
+function elementsChanged(final, fromView = false) {   // fromView: kamenolom prevučen mišem (pozicija je u view.elements)
+  if (fromView && view.elements.length && elShownKey === 'edit') tableEl = view.elements.map(e => ({ ...e }));
+  try { localStorage.setItem('eurosim.el', JSON.stringify(tableEl)); } catch (e) { /* ignore */ }
+  refreshElPanel();
+  if (live) {
+    clearTimeout(elTimer);
+    elTimer = setTimeout(() => liveSend(['elements', $('showElements').checked ? curElements() : []]), final ? 0 : 100);
+  } else if (final && run) simulate(play.t);
+}
+
+async function fillScenarios() {
+  try {
+    const d = await api('/api/scenarios');
+    $('scenLoad').innerHTML = '<option value="">load scenario…</option>' + d.scenarios.map(n => `<option>${n}</option>`).join('');
+  } catch (e) { /* ignore */ }
+}
+
+async function saveScenario() {
+  const name = askName('Save the table (quarries) and opponents as a scenario:', 'scenario');
+  if (!name) return;
+  try {
+    await api('/api/scenarios/save', { name, elements: curElements(), opponents });
+    fillScenarios(); msg(`scenario ${name} saved (simulator/scenarios/${name}.json)`);
+  } catch (e) { msg(e.message, true); }
+}
+
+async function loadScenario(name) {
+  try {
+    const d = await api('/api/scenarios/' + encodeURIComponent(name));
+    tableEl = d.elements || null; opponents = d.opponents || [];
+    $('showElements').checked = true; elSel = -1; oppSel = -1;
+    drawElements(); refreshOpponents(); saveOpponents();
+    elementsChanged(true);
+    msg(`scenario ${name}`);
+  } catch (e) { msg(e.message, true); }
 }
 
 // ---------------- opponents ----------------
@@ -772,7 +859,7 @@ async function startLive() {
   if (live) return;
   setPlaying(false);
   const q = new URLSearchParams({ tactic: $('tactic').value, side: $('side').value, obstacles: JSON.stringify(opponents),
-    elements: $('showElements').checked ? '1' : '0' });
+    elements: (a => (a === true ? '1' : a === false ? '0' : JSON.stringify(a)))(elementsArg()) });
   if (ed) {                                     // editor text (saved or not) is the tactic in Live too
     try { q.set('stage', (await api('/api/stage', { name: ed.name, source: ed.editor.text() })).stage); }
     catch (e) { msg(e.message, true); return; }
@@ -1128,11 +1215,20 @@ async function main() {
   $('testBtn').onclick = () => liveSend(['test', curTactic(), $('side').value]);
   document.querySelector('#espPanel .ov-title').onclick = () => $('espPanel').classList.toggle('collapsed');
   $('result').onclick = () => $('result').classList.toggle('mini');
-  view.setElements($('showElements').checked ? info.field.elements : []);
-  $('showElements').onchange = e => {
-    view.setElements(e.target.checked ? info.field.elements : []);
-    if (run && !live) simulate(play.t);
-  };
+  try { tableEl = JSON.parse(localStorage.getItem('eurosim.el') || 'null'); } catch (e) { tableEl = null; }
+  drawElements();
+  view.onElSelect = i => { elSel = i; drawElements(); };
+  view.onElMove = (i, final) => { if (final) elementsChanged(true, true); else refreshElPanel(); };
+  $('showElements').onchange = () => { elSel = -1; drawElements(); elementsChanged(true); };
+  $('elLess').onclick = () => elEdit(e => { e.stones = Math.max(0, (e.stones ?? 3) - 1); });
+  $('elMore').onclick = () => elEdit(e => { e.stones = Math.min(6, (e.stones ?? 3) + 1); });
+  $('elRot').onclick = () => elEdit(e => { e.th = ((e.th || 0) + 90) % 180; });
+  $('elDel').onclick = () => { const l = curElements(); l.splice(elSel, 1); tableEl = l; elSel = -1; drawElements(); elementsChanged(true); };
+  $('elClose').onclick = () => { elSel = -1; drawElements(); };
+  $('elReset').onclick = () => { tableEl = null; elSel = -1; drawElements(); elementsChanged(true); msg('table reset to the 2027 rules'); };
+  $('scenSave').onclick = saveScenario;
+  $('scenLoad').onchange = e => { const n = e.target.value; e.target.value = ''; if (n) loadScenario(n); };
+  fillScenarios();
   $('rulesLook').onchange = e => view.setTableLook(e.target.checked ? 'rules' : 'grid');
   $('edBtn').onclick = () => toggleEditor().catch(e => msg('editor: ' + e.message, true));
   $('edFile').onchange = e => edLoad(e.target.value);

@@ -139,6 +139,7 @@ export class FieldView {
     this.onPreviewClick = null; this.onAltPick = null;
     this.opponents = []; this.oppSel = -1; this.drag = null;
     this.onOppSelect = null; this.onOppMove = null;
+    this.elements = []; this.elSel = -1; this.onElSelect = null; this.onElMove = null;   // kamenolomi (plan E3)
 
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
@@ -552,29 +553,43 @@ export class FieldView {
     return hit ? hit.object.userData.idx : -1;
   }
 
+  _hitEl(e) {
+    if (!this.elGroup.children.length || !this.editElements) return -1;
+    const r = this.renderer.domElement.getBoundingClientRect();
+    this.mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const hit = this.raycaster.intersectObjects(this.elGroup.children, true)[0];
+    let o = hit && hit.object;
+    while (o && o.userData.el == null) o = o.parent;
+    return o ? o.userData.el : -1;
+  }
+
   _down(e) {
-    if (e.button !== 0) return;
-    const i = this._hitOpp(e);
+    if (e.button !== 0 || e.altKey) return;
+    let i = this._hitOpp(e), kind = 'opp';
+    if (i < 0) { i = this._hitEl(e); kind = 'el'; }
     if (i < 0) return;
-    const p = this._pick(e), o = this.opponents[i];
+    const p = this._pick(e), o = kind === 'opp' ? this.opponents[i] : this.elements[i];
     if (!p) return;
     this.controls.enabled = false;
-    this.drag = { i, dx: o.x - p[0], dy: o.y - p[1], moved: false };
+    this.drag = { kind, i, dx: o.x - p[0], dy: o.y - p[1], moved: false };
     this.renderer.domElement.setPointerCapture(e.pointerId);
-    if (this.onOppSelect) this.onOppSelect(i);
+    if (kind === 'opp' && this.onOppSelect) this.onOppSelect(i);
+    if (kind === 'el' && this.onElSelect) this.onElSelect(i);
   }
 
   _dragMove(e) {
     if (!this.drag) return;
     const p = this._pick(e);
     if (!p) return;
-    const d = this.drag, o = this.opponents[d.i];
+    const d = this.drag, o = d.kind === 'opp' ? this.opponents[d.i] : this.elements[d.i];
     o.x = Math.round(Math.max(0, Math.min(this.field.w, p[0] + d.dx)) / 5) * 5;
     o.y = Math.round(Math.max(0, Math.min(this.field.h, p[1] + d.dy)) / 5) * 5;
     d.moved = true;
-    const g = this.oppGroup.children[d.i];
+    const g = (d.kind === 'opp' ? this.oppGroup : this.elGroup).children[d.i];
     g.position.set(o.x / 1000, o.y / 1000, 0);
-    if (this.onOppMove) this.onOppMove(d.i, false);
+    if (d.kind === 'opp' && this.onOppMove) this.onOppMove(d.i, false);
+    if (d.kind === 'el' && this.onElMove) this.onElMove(d.i, false);
   }
 
   _up(e) {
@@ -582,7 +597,8 @@ export class FieldView {
     const d = this.drag;
     this.drag = null;
     this.controls.enabled = true;
-    if (d.moved && this.onOppMove) this.onOppMove(d.i, true);
+    if (d.moved && d.kind === 'opp' && this.onOppMove) this.onOppMove(d.i, true);
+    if (d.moved && d.kind === 'el' && this.onElMove) this.onElMove(d.i, true);
   }
 
   setCompare(ref) {
@@ -611,8 +627,10 @@ export class FieldView {
     this.cmpGhost.rotation.z = c.th[i] * Math.PI / 180;
   }
 
-  setElements(list) {
+  // editable: lista se menja mišem (izbor, prevlačenje); sel: izabran kamenolom (istaknut)
+  setElements(list, { editable = false, sel = -1 } = {}) {
     this._dispose(this.elGroup);
+    this.elements = list || []; this.editElements = editable; this.elSel = sel;
     if (!list || !list.length) return;
     const [L, Wd, H] = this.field.stone || [320, 110, 110];
     const tex = stoneTexture();
@@ -620,17 +638,24 @@ export class FieldView {
     const plain = new THREE.MeshStandardMaterial({ color: 0xc79a5b, roughness: 0.9 });
     const geo = new THREE.BoxGeometry(L / 1000, Wd / 1000, H / 1000 * 0.98);
     const mats = [plain, plain, side, side, plain, plain];   // +x -x +y -y +z -z: oznaka na velikim stranama
-    for (const e of list) {
+    list.forEach((e, idx) => {
       const g = new THREE.Group();
-      for (let k = 0; k < (e.stones || 3); k++) {
+      g.userData.el = idx;
+      const n = e.stones == null ? 3 : e.stones;
+      for (let k = 0; k < n; k++) {
         const m = new THREE.Mesh(geo, mats);
         m.position.z = (k + 0.5) * H / 1000;
         g.add(m);
       }
+      if (idx === sel) {                              // izabran: okvir oko gomile
+        const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(L / 1000 + 0.02, Wd / 1000 + 0.02, n * H / 1000 + 0.02)),
+          new THREE.LineBasicMaterial({ color: 0xffb547 }));
+        box.position.z = n * H / 2000; g.add(box);
+      }
       g.position.set(e.x / 1000, e.y / 1000, 0);
       g.rotation.z = (e.th || 0) * Math.PI / 180;
       this.elGroup.add(g);
-    }
+    });
   }
 
   setPose(f) {                                     // robot pose straight from a frame (live, between rebuilds)
@@ -679,11 +704,12 @@ export class FieldView {
     this.camera = mode === 'top' ? this.ortho : this.persp;
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     if (mode === 'top') {
-      this.ortho.position.set(W / 2, H / 2, 10);
+      this.ortho.position.set(W / 2, H / 2 + 0.17, 10);   // sto malo niže: gornji kamenolomi ispod alatki
       this.controls.enableRotate = false;
       this.controls.screenSpacePanning = true;
     }
     this.controls.target.copy(this.center);
+    if (mode === 'top') this.controls.target.y += 0.17;
     this._fitAspect = 0;
     this.resize();
   }
@@ -694,7 +720,7 @@ export class FieldView {
     this.renderer.domElement.style.width = w + 'px'; this.renderer.domElement.style.height = h + 'px';
     this.persp.aspect = w / h; this.persp.updateProjectionMatrix();
     if (Math.abs(w / h - (this._fitAspect || 0)) > 0.05) { this._fitAspect = w / h; this.fit(); }
-    const W = this.field.w / 1000 + 0.2, H = this.field.h / 1000 + 0.2;
+    const W = this.field.w / 1000 + 0.2, H = this.field.h / 1000 + 0.62;   // + mesto za alatke iznad stola
     let hw = W / 2, hh = H / 2;
     if (w / h > W / H) hw = hh * w / h; else hh = hw * h / w;
     Object.assign(this.ortho, { left: -hw, right: hw, top: hh, bottom: -hh });

@@ -190,3 +190,18 @@ def test_model_robota_iz_cad_a(base):
     assert data[:4] == b"glTF" and len(data) > 100000                   # GLB iz simulator/tools/cad_to_glb.py
     with urllib.request.urlopen(base + "/vendor/loaders/GLTFLoader.js", timeout=10) as r:
         assert r.status == 200
+
+
+def test_scenariji_i_izmenjeni_kamenolomi(base, tmp_path, monkeypatch):
+    """Plan E3: scenario (izmenjen sto + protivnici) se čuva i učitava; /api/run prima listu kamenoloma."""
+    from eurosim import field, paths
+    monkeypatch.setattr(paths, "SCENARIOS", tmp_path / "scen")
+    el = field.elements()
+    el[0]["stones"] = 1
+    st, d = post(base + "/api/scenarios/save", {"name": "bez_gornjeg", "elements": el, "opponents": []})
+    assert st == 200 and d["scenarios"] == ["bez_gornjeg"]
+    d = get(base + "/api/scenarios/bez_gornjeg")
+    assert d["elements"][0]["stones"] == 1
+    assert post(base + "/api/scenarios/save", {"name": "../x", "elements": []})[0] == 400
+    st, r = post(base + "/api/run", {"tactic": "primer", "mode": "test", "elements": el})
+    assert st == 200 and r["meta"]["elements"][0]["z"] == 110

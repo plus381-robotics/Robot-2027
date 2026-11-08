@@ -242,3 +242,5 @@ body.has-banner { grid-template-rows: auto auto 1fr auto; }
 #legend .lg-ir { width: 16px; height: 2px; background: #ff4d4d; }
 #legend b { font-weight: 600; } #legend b.ok { color: #3ecf8e; } #legend b.fail { color: #ff5c5c; } #legend b.run { color: #ffb547; }
 i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+#elEdit { right: 12px; top: 120px; min-width: 280px; }
+#elEdit .row { display: flex; gap: 6px; align-items: center; margin: 6px 0; }

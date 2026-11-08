@@ -135,12 +135,23 @@
         <label><input type="checkbox" id="follow"> follow the robot</label>
       </div>
       <button id="addOpp" title="Add an opponent (drag it on the table)">+ Opponent</button>
+      <select id="scenLoad" title="Load a saved table: quarries and opponents (simulator/scenarios)"><option value="">load scenario…</option></select>
+      <button id="scenSave" title="Save the table (changed quarries) and opponents as a scenario">Save scenario</button>
+      <button id="elReset" title="Quarries as in the 2027 rules">Reset table</button>
     </div>
     <div id="cmpTools" class="overlay">
       <button id="cmpPin" title="Use the current run as the reference (e.g. simulation), then run or record another one">📌 Pin as reference</button>
       <select id="cmpRun" title="Compare with a saved run"><option value="">compare with…</option></select>
       <span id="cmpName" class="dim small"></span>
       <button id="cmpClear" hidden title="Remove the reference">✕</button>
+    </div>
+    <div id="elEdit" class="overlay" hidden>
+      <div class="ov-title">Quarry <span id="elName" class="dim"></span> <button id="elClose" title="Close">✕</button></div>
+      <div class="row">stones <button id="elLess" title="Take the top stone away">−</button> <b id="elStones"></b>
+        <button id="elMore" title="Put a stone on top">+</button>
+        <button id="elRot" title="Turn by 90°">⟳ 90°</button>
+        <button id="elDel" class="danger" title="Remove the whole quarry">remove</button></div>
+      <div class="dim small"><span id="elPos"></span> · drag on the table to move · the robot pushes quarries</div>
     </div>
     <div id="oppEdit" class="overlay" hidden>
       <div class="ov-title">Opponent <span id="oppName" class="dim"></span> <button id="oppDel" title="Remove">✕</button></div>

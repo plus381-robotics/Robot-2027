@@ -30,6 +30,16 @@ class Obstacle:
             self._poly = rect_corners(self.x / 1000, self.y / 1000, math.radians(self.th), self.w / 1000, self.h / 1000)
         return self._poly
 
+    @property
+    def pushable(self):
+        """Elementi igre (kamenolom) se guraju; protivnik ne."""
+        return self.kind == "kamenolom"
+
+    def moved(self, dx_mm, dy_mm):
+        """Kopija oblika pomerena za dx, dy (za proveru pre guranja)."""
+        return rect_corners((self.x + dx_mm) / 1000, (self.y + dy_mm) / 1000, math.radians(self.th),
+                            self.w / 1000, self.h / 1000)
+
     def radius(self):
         """Poluprečnik kruga oko prepreke (m), za brzo odbacivanje dalekih."""
         return (self.r if self.r else math.hypot(self.w, self.h) / 2) / 1000
@@ -143,6 +153,10 @@ class Plant:
         self.ov = self.ow = 0.0
         self.stuck = False
         self.obstacles = []
+        el = p.get("elements", {})
+        self.push_on = el.get("pushable", True)            # robot gura kamenolome (plan E3)
+        self.push_resist = el.get("push_resist", 0.5)      # 0..1: koliko guranje usporava robota
+        self.pushed = False                                # neki element je pomeren (za snimak)
         self.ir = 0                             # bit po senzoru (protocol.Ir: F1=1 ... B4=128): šta vidi
         self.ir_hits = []                       # [(senzor, d_m)] za prikaz
 
@@ -160,20 +174,39 @@ class Plant:
                             self.th if th is None else th, self.length, self.width, self.offset)
 
     def collides(self, poly):
+        wall, hits = self.hits(poly)
+        return wall or bool(hits)
+
+    def hits(self, poly, ignore=(), first=False):
+        """(udara u ivicu stola, [prepreke koje dodiruje])."""
         W, H = field.W / 1000, field.H / 1000
         if any(px < 0 or px > W or py < 0 or py > H for px, py in poly):
-            return True
-        cx, cy = sum(p[0] for p in poly) / 4, sum(p[1] for p in poly) / 4
-        rr = self.reach
+            return True, []
+        cx, cy = sum(p[0] for p in poly) / len(poly), sum(p[1] for p in poly) / len(poly)
+        rr = max(math.hypot(px - cx, py - cy) for px, py in poly)
+        out = []
         for o in self.obstacles:
-            if math.hypot(o.x / 1000 - cx, o.y / 1000 - cy) > rr + o.radius():
+            if o in ignore or math.hypot(o.x / 1000 - cx, o.y / 1000 - cy) > rr + o.radius():
                 continue
-            if o.r:
-                if circle_poly_hit(o.x / 1000, o.y / 1000, o.r / 1000, poly):
-                    return True
-            elif poly_hit(poly, o.poly()):
-                return True
-        return False
+            if (circle_poly_hit(o.x / 1000, o.y / 1000, o.r / 1000, poly) if o.r else poly_hit(poly, o.poly())):
+                out.append(o)
+                if first:
+                    break
+        return False, out
+
+    def push(self, objs, dx, dy, mover=None):
+        """Pomeri gurnute elemente za dx, dy (m), ako ne udaraju u ivicu, druge prepreke ili onoga ko gura
+        (mover: oblik posle pomeranja). True = pomereno."""
+        dmx, dmy = dx * 1000, dy * 1000
+        for o in objs:
+            poly = o.moved(dmx, dmy)
+            wall, other = self.hits(poly, ignore=list(objs), first=True)
+            if wall or other:
+                return False
+        for o in objs:
+            o.x, o.y = o.x + dmx, o.y + dmy
+        self.pushed = True
+        return True
 
     # ---------------- korak ----------------
 
@@ -194,8 +227,19 @@ class Plant:
         nx = self.x + v * math.cos(th_mid) * dt
         ny = self.y + v * math.sin(th_mid) * dt
         nth = self.th + w * dt
+        blocked = False
         if (v or w) and self.collides(self.corners(nx, ny, nth)):
-            v = w = 0.0                         # zid ili prepreka: točkovi proklizavaju, telo stoji
+            blocked = True
+            # kamenolom ispred: gura se (robot sporije), ako ima mesta; inače točkovi proklizavaju, telo stoji
+            wall, objs = self.hits(self.corners(nx, ny, nth))
+            if self.push_on and not wall and objs and all(o.pushable for o in objs) and abs(v) > 1e-4:
+                f = 1.0 - self.push_resist
+                v, w = v * f, w * f
+                th_mid = self.th + w * dt / 2
+                nx, ny, nth = self.x + v * math.cos(th_mid) * dt, self.y + v * math.sin(th_mid) * dt, self.th + w * dt
+                blocked = not self.push(objs, nx - self.x, ny - self.y)
+        if blocked:
+            v = w = 0.0
             self.stuck = True
         else:
             self.stuck = False

@@ -74,7 +74,9 @@ class Sim:
         for nm, ms in self.prof.get("actuators", {}).get("ms", {}).items():
             if nm in ids:
                 self.stm.act_ms_by_id[ids[nm]] = ms
-        self.elements = [Obstacle(**e) for e in field.elements()] if elements else []     # kamenolomi (pravila 2027)
+        # kamenolomi: True = po pravilima 2027, False = bez, lista = izmenjen sto (scenario, plan E3)
+        el = field.elements() if elements is True else (elements or [])
+        self.elements = [Obstacle(**field.element(e)) for e in el if field.element(e)["stones"] > 0]
         self.opponents = [o if isinstance(o, Obstacle) else Obstacle(**o) for o in obstacles]
         self.stm.plant.obstacles = self.elements + self.opponents
         self.schedule = sorted(schedule, key=lambda s: s[0])
@@ -290,6 +292,10 @@ class Sim:
             if st.acts or st.act_state:
                 s["act"] = {str(k): v for k, v in st.act_state.items()}
             self.rec.frame(s)
+            if st.plant.pushed and t - getattr(self, "_el_t", -1000) >= 100:   # gurnut kamenolom: novo stanje stola
+                st.plant.pushed = False
+                self._el_t = t
+                self.rec.event(t, "elements", [o.to_dict() for o in self.elements])
 
     # ---------------- tok ----------------
 
@@ -362,6 +368,11 @@ class Sim:
             self.stm.plant.obstacles = self.elements + self.opponents
             self.rec.meta["obstacles"] = [o.to_dict() for o in self.opponents]
             self.event("obstacles", self.rec.meta["obstacles"])
+        elif k == "elements":                   # UI: izmenjeni kamenolomi (ukloni/dodaj kamen, pomeri)
+            self.elements = [Obstacle(**field.element(e)) for e in c[1] if field.element(e)["stones"] > 0]
+            self.stm.plant.obstacles = self.elements + self.opponents
+            self.rec.meta["elements"] = [o.to_dict() for o in self.elements]
+            self.event("elements", self.rec.meta["elements"])
         elif k == "place":
             if self.stm.phase == "IDLE":
                 self.stm.plant.place(c[1], c[2], c[3])
