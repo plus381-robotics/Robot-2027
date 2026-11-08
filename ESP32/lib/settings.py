@@ -13,6 +13,7 @@ DEFAULTS = {
     "wifi_off_match": False,  # ugasi WiFi kad meč krene (u pravom meču)
     "sel_tactic": None,   # izabrana taktika i strana (pamte se posle restarta i zamene baterije)
     "sel_side": None,
+    "test_start": True,   # test (bez meča) kreće od START poze taktike, kao meč
     "screen_match": "miran",  # ekran u meču: miran (krupno, retko crta), ugasen, detaljan        # lažna taktika na ekranu (samo prikaz, ništa se ne šalje robotu)
 }
 

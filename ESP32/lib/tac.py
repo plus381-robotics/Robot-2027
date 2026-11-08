@@ -10,6 +10,15 @@
 #   actuator("hvataljka", 1)           # čeka DONE sa STM32 (imena u config.ACTUATORS)
 #   h = actuator("lift", 300, wait=False); goto(...); wait_done(h)   # paralelno sa vožnjom
 #
+# Vreme meča (pravila 2027: 100 s, faza napada od 85. s, robot na kraju u svojoj zoni):
+#   remaining(), match_time(), in_match(), attack_phase()   # u testu se vreme broji od starta taktike
+#   deadline(12)                       # kad ostane 12 s: tekuća komanda staje i baca TimeUp
+#   try:
+#       ...                            # glavni posao
+#   except TimeUp:
+#       go_home()                      # centar svoje startne zone
+# Restart ESP-a usred meča: ako postoji <taktika>_obnova.py, ESP posle restarta pokreće nju (npr. go_home()).
+#
 # Jedinice: mm, stepeni (0° = +x, pozitivno = levo), mm/s, sekunde.
 # Strana terena: taktika se piše za REF_SIDE ("zuta", leva strana stola, x 0..500 po pravilima 2027). Na drugoj strani se sve koordinate same
 # ogledaju (x -> 3000 - x, ugao -> 180° - ugao, relativni okret menja smer).
@@ -21,12 +30,17 @@ import protocol as P
 from tactic import tracker
 
 __all__ = ("pose", "goto", "turn_to", "turn_by", "rotate", "move", "wait", "wait_until", "step",
-           "actuator", "done", "wait_done", "log", "status", "here", "remaining", "side", "Abort")
+           "actuator", "done", "wait_done", "log", "status", "here", "remaining", "side", "Abort",
+           "match_time", "in_match", "attack_phase", "deadline", "go_home", "TimeUp")
 
 FIELD_X = 3000                 # mm, dužina terena (ogledanje po x)
 REF_SIDE = "zuta"              # strana za koju se taktike pišu (pravila 2027: žuta startna zona x 0..500)
 SIDES = ("plava", "zuta")
 MIN_SPEED = 150                # regulacija na STM32 ne ide sporije (mm/s)
+MAX_SPEED = 1500               # ni brže (BlackPill V_MAX; novi robot ~1200)
+MATCH_S = 100
+ATTACK_S = 85                  # pravila 2027 (E.4): faza napada od 85. s
+HOME = (250, 1000)             # centar startne zone ("throne room") za REF_SIDE (pravila 2027: x 0..500, y 750..1250)
 
 app = None                     # postavlja main.py
 current_side = REF_SIDE        # postavlja runner pre pokretanja taktike
@@ -36,6 +50,15 @@ class Abort(BaseException):
     """Prekid taktike (STOP, kraj meča, nema STM32). BaseException, da ga `except Exception:`
     u taktici ne bi slučajno progutao: posle STOP-a taktika mora da stane."""
     pass
+
+
+class TimeUp(Exception):
+    """Isteklo vreme zadato sa deadline(): tekuća komanda je zaustavljena. Taktika ga hvata
+    (`except TimeUp: go_home()`); posle toga deadline više ne važi."""
+    pass
+
+
+_deadline = None               # deadline(s): sekunde do kraja meča kad se baca TimeUp
 
 
 # ---------------- strana terena ----------------
@@ -67,9 +90,15 @@ def side():
 # ---------------- osnovno ----------------
 
 def _pump():
+    global _deadline
     app.pump()                         # jedan krug glavne petlje
     if app.abort:
         raise Abort(app.abort)
+    if _deadline is not None:
+        rem = remaining()
+        if rem is not None and rem <= _deadline:
+            _deadline = None           # jednom; posle toga se vozi kući bez prekida
+            raise TimeUp("ostalo %.1f s" % rem)
 
 
 def log(text):
@@ -123,16 +152,46 @@ def here(max_age_ms=300):
         _pump()
 
 
-def remaining():
-    """Preostalo vreme meča u sekundama, ili None ako meč ne traje. U meču po ESP satu (od činča), jer
-    STM32 posle restarta broji ispočetka."""
+def match_time():
+    """Sekunde od početka meča (ESP sat od činča). U testu: od starta taktike, kao da je meč, pa se taktika
+    ponaša isto. None ako ništa ne radi."""
     m = getattr(app, "match", None)
     if m is not None and m.t_cord is not None and m.state in ("MEC", "KRAJ"):
-        return max(0, 100 - m.elapsed() / 1000)
+        return m.elapsed() / 1000
     s = app.robot.status
-    if not s or not (s["state"] & P.State.MATCH_RUNNING):
-        return None
-    return max(0, 100 - s["match_ms"] / 1000)
+    if s and s["state"] & P.State.MATCH_OVER:
+        return MATCH_S
+    if s and s["state"] & P.State.MATCH_RUNNING:
+        return s["match_ms"] / 1000
+    if tracker.running:
+        return ticks_diff(ticks_ms(), tracker.t_start) / 1000
+    return None
+
+
+def remaining():
+    """Preostalo vreme meča u sekundama (0 posle kraja). U meču po ESP satu (od činča), jer STM32 posle
+    restarta broji ispočetka; u testu od starta taktike (100 s). None ako ništa ne radi."""
+    t = match_time()
+    return None if t is None else max(0, MATCH_S - t)
+
+
+def in_match():
+    """True u pravom meču (činč), False u testu."""
+    m = getattr(app, "match", None)
+    return bool(m is not None and m.t_cord is not None and m.state in ("MEC", "KRAJ"))
+
+
+def attack_phase():
+    """Faza napada (pravila 2027: od 85. s do kraja)."""
+    t = match_time()
+    return t is not None and t >= ATTACK_S
+
+
+def deadline(s):
+    """Kad do kraja meča ostane s sekundi, tekuća komanda (goto, move, wait...) staje i baca TimeUp.
+    deadline(None) isključuje."""
+    global _deadline
+    _deadline = s
 
 
 def _robot():
@@ -163,7 +222,18 @@ def _cmd(name, label, timeout, next, motion, long=None, **f):
     m = getattr(app, "match", None)
     resets = m.stm_resets if m is not None else 0
     tracker.step(label, timeout, next)
-    seq = r.send(name, **f)
+    try:
+        return _cmd_wait(r, name, label, timeout, motion, long, m, resets, seq_box=r.send(name, **f))
+    except TimeUp:
+        if motion:
+            _stop_and_wait(r)           # vreme je isteklo usred kretanja: robot staje
+        tracker.fail("VREME")
+        log("%s: prekinuto (deadline)" % label)
+        raise
+
+
+def _cmd_wait(r, name, label, timeout, motion, long, m, resets, seq_box):
+    seq = seq_box
     t0 = ticks_ms()
     acked = moving_seen = False
     quiet = 0                          # STATUS-a zaredom bez MOVING posle MOVING
@@ -233,37 +303,58 @@ def _drive_timeout(dist, speed):
     return abs(dist) / max(speed, MIN_SPEED) * 1.5 + 2.0
 
 
+def _speed(speed):
+    """mm/s za STM32: ceo broj u opsegu MIN_SPEED..MAX_SPEED (0 bi na STM32 značilo 1 m/s)."""
+    if speed <= 0:
+        raise ValueError("speed mora biti > 0 (mm/s)")
+    return int(round(max(MIN_SPEED, min(MAX_SPEED, speed))))
+
+
+def _cdeg(deg):
+    """Stepeni -> stotinke stepena za protokol, uvek u -180..180."""
+    return int(round(_wrap(deg) * 100))
+
+
 # ---------------- komande ----------------
 
 def pose(x, y, deg=0):
     """Postavi pozu robota (koordinate naše strane)."""
     mx, my = mirror_xy(x, y)
     return _cmd("SET_POSE", "POZA %d,%d" % (x, y), 1.0, None, False,
-                x=int(mx), y=int(my), theta=int(mirror_deg(deg) * 100))
+                x=int(round(mx)), y=int(round(my)), theta=_cdeg(mirror_deg(deg)))
 
 
 def goto(x, y, deg=None, reverse=False, speed=500, timeout=None, name=None, next=None):
     """Idi na x, y (naša strana). deg = završni ugao (None = ostani kako je stigao)."""
+    speed = _speed(speed)
     if timeout is None:
         hx, hy, _ = here()
         timeout = _drive_timeout(((x - hx) ** 2 + (y - hy) ** 2) ** 0.5, speed)
     mx, my = mirror_xy(x, y)
     flags = (P.GotoFlags.REVERSE if reverse else 0) | (P.GotoFlags.NO_THETA if deg is None else 0)
-    th = int(mirror_deg(deg) * 100) if deg is not None else 0
+    th = _cdeg(mirror_deg(deg)) if deg is not None else 0
     return _cmd("GOTO", name or "GOTO %d,%d" % (x, y), timeout, next, True,
-                x=int(mx), y=int(my), theta=th, flags=flags, max_speed=speed)
+                x=int(round(mx)), y=int(round(my)), theta=th, flags=flags, max_speed=speed)
 
 
 def turn_to(deg, timeout=5.0, name=None, next=None):
     """Okreni se na apsolutni ugao terena (naša strana)."""
     return _cmd("ROTATE", name or "OKRET na %d" % deg, timeout, next, True,
-                theta=int(_wrap(mirror_deg(deg)) * 100))
+                theta=_cdeg(mirror_deg(deg)))
 
 
 def turn_by(deg, timeout=5.0, name=None, next=None):
-    """Okreni se za deg od trenutnog ugla (pozitivno = levo na našoj strani)."""
+    """Okreni se za deg od trenutnog ugla (pozitivno = levo na našoj strani). Više od 170° (npr. 270, 360)
+    ide u više okreta, da smer bude tačno onaj koji je zadat (jedan okret uvek ide kraćim putem)."""
     _, _, h = here()
-    return turn_to(_wrap(h + deg), timeout, name or "OKRET za %d" % deg, next)
+    n = int(abs(deg) // 170) + 1 if abs(deg) > 170 else 1
+    ok = True
+    for k in range(1, n + 1):
+        lb = name or ("OKRET za %d" % deg if n == 1 else "OKRET za %d (%d/%d)" % (deg, k, n))
+        ok = turn_to(_wrap(h + deg * k / n), timeout, lb, next if k == n else None) and ok
+        if not ok:
+            break
+    return ok
 
 
 rotate = turn_to               # staro ime (apsolutni ugao)
@@ -288,7 +379,21 @@ def actuator(name, value, wait=True, timeout=3.0, label=None, next=None):
     label = label or "%s %d" % (nm, value)
     if wait:
         return _cmd("ACTUATOR", label, timeout, next, False, long=True, id=aid, value=value)
-    seq = _robot().send("ACTUATOR", id=aid, value=value)
+    r = _robot()
+    seq = r.send("ACTUATOR", id=aid, value=value)
+    # Sačekaj ACK (najviše ~200 ms) pre povratka: sledeća komanda bi inače potisnula ponavljanje ovog okvira,
+    # pa izgubljen okvir aktuatora ne bi bio ponovljen (pregled logike L15).
+    t0 = ticks_ms()
+    while ticks_diff(ticks_ms(), t0) < 200:
+        _pump()
+        ev = [(k, why) for s2, _, k, why in app.events if s2 == seq]
+        if ev:
+            k, why = ev[0]
+            if k in ("fail", "timeout"):
+                log("%s: %s" % (label, why or k))
+            break
+    else:
+        log("%s: nema ACK" % label)
     log("%s: poslato" % label)
     return (seq, label)
 
@@ -324,6 +429,13 @@ def wait_done(h, timeout=3.0):
 
 def move(dist, speed=300, timeout=None, name=None, next=None):
     """Pravo napred (dist > 0) ili nazad (dist < 0), u mm."""
+    speed = _speed(speed)
+    dist = int(round(dist))
     if timeout is None:
         timeout = _drive_timeout(dist, speed)
     return _cmd("MOVE", name or "MOVE %d" % dist, timeout, next, True, dist=dist, max_speed=speed)
+
+
+def go_home(speed=600, name="KUCI", timeout=None):
+    """Vozi do centra svoje startne zone (pravila 2027: robot na kraju meča u zoni = 5/10 poena)."""
+    return goto(HOME[0], HOME[1], speed=speed, name=name, timeout=timeout)

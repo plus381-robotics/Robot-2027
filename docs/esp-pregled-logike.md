@@ -12,6 +12,10 @@
 > L8 (meč zaključan do 100 s i kad taktika završi ranije; STOP namerno otključava), L9 (kraj meča = "MEC GOTOV",
 > bez alarma i grešaka; MATCH_OVER odmah završava taktiku), L14 (odbijena START poza: STOP i ponovo do 3 puta,
 > greške se brišu pri naoružavanju). Testovi: `ESP32/tests/host/test_mec_zastita.py`.
+> L10 (test postavlja START pozu, podešavanje test_start), L11 (remaining/match_time i u testu, in_match, 0 posle
+> kraja), L12 (attack_phase, deadline + TimeUp, go_home; obnova posle restarta ESP-a: `<taktika>_obnova.py`),
+> L15 (actuator wait=False čeka ACK), L18 (uglovi -180..180, mm/s celi brojevi), L19 (turn_by > 170° u više
+> okreta), L20 (speed 150..1500, 0 = greška), L21 (primer TOTAL). Testovi: `ESP32/tests/host/test_tac_api.py`.
 
 Datum: 2026-11-08. Obim: `ESP32/lib/*.py`, `ESP32/main.py`, `boot.py`, `config.py`, `ESP32/tactics/*.py`,
 `ESP32/tests/goto_test.py`, `tools/*.py`, `protocol/protocol.yaml`, a za drugu stranu veze

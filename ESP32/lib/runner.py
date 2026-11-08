@@ -110,6 +110,8 @@ def run_tactic(app, name):
     t0 = ticks_ms()
     try:
         app.last = (name, app.side)
+        if app.match.state != "MEC":
+            _test_start(app, name)
         exec(_compiled(name), {"__name__": "taktika"})
         tracker.finish()
         app.tlog("KRAJ %s %.1fs" % (name, ticks_diff(ticks_ms(), t0) / 1000))
@@ -131,6 +133,30 @@ def run_tactic(app, name):
     finally:
         app.running = None
         app.request = None
+
+
+def _test_start(app, name):
+    """Test (bez meča): START poza kao u meču, da test i meč kreću isto (pregled logike L10).
+    Isključuje se u podešavanjima ("test_start")."""
+    import match
+    st = match.read_meta(name).get("START")
+    if not st or not app.st["test_start"]:
+        return
+    x, y, deg = st
+    mx, my = tac.mirror_xy(x, y)
+    r = app.robot
+    seq = r.send("SET_POSE", x=int(round(mx)), y=int(round(my)), theta=tac._cdeg(tac.mirror_deg(deg)))
+    t0 = ticks_ms()
+    while ticks_diff(ticks_ms(), t0) < 500:
+        app.pump()
+        for s, _, kind, why in app.events:
+            if s == seq:
+                if kind == "ok":
+                    app.tlog("START poza %d,%d" % (x, y))
+                else:
+                    app.error("START poza: %s" % (why or kind))
+                return
+    app.error("START poza: nema odgovora")
 
 
 def _stop(app, why):

@@ -16,7 +16,7 @@
 #    pa MATCH_START; komanda koja je bila u toku vraća False ("RESTART"). Nema odgovora duže od
 #    HANG_MS: reset preko NRST (ako postoji).
 #  - ESP restartovan u meču: ništa ne pokreće (robot stoji), samo jasno javi.
-from compat import ticks_ms, ticks_diff
+from compat import ticks_ms, ticks_diff, ticks_add
 import protocol as P
 import tac
 import tactic
@@ -180,6 +180,27 @@ class Match:
             self.state, self.t_cord = IDLE, None
             self.app.tlog("mec prekinut (STOP)")
 
+    def _resume(self, a, s):
+        """ESP restartovan usred meča (STM32 broji, odometrija je ostala). Ako postoji <taktika>_obnova.py
+        (izabrana taktika), pokreće nju sa preostalim vremenom; inače robot stoji."""
+        name, side = a.st["sel_tactic"], a.st["sel_side"]
+        ob = "%s_obnova" % name if name else None
+        a.error("ESP restart u mecu")
+        if ob and ob in a.tactics() and side:
+            self.tactic, self.side, self.start = ob, side, None
+            self.t_cord = ticks_add(ticks_ms(), -s["match_ms"])     # meč je počeo pre match_ms
+            a.tlog("MEC U TOKU posle restarta ESP-a: pokrecem %s" % ob)
+            if a.st["wdt_match"] and self.wdt is None:
+                try:
+                    from machine import WDT
+                    self.wdt = WDT(timeout=WDT_MS)
+                except Exception as e:
+                    a.tlog("WDT: %s" % e)
+            self._go()
+        else:
+            a.tlog("MEC U TOKU posle restarta ESP-a: robot stoji (nema %s.py)" % (ob or "taktike"))
+            a.ui.alarm("MEC U TOKU", "ESP restart: robot stoji")
+
     def _hw_reset(self, why):
         """NRST impuls (ako postoji) i čekanje da se STM32 javi bez meča. False = nema NRST-a."""
         if not self.hw:
@@ -211,9 +232,7 @@ class Match:
             if not self._boot_seen:
                 self._boot_seen = True
                 if self.state == IDLE and run:
-                    a.tlog("MEC U TOKU posle restarta ESP-a: robot stoji")
-                    a.error("ESP restart u mecu")
-                    a.ui.alarm("MEC U TOKU", "ESP restart: robot stoji")
+                    self._resume(a, s)
             elif run and self._was_running is False and self.state in (IDLE, DONE):
                 a.tlog("CINC, a robot nije naoruzan: stoji")   # L4: npr. meč otkazan, a činč izvučen
                 a.error("cinc bez naoruzavanja")

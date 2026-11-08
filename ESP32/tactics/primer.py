@@ -6,10 +6,8 @@
 from tac import *
 
 START = (250, 1000, 0)          # startna poza; u meču je ESP postavi kad se izvuče činč
-TOTAL = 4                       # broj koraka (za ekran "2/4")
-
-if not remaining():             # test bez meča: postavi pozu ručno
-    pose(*START)
+TOTAL = 3                       # broj koraka (za ekran "2/3")
+# START poza se postavlja sama, i u meču (na činč) i u testu (podešavanje "test_start").
 if not goto(600, 1000, speed=300, next="okret 90"):     # 35 cm napred
     log("nije stigao, vracam se")
     move(-100)

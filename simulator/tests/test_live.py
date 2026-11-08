@@ -59,7 +59,7 @@ def test_live_enkoder_pomera_izbor_na_pocetnom_ekranu():
 def test_live_protivnik_postavljen_tokom_voznje_blokira():
     s, r, _ = live([(300, ("test", "primer", "plava")),
                     (1300, ("obstacles", [{"x": 800, "y": 1000, "w": 300, "h": 300}]))])
-    assert r.steps()[1][3] == "BLOCKED"              # korak 1 je POZA, 2 je GOTO
+    assert r.steps()[0][3] == "BLOCKED"              # GOTO (START pozu u testu postavlja runner, nije korak)
     assert r.of("obstacles")
 
 

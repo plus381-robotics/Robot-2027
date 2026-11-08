@@ -98,7 +98,7 @@ a `esp_push` i dalje radi (popravka bez kabla).
 Taktika je fajl u `ESP32/tactics/` (vidi `primer.py`; API je u `lib/tac.py`):
 
     from tac import *
-    START = (250, 1000, 0)      # startna poza (u meču je ESP postavi kad se izvuče činč)
+    START = (250, 1000, 0)      # startna poza: ESP je postavi na činč, a i u testu (podešavanje test_start)
     TOTAL = 4                   # broj koraka, za ekran "2/4"
     goto(600, 1000, speed=300)  # True/False; deg=90 za završni ugao, reverse=True unazad
     turn_to(90)                 # apsolutni ugao terena;  turn_by(-45) relativno
@@ -107,10 +107,19 @@ Taktika je fajl u `ESP32/tactics/` (vidi `primer.py`; API je u `lib/tac.py`):
     actuator("hvataljka", 1)                  # čeka DONE sa STM32; imena u config.ACTUATORS
     h = actuator("lift", 300, wait=False)     # paralelno sa vožnjom...
     goto(800, 1000); wait_done(h)             # ...pa sačekaj kraj (done(h): None/True/False)
+    remaining(); match_time(); in_match(); attack_phase()   # vreme meča (u testu: od starta taktike)
+    deadline(12)                              # kad ostane 12 s: tekuća komanda staje, baca TimeUp
+    try:
+        ...                                   # glavni posao
+    except TimeUp:
+        go_home()                             # centar svoje startne zone (pravila: kraj u zoni)
 
 Jedinice: mm, stepeni (0° = +x, pozitivno = levo), mm/s, s. Timeout se sam računa iz dužine puta.
 Taktika se piše za **žutu** stranu (leva, startna zona x 0..500 po pravilima 2027); na plavoj se koordinate same
 ogledaju (x -> 3000 - x, ugao -> 180 - ugao).
+
+Ako se ESP restartuje usred meča, a postoji `<taktika>_obnova.py` (npr. samo `go_home()`), ESP posle
+restarta pokreće nju sa preostalim vremenom; bez nje robot stoji do kraja.
 
 Pokretanje odmah, kao test (sa laptopa preko WiFi-ja; šalje fajl, pokreće, ispisuje dnevnik):
 
