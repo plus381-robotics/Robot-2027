@@ -149,7 +149,7 @@ async def info(request):
         "tactics": tactics, "field": field.describe(),
         "profile": {"name": prof.get("name"), "body": prof["body"], "drive": prof["drive"],
                     "odometry": prof["odometry"], "ir": prof.get("ir", {})},
-        "sides": ["plava", "zuta"], "runs": _runs(), "where": paths.describe(),
+        "sides": ["zuta", "plava"], "ref_side": tacmod.tac_api()["ref_side"], "runs": _runs(), "where": paths.describe(),
     })
 
 
@@ -169,7 +169,7 @@ async def run(request):
     diags = await loop.run_in_executor(None, tacmod.static_check, source, api)
     if any(d["source"] == "syntax" for d in diags):
         return web.json_response({"error": "taktika ima sintaksnu grešku", "diagnostics": diags}, status=422)
-    kw = dict(source=source, name=name, side=q.get("side", "plava"), mode=q.get("mode", "mec"),
+    kw = dict(source=source, name=name, side=q.get("side", "zuta"), mode=q.get("mode", "mec"),
               cord_s=float(q.get("cord_s", 1.0)), obstacles=q.get("obstacles") or [],
               prof=request.app[STATE]["profile"])
     if q.get("max_s"):
@@ -233,7 +233,7 @@ async def live(request):
         obstacles = json.loads(q.get("obstacles") or "[]")
     except ValueError:
         obstacles = []
-    kw = dict(name=tactic, side=q.get("side", "plava"), obstacles=obstacles, prof=request.app[STATE]["profile"])
+    kw = dict(name=tactic, side=q.get("side", "zuta"), obstacles=obstacles, prof=request.app[STATE]["profile"])
     if staged:
         kw["name"], kw["source"] = staged
     ctx = mp.get_context("spawn")
@@ -439,7 +439,7 @@ async def vrobot(request):
         if q.get("action") == "stop":
             return web.json_response({"running": False})
     names = {f.stem for f in paths.TACTICS.glob("*.py")}
-    kw = dict(name=q.get("tactic") if q.get("tactic") in names else None, side=q.get("side", "plava"),
+    kw = dict(name=q.get("tactic") if q.get("tactic") in names else None, side=q.get("side", "zuta"),
               prof=st["profile"], obstacles=q.get("obstacles") or [],
               net={"upload": int(q.get("port", 8267)), "telem": int(q.get("telem", 8268)), "password": "eurosim"})
     p = mp.get_context("spawn").Process(target=_vrobot_worker, args=(kw,), daemon=True)

@@ -83,7 +83,7 @@ export class FieldView {
     this._buildTable(W, H);
     this.dyn = new THREE.Group();                  // everything that belongs to one run
     this.scene.add(this.dyn);
-    this.robot = this._robot(SIDE_COLOR.plava);
+    this.robot = this._robot(SIDE_COLOR.zuta);
     this.scene.add(this.robot);
     this.ghost = this._ghost();
     this.scene.add(this.ghost);

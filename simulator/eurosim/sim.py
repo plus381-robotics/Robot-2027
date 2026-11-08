@@ -35,7 +35,7 @@ def _git_version():
 
 
 class Sim:
-    def __init__(self, name, side="plava", mode="mec", prof=None, tactics_dir=None, start=None,
+    def __init__(self, name, side="zuta", mode="mec", prof=None, tactics_dir=None, start=None,
                  cord_s=1.0, max_s=None, obstacles=(), screen=True, schedule=(), control=None, emit=None,
                  net=None):
         """start: (x, y, ugao) stvarna poza na stolu u koordinatama naše strane (None = START iz taktike).
@@ -387,7 +387,7 @@ class Sim:
         a, pl = self.app, self.stm.plant
         rp = a.report or {}
         corners = [(x * 1000, y * 1000) for x, y in pl.corners()]
-        own = "plava" if self.side == "plava" else "zuta"
+        own = self.side
         self.rec.result = {
             "ok": bool(rp.get("ok")), "how": rp.get("how"), "ms": rp.get("ms"),
             "steps": rp.get("steps"), "done": rp.get("done"), "fail": rp.get("fail"),

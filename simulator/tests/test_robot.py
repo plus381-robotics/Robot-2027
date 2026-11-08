@@ -49,7 +49,7 @@ def test_virtuelni_robot_push_run_telemetrija():
     ends = [e[2] for e in rec.events if e[1] == "step_end"]
     assert all(x[2] is True for x in ends if x[1] in ("GOTO 600,1000", "OKRET na 90"))
     assert rec.meta["tactic"] == "primer" and rec.meta["side"] == "zuta"
-    assert abs(rec.frames[-1]["x"] - 2400) < 30                                     # žuta: ogledano
+    assert abs(rec.frames[-1]["x"] - 600) < 30                                      # žuta = REF_SIDE: bez ogledanja
 
 
 def test_telemetrija_neuspeli_korak_iz_dnevnika():

@@ -1,7 +1,7 @@
 # Uočeni problemi (ESP32 i veza sa STM32)
 
 Spisak problema na koje se naišlo tokom rada na simulatoru (`simulator/`). Za svaki: šta je problem,
-zašto je bitan, kako ga rešiti i kako proveriti. Ništa od ovoga još **nije ispravljeno**; izmene u
+zašto je bitan, kako ga rešiti i kako proveriti. Osim tačke 1, ništa od ovoga još **nije ispravljeno**; izmene u
 `ESP32/`, `protocol/` i STM32 kodu idu tek posle odobrenja.
 
 Oznake: **[ESP]** kod na ESP-u, **[STM]** BlackPill (regulacija, comm), **[PROT]** protokol, **[ALAT]** alati
@@ -10,7 +10,12 @@ vreme), **niska** (kozmetika, čišćenje).
 
 ---
 
-## 1. [ESP] Strane terena su obrnute u odnosu na pravila 2027 — visoka
+## 1. [ESP] Strane terena su obrnute u odnosu na pravila 2027 — visoka — ✅ REŠENO
+
+**Rešeno (odobreno):** `tac.REF_SIDE = "zuta"`; komentari, README, `tools/tactic.py` i host testovi
+usklađeni (ogledanje ostaje isto, menja se samo ime referentne strane). Postojeće taktike se ne menjaju:
+koordinate su već bile za levu (žutu) stranu.
+
 
 **Problem.** `lib/tac.py` kaže da se taktike pišu za `REF_SIDE = "plava"`, a primer taktike i
 `config.START_POSE` počinju na `(250, 1000)`. Po pravilima Eurobot 2027 (dodatak G.1, slika 8) **žuta**

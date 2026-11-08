@@ -109,11 +109,12 @@ Taktika je fajl u `ESP32/tactics/` (vidi `primer.py`; API je u `lib/tac.py`):
     goto(800, 1000); wait_done(h)             # ...pa sačekaj kraj (done(h): None/True/False)
 
 Jedinice: mm, stepeni (0° = +x, pozitivno = levo), mm/s, s. Timeout se sam računa iz dužine puta.
-Taktika se piše za **plavu** stranu; na žutoj se koordinate same ogledaju (x -> 3000 - x, ugao -> 180 - ugao).
+Taktika se piše za **žutu** stranu (leva, startna zona x 0..500 po pravilima 2027); na plavoj se koordinate same
+ogledaju (x -> 3000 - x, ugao -> 180 - ugao).
 
 Pokretanje odmah, kao test (sa laptopa preko WiFi-ja; šalje fajl, pokreće, ispisuje dnevnik):
 
-    python tools/tactic.py primer [--side zuta]   # Ctrl+C = STOP
+    python tools/tactic.py primer [--side plava]  # Ctrl+C = STOP
     python tools/tactic.py --stop
 
 Na robotu: dugi klik -> Taktike -> ime ->

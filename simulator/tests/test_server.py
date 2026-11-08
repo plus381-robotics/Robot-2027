@@ -71,11 +71,11 @@ def test_index_i_staticki_fajlovi(base):
 
 def test_run_vraca_kolone_i_rezultat(base):
     st, d = post(base + "/api/run", {"tactic": "primer", "side": "zuta", "mode": "mec",
-                                     "obstacles": [{"x": 2200, "y": 1000}]})
+                                     "obstacles": [{"x": 800, "y": 1000}]})
     assert st == 200
     assert set(("t", "x", "y", "th", "ox", "v_ref")) <= set(d["cols"])
     assert len(d["cols"]["t"]) == len(d["cols"]["x"]) > 10
-    assert d["result"]["fail"][2] == "BLOCKED"           # protivnik na putu (žuta: GOTO na 2400)
+    assert d["result"]["fail"][2] == "BLOCKED"           # protivnik na putu (žuta: GOTO na 600)
 
 
 def test_nepoznata_taktika_400(base):

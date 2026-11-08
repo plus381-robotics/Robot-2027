@@ -20,7 +20,7 @@ def test_api_iz_tac_py(api):
     assert f["goto"]["sig"].startswith("goto(x, y, deg=None")
     assert "True" in f["goto"]["doc"] or f["goto"]["doc"]
     assert "staro ime za turn_to" in f["rotate"]["doc"]
-    assert "hvataljka" in api["actuators"] and api["ref_side"] == "plava"
+    assert "hvataljka" in api["actuators"] and api["ref_side"] == "zuta"
 
 
 @pytest.mark.parametrize("name", sorted(p.stem for p in paths.TACTICS.glob("*.py")))

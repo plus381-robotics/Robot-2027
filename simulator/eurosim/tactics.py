@@ -15,7 +15,7 @@ import tempfile
 from . import field, paths
 
 NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,40}$")
-TEMPLATE = '''# Nova taktika. Piše se za plavu stranu (tac.REF_SIDE); na drugoj se koordinate same ogledaju.
+TEMPLATE = '''# Nova taktika. Piše se za žutu stranu (tac.REF_SIDE); na drugoj se koordinate same ogledaju.
 from tac import *
 
 START = (250, 1000, 0)          # startna poza (x, y, ugao); u meču je ESP postavi kad se izvuče činč
@@ -76,7 +76,7 @@ def tac_api():
             break
         header.append(line[1:].strip() if line.startswith("# ") or line == "#" else line[1:])
     return {"funcs": out, "doc": "\n".join(header), "actuators": _actuators(),
-            "ref_side": consts.get("REF_SIDE", "plava"), "field_x": consts.get("FIELD_X", 3000)}
+            "ref_side": consts.get("REF_SIDE", "zuta"), "field_x": consts.get("FIELD_X", 3000)}
 
 
 def _actuators():
@@ -305,7 +305,7 @@ def sha(text):
 
 def path_of(name):
     if not NAME_RE.match(name or ""):
-        raise ValueError("ime taktike: slova, cifre i _, do 40 znakova (npr. plava_1)")
+        raise ValueError("ime taktike: slova, cifre i _, do 40 znakova (npr. zuta_1)")
     return paths.TACTICS / (name + ".py")
 
 

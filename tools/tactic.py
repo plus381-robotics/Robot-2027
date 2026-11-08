@@ -3,7 +3,7 @@
 
     python tools/tactic.py primer            # ESP32/tactics/primer.py
     python tools/tactic.py primer --no-push  # pokreni ono što je već na ESP-u
-    python tools/tactic.py primer --side zuta # druga strana (koordinate se ogledaju)
+    python tools/tactic.py primer --side plava # druga strana (koordinate se ogledaju)
     python tools/tactic.py --stop            # samo STOP
 """
 import argparse

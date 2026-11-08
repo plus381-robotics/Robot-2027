@@ -9,9 +9,9 @@ def write(tmp_path, name, src):
     return tmp_path
 
 
-def test_primer_mec_plava_svi_koraci_ok():
-    r = simulate("primer", side="plava", mode="mec")
-    assert r.result["ok"]
+def test_primer_mec_zuta_svi_koraci_ok():
+    r = simulate("primer", side="zuta", mode="mec")        # zuta = REF_SIDE: bez ogledanja
+    assert r.result["ok"] and r.result["start_in_zone"]       # START (250, 1000) je u žutoj zoni (pravila 2027)
     assert [s[1] for s in r.steps()] == ["GOTO 600,1000", "OKRET na 90", "MOVE -200"]
     x, y, th = r.result["pose"]
     assert abs(x - 600) < 20 and abs(y - 800) < 25 and abs(th - 90) < 2

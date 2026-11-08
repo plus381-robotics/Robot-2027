@@ -11,7 +11,7 @@
 #   h = actuator("lift", 300, wait=False); goto(...); wait_done(h)   # paralelno sa vožnjom
 #
 # Jedinice: mm, stepeni (0° = +x, pozitivno = levo), mm/s, sekunde.
-# Strana terena: taktika se piše za REF_SIDE ("plava"). Na drugoj strani se sve koordinate same
+# Strana terena: taktika se piše za REF_SIDE ("zuta", leva strana stola, x 0..500 po pravilima 2027). Na drugoj strani se sve koordinate same
 # ogledaju (x -> 3000 - x, ugao -> 180° - ugao, relativni okret menja smer).
 # goto/turn_to/turn_by/move vraćaju True (DONE) ili False (FAIL, nema odgovora, isteklo vreme).
 # Dok taktika čeka, glavna petlja radi dalje (ekran, PING, WiFi); taster STOP ili
@@ -24,7 +24,7 @@ __all__ = ("pose", "goto", "turn_to", "turn_by", "rotate", "move", "wait", "wait
            "actuator", "done", "wait_done", "log", "status", "here", "remaining", "side", "Abort")
 
 FIELD_X = 3000                 # mm, dužina terena (ogledanje po x)
-REF_SIDE = "plava"             # strana za koju se taktike pišu
+REF_SIDE = "zuta"              # strana za koju se taktike pišu (pravila 2027: žuta startna zona x 0..500)
 SIDES = ("plava", "zuta")
 MIN_SPEED = 150                # regulacija na STM32 ne ide sporije (mm/s)
 

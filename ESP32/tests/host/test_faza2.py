@@ -13,11 +13,11 @@ def last(stm, name):
 
 
 def test_strana_ogleda_koordinate(app, stm):
-    """K-3: taktika pisana za plavu; na žutoj x -> 3000 - x, ugao -> 180 - ugao."""
+    """K-3: taktika pisana za žutu (REF_SIDE); na plavoj x -> 3000 - x, ugao -> 180 - ugao."""
     from runner import run_tactic
     write(app, "t", "from tac import *\npose(250, 1000, 0)\ngoto(600, 800, deg=90)\nturn_to(30)\n")
     run(app, 300)
-    app.side = "zuta"
+    app.side = "plava"
     run_tactic(app, "t")
     assert last(stm, "SET_POSE") == {"x": 2750, "y": 1000, "theta": 18000}
     g = last(stm, "GOTO")
@@ -29,7 +29,7 @@ def test_relativni_okret_menja_smer_na_drugoj_strani(app, stm):
     from runner import run_tactic
     write(app, "t", "from tac import *\npose(250, 1000, 0)\nwait(0.2)\nturn_by(45)\n")
     run(app, 300)
-    app.side = "zuta"
+    app.side = "plava"
     run_tactic(app, "t")
     assert last(stm, "ROTATE")["theta"] == 13500     # 180 - 45: na terenu udesno
 
@@ -60,7 +60,7 @@ def test_tok_meca_sa_simuliranim_cincem(app, stm):
     import machine
     write(app, "m", "from tac import *\nSTART = (250, 1000, 0)\nTOTAL = 1\nmove(100)\n")
     run(app, 300)
-    assert app.match.arm("m", "zuta")
+    assert app.match.arm("m", "plava")
     run(app, 300)
     assert app.match.state == "NAORUZAN" and app.busy()
     n0 = len(stm.sent)
@@ -110,9 +110,9 @@ def test_aktuator_paralelno_sa_voznjom_i_ogledanje(app, stm):
     write(app, "t", "from tac import *\nh = actuator('ruka_l', 7, wait=False)\n"
                     "move(100)\nlog('rez %s %s' % (done(h), wait_done(h)))\n")
     run(app, 300)
-    app.side = "zuta"
+    app.side = "plava"
     run_tactic(app, "t")
-    assert last(stm, "ACTUATOR") == {"id": 4, "value": 7}       # na žutoj ruka_l -> ruka_r
+    assert last(stm, "ACTUATOR") == {"id": 4, "value": 7}       # na plavoj (druga strana) ruka_l -> ruka_r
     assert [n for n, _ in stm.sent[-2:]] == ["ACTUATOR", "MOVE"]
     assert "rez True True" in app.log
 

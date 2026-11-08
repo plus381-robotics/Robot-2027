@@ -8,7 +8,8 @@ const $ = id => document.getElementById(id);
 const SIDE_NAME = { plava: 'Blue', zuta: 'Yellow' };
 const REASON = { BLOCKED: 'blocked', TIMEOUT: 'timeout', PREEMPTED: 'preempted', MATCH_OVER: 'match over',
   STOPPED: 'stopped', INVALID: 'rejected', NOREPLY: 'no reply', SUPERSEDED: 'superseded', STOP: 'STOP' };
-const FIELD_X = 3000, REF_SIDE = 'plava';
+const FIELD_X = 3000;
+let REF_SIDE = 'zuta';                // strana za koju se pišu taktike (ESP32/lib/tac.py), stiže sa servera
 
 let info, view, charts, esp, run = null;
 let opponents = [], oppSel = -1;
@@ -755,6 +756,7 @@ async function saveProfile() {
 
 async function main() {
   info = await api('/api/info');
+  REF_SIDE = info.ref_side || REF_SIDE;
   $('tactic').innerHTML = info.tactics.map(t => `<option>${t}</option>`).join('');
   try {
     const sel = JSON.parse(localStorage.getItem('eurosim.sel') || '{}');
