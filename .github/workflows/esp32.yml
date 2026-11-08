@@ -21,10 +21,10 @@ jobs:
           for f in ESP32/main.py ESP32/boot.py ESP32/config.py ESP32/lib/*.py ESP32/tactics/*.py ESP32/tests/*.py; do
             mpy-cross -o /tmp/x.mpy "$f" || { echo "::error file=$f::mpy-cross"; exit 1; }
           done
-      - name: protocol.py i BlackPill protocol.h u skladu sa protocol.yaml
+      - name: protocol.py, BlackPill i Nucleo protocol.h u skladu sa protocol.yaml
         run: |
           python protocol/gen.py
-          git diff --exit-code -- ESP32/lib/protocol.py pogon-blackpill/Core/Inc/protocol.h
+          git diff --exit-code -- ESP32/lib/protocol.py pogon-blackpill/Core/Inc/protocol.h nucleo/Core/Inc/protocol.h
       - name: host testovi
         run: python -m pytest -q ESP32/tests/host
       - run: python -m py_compile tools/*.py

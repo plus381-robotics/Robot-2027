@@ -189,22 +189,40 @@ def _cmd(name, label, timeout, next, motion, long=None, **f):
             tracker.fail(reason or kind)
             log("%s: %s" % (label, reason or kind))
             return False
-        # P-2: DONE/FAIL može da se izgubi (CRC). STM32 drži MOVING dok kretanje traje,
-        # pa 3 STATUS-a zaredom bez MOVING posle MOVING znače da je kretanje završeno.
+        # P-2: DONE/FAIL može da se izgubi (CRC). Protokol v3: STATUS nosi seq i ishod poslednje završene
+        # komande kretanja, pa se tačan ishod zna iz sledećeg STATUS-a (50 ms).
+        # Stariji STM32 (v1/v2): procena po bitu MOVING (3 STATUS-a bez MOVING posle MOVING); ona ne zna
+        # da li je kretanje uspelo ili prekinuto (izgubljen FAIL), pa se tako i javlja.
         if motion and acked and r.status_n != last_n and r.status:
             last_n = r.status_n
-            if r.status["state"] & P.State.MOVING:
+            st = r.status
+            if st.get("last_seq") == seq:
+                res = st.get("last_result")
+                if res == 0:
+                    tracker.ok()
+                    log("%s: OK po STATUS-u (DONE nije stigao)" % label)
+                    return True
+                why = _REASONS.get(res, str(res))
+                tracker.fail(why)
+                log("%s: %s po STATUS-u (FAIL nije stigao)" % (label, why))
+                return False
+            if st.get("last_seq") is not None:
+                continue
+            if st["state"] & P.State.MOVING:
                 moving_seen, quiet = True, 0
             elif moving_seen:
                 quiet += 1
                 if quiet >= 3:
                     tracker.ok()
-                    log("%s: kraj po STATUS-u (DONE nije stigao)" % label)
+                    log("%s: kraj po STATUS-u, ishod nepoznat (stari STM32 bez v3)" % label)
                     return True
     _stop_and_wait(r)
     tracker.fail("TIMEOUT")
     log("%s: isteklo %.0fs, STOP" % (label, timeout))
     return False
+
+
+_REASONS = {getattr(P.Reason, k): k for k in dir(P.Reason) if not k.startswith("_")}
 
 
 def _drive_timeout(dist, speed):

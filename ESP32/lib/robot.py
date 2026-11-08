@@ -20,8 +20,8 @@ LONG = MOTION + ("ACTUATOR",)            # posle ACK čekaju DONE/FAIL (aktuator
 RESULTS = 32                             # koliko poslednjih ishoda se pamti (za tac.done())
 
 REASONS = {getattr(P.Reason, k): k for k in dir(P.Reason) if not k.startswith("_")}
-COMPAT = (1, 2)                          # verzije protokola sa kojima ESP sme da radi
-FEATURES = {"bootloader": 2}             # mogućnost -> najmanja verzija
+COMPAT = (1, 2, 3)                       # verzije protokola sa kojima ESP sme da radi
+FEATURES = {"bootloader": 2, "result": 3}    # mogućnost -> najmanja verzija (result: ishod u STATUS-u)
 
 
 class Robot:

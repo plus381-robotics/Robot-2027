@@ -59,6 +59,7 @@ class SimSTM:
         self.last_seq = 0
         self.last_reply = ("ACK", 0)
         self.motion_seq = 0
+        self.last_motion = (0, 0)
         self.debug_mask = 0
         self.last_status = -10 ** 9
         # comm_port.c
@@ -156,6 +157,7 @@ class SimSTM:
     def motion_finished(self, reason):          # comm_motion_finished
         if not self.motion_seq:
             return
+        self.last_motion = (self.motion_seq, reason)    # v3: ide i u STATUS
         if reason:
             self._send("FAIL", self.motion_seq, reason=reason)
         else:
@@ -233,7 +235,8 @@ class SimSTM:
             state |= P.State.MOVING
         cl = lambda v: max(-32768, min(32767, int(v)))   # noqa: E731  (clamp16, kao (int16_t) u C-u)
         self._send("STATUS", x=cl(pl.ox * 1000), y=cl(pl.oy * 1000), theta=cl(phi * 18000 / math.pi),
-                   v=cl(pl.ov * 1000), state=state, match_ms=match_ms)
+                   v=cl(pl.ov * 1000), state=state, match_ms=match_ms,
+                   last_seq=self.last_motion[0], last_result=self.last_motion[1])
 
     # ---------------- comm_port.c ----------------
 

@@ -23,6 +23,7 @@ class FakeSTM:
         self.state = 0
         self.match0 = None
         self.motion = None             # (seq, kraj_ms)
+        self.last_motion = (0, 0)      # v3: (seq, ishod) poslednje završene komande kretanja
         self.act_ms = 300              # koliko traje aktuator pre DONE
         self.act_fail = None           # razlog FAIL za aktuatore (npr. INVALID kao BlackPill bez njih)
         self.acts = []                 # [(seq, kraj_ms)] aktuatori koji rade
@@ -67,6 +68,7 @@ class FakeSTM:
         if name in ("GOTO", "ROTATE", "MOVE"):
             if self.motion:
                 self._send("FAIL", self.motion[0], reason=P.Reason.PREEMPTED)
+                self.last_motion = (self.motion[0], P.Reason.PREEMPTED)
             self.motion = (seq, compat.ticks_ms() + self.motion_ms)
             self.state |= P.State.MOVING
         elif name == "STOP":
@@ -95,6 +97,7 @@ class FakeSTM:
     def _stop(self, reason):
         if self.motion:
             self._send("FAIL", self.motion[0], reason=reason)
+            self.last_motion = (self.motion[0], reason)
         self.motion = None
         self.state &= ~P.State.MOVING
 
@@ -105,6 +108,7 @@ class FakeSTM:
                 self.drop_done -= 1
             else:
                 self._send("DONE", self.motion[0])
+            self.last_motion = (self.motion[0], 0)
             self.motion = None
             self.state &= ~P.State.MOVING
         for a in [a for a in self.acts if now >= a[1]]:
@@ -114,4 +118,5 @@ class FakeSTM:
             self._last_status = now
             mm = now - self.match0 if self.match0 is not None else 0
             self._send("STATUS", x=self.pose[0], y=self.pose[1], theta=self.pose[2],
-                       v=300 if self.motion else 0, state=self.state, match_ms=mm)
+                       v=300 if self.motion else 0, state=self.state, match_ms=mm,
+                       last_seq=self.last_motion[0], last_result=self.last_motion[1])

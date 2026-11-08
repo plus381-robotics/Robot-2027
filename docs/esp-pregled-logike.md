@@ -5,6 +5,8 @@
 > STM32 u meču: vraćanje poze (+25 ms procene) i MATCH_START, prekinut korak vraća False "RESTART";
 > STM32 koji se ne javlja 1,5 s: NRST; restart ESP-a u meču: robot stoji i javlja). Testovi:
 > `ESP32/tests/host/test_mec_zastita.py`, `simulator/tests/test_match_guard.py`.
+> L6: protokol v3: STATUS nosi `last_seq`/`last_result` (ishod poslednje završene komande kretanja), pa
+> ESP zna tačan ishod i kad se DONE/FAIL izgubi; sa starim STM32 (v1/v2) ostaje procena, označena u dnevniku.
 
 Datum: 2026-11-08. Obim: `ESP32/lib/*.py`, `ESP32/main.py`, `boot.py`, `config.py`, `ESP32/tactics/*.py`,
 `ESP32/tests/goto_test.py`, `tools/*.py`, `protocol/protocol.yaml`, a za drugu stranu veze

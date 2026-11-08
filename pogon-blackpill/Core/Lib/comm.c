@@ -36,6 +36,8 @@ static volatile uint8_t link_lost;   /* ESP je bio tu, pa utihnuo */
 static uint8_t last_seq;             /* za prepoznavanje ponovljenih komandi */
 static uint8_t last_reply_type, last_reply_reason;
 static uint8_t motion_seq;           /* aktivna komanda kretanja, 0 = nema */
+static uint8_t last_motion_seq;      /* v3: seq poslednje ZAVRŠENE komande kretanja (0 = nijedna) */
+static uint8_t last_motion_result;   /* v3: njen ishod, 0 = DONE, inače REASON_* */
 static uint8_t debug_mask;
 static uint32_t last_status_ms;
 
@@ -97,6 +99,8 @@ static void reply(uint8_t seq, uint8_t reason) {
 void comm_motion_finished(uint8_t reason) {
 	if (!motion_seq)
 		return;
+	last_motion_seq = motion_seq;         /* ide i u STATUS: ESP zna ishod i kad se DONE/FAIL izgubi */
+	last_motion_result = reason;
 	if (reason) {
 		msg_fail_t f = { reason };
 		send(MSG_FAIL, motion_seq, &f, sizeof f);
@@ -249,6 +253,8 @@ static void send_status(void) {
 	comm_port_fill_status(&s);
 	if (motion_seq)
 		s.state |= STATE_MOVING;
+	s.last_seq = last_motion_seq;
+	s.last_result = last_motion_result;
 	send(MSG_STATUS, 0, &s, sizeof s);
 }
 

@@ -52,7 +52,8 @@ u `ESP32/tests/host/` (`python -m pytest ESP32/tests/host`), CI je `.github/work
 - [ ] S-1, S-2, M-1..M-3, T-3, U-3, L-1..L-3
 
 ## Van ESP koda (predlog, ne radi se ovde)
-- protokol v3 (last_seq/last_result u STATUS, caps u PONG, CORD_IN), P-1 na STM32,
+- protokol v3: ✅ last_seq/last_result u STATUS (comm.c na BlackPill-u i Nucleo, ESP prima i stari STATUS);
+  ostaje: caps u PONG, CORD_IN, P-1 na STM32,
   R-5 hardverski E-STOP, Nucleo protocol.h (Lea), "Resetuj STM32" (kad bude Nucleo sa NRST)
 
 ## Izmereno na robotu (WROOM-32)

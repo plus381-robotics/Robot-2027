@@ -2,7 +2,7 @@
 #pragma once
 #include <stdint.h>
 
-#define PROTO_VERSION 2
+#define PROTO_VERSION 3
 
 #define REASON_INVALID 1
 #define REASON_BLOCKED 2
@@ -98,8 +98,10 @@ typedef struct __attribute__((packed)) {
     int16_t v;
     uint8_t state;
     uint32_t match_ms;
+    uint8_t last_seq;
+    uint8_t last_result;
 } msg_status_t;
-_Static_assert(sizeof(msg_status_t) == 13, "STATUS size");
+_Static_assert(sizeof(msg_status_t) == 15, "STATUS size");
 
 typedef struct __attribute__((packed)) {
     int16_t v_ref;
