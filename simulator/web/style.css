@@ -121,7 +121,7 @@ button.live-on { background: #e5484d; border-color: #e5484d; color: #fff; }
 #edState.dirty { color: var(--warn); }
 #edHost { flex: 1; min-height: 0; overflow: hidden; }
 #edHost .cm-editor { height: 100%; }
-.ed-tabs { display: flex; gap: 2px; background: var(--panel); border-top: 1px solid var(--line); padding: 3px 6px 0; }
+.ed-tabs { display: flex; gap: 2px; background: var(--panel); border-top: 1px solid var(--line); padding: 3px 6px 0; align-items: center; }
 .ed-tabs button { border-radius: 5px 5px 0 0; border-bottom: none; padding: 3px 10px; }
 .ed-tabs button.on { background: var(--panel2); color: var(--accent); }
 .ed-panel { height: 170px; overflow: auto; background: var(--panel2); padding: 4px 8px; }
@@ -167,4 +167,10 @@ button.live-on { background: #e5484d; border-color: #e5484d; color: #fff; }
 #cmpTools { top: 44px; left: 8px; display: flex; gap: 6px; align-items: center; padding: 4px 7px; }
 #cmpTools select { max-width: 200px; }
 
-button.danger-text { color: #ff7b72; }
+#edDraft.err { color: #ff7b72; }
+#edDraft { margin-left: auto; padding-right: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#edFileMenu, .ed-bar #edFileMenu { flex: none; width: 76px; }
+#viewtools { flex-wrap: wrap; max-width: calc(100% - 16px); }
+#viewMenu { position: absolute; top: 100%; left: 0; margin-top: 4px; background: #1a1f26f2; border: 1px solid var(--line);
+  border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; z-index: 20; white-space: nowrap; }
+#viewMenu[hidden] { display: none; }

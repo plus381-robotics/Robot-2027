@@ -449,6 +449,38 @@ async function edCheck() {
   } catch (e) { /* server busy or gone: ignore */ }
 }
 
+// ---- nacrt putanje dok se piše (plan S7) i krst za x, y (plan S8) ----
+
+let edPrevSeq = 0, autoSimTimer = null;
+async function edPreview() {
+  if (!ed) return;
+  const seq = ++edPrevSeq;
+  try {
+    const p = await api('/api/preview', { source: ed.editor.text(), side: $('side').value, mode: $('mode').value });
+    if (seq !== edPrevSeq || !ed) return;
+    ed.preview = p;
+    view.setPreview(p);
+    edCursor(ed.editor.cursorLine());
+    const note = p.error ? `draft: line ${p.error.line}: ${p.error.msg}` : p.truncated ? `draft ${p.truncated}`
+      : `draft: ${p.cmds.filter(c => c.kind !== 'turn').length} moves, ~${p.t.toFixed(1)} s`;
+    $('edDraft').textContent = note;
+    $('edDraft').className = 'dim small' + (p.error ? ' err' : '');
+    clearTimeout(autoSimTimer);                            // auto-sim: prava simulacija kad se stane sa kucanjem
+    if ($('autoSim').checked && !live && !p.error && !p.truncated && p.t < 40) autoSimTimer = setTimeout(() => simulate(play.t), 1200);
+  } catch (e) { /* server zauzet: sledeća izmena */ }
+}
+
+function edCursor(line) {
+  if (!ed) return;
+  view.highlightPreview(line);
+  const p = ed.preview, side = $('side').value;
+  const c = p && p.cmds ? [...p.cmds].reverse().find(k => k.line === line && k.target) : null;
+  if (!c) { view.setCursorPoint(null); return; }
+  const [fx, fy] = c.target;
+  const tx = side === REF_SIDE ? fx : FIELD_X - fx;          // u koordinatama taktike (žuta)
+  view.setCursorPoint([fx, fy], `x = ${Math.round(tx)} mm from the left edge · y = ${Math.round(fy)} mm from the bottom`);
+}
+
 function edChanged(text) {
   if (!ed) return;
   const dirty = edState();
@@ -477,6 +509,7 @@ async function edLoad(name) {
   fillTacticSelects();
   edState();
   edCheck();
+  edPreview();
   if (run) edMarks();
 }
 
@@ -576,6 +609,7 @@ function renderApiHelp() {
 async function toggleEditor() {
   if (ed) {
     $('editorPane').hidden = true; $('main').classList.remove('editing'); $('edBtn').classList.remove('on');
+    view.setPreview(null); view.setCursorPoint(null); clearTimeout(autoSimTimer);
     ed.editor.view.destroy(); ed = null;
     fillTacticSelects();
     return;
@@ -584,7 +618,8 @@ async function toggleEditor() {
   const tapi = await api('/api/tacapi');
   $('editorPane').hidden = false; $('main').classList.add('editing'); $('edBtn').classList.add('on');
   ed = { api: tapi, name: $('tactic').value, sha: null, saved: '' };
-  ed.editor = new TacticEditor($('edHost'), { api: tapi, onChange: edChanged, onRun: () => simulate(), onSave: () => edSave(), onSaveAs: () => edSaveAs() });
+  ed.editor = new TacticEditor($('edHost'), { api: tapi, onChange: edChanged, onRun: () => simulate(), onSave: () => edSave(), onSaveAs: () => edSaveAs(),
+    onEdit: () => edPreview(), onCursor: line => edCursor(line) });
   renderApiHelp();
   await edLoad(ed.name);
 }
@@ -825,6 +860,14 @@ async function main() {
       (side !== REF_SIDE ? `   ·   in tactic (${SIDE_NAME[REF_SIDE]}) ${Math.round(tx)}, ${Math.round(p[1])}` : '') +
       '   (double-click: copy)';
   };
+  view.onPreviewClick = line => { if (ed) ed.editor.reveal(line); };
+  view.onAltPick = p => {                                   // Alt+klik: tačka sa mape u editor (koordinate taktike)
+    if (!ed) { msg('open the editor to put a point into a tactic (Alt+click)'); return; }
+    const side = $('side').value;
+    const x = Math.round((side === REF_SIDE ? p[0] : FIELD_X - p[0]) / 10) * 10, y = Math.round(p[1] / 10) * 10;
+    ed.editor.putPoint(x, y);
+    msg(`goto ${x}, ${y} (tactic coordinates, ${SIDE_NAME[REF_SIDE]} side)`);
+  };
   view.onPick = p => {
     const side = run ? run.meta.side : $('side').value;
     const x = side === REF_SIDE ? p[0] : FIELD_X - p[0];
@@ -904,6 +947,7 @@ async function main() {
   // Strana/taktika: u Live-u robot (dok miruje) prelazi na START izabrane strane (ranije je ostajao na
   // strani sa kojom je Live pokrenut); inače se prikazani snimak odmah ponovo simulira za novu stranu.
   const selChanged = () => {
+    edPreview();
     if (live && live.kind !== 'robot') liveSend(['side', curTactic(), $('side').value]);
     else if (!live && run && run.meta && !run.meta.host) simulate();
   };
@@ -911,9 +955,14 @@ async function main() {
   $('tactic').addEventListener('change', () => { if (live && live.kind !== 'robot') selChanged(); });
   $('edNew').onclick = edNew;
   $('edSave').onclick = () => edSave();
-  $('edSaveAs').onclick = () => edSaveAs();
-  $('edRename').onclick = () => edRename();
-  $('edDelete').onclick = () => edDelete();
+  $('edFileMenu').onchange = e => {
+    const a = e.target.value; e.target.value = '';
+    if (a === 'saveas') edSaveAs(); else if (a === 'rename') edRename(); else if (a === 'delete') edDelete();
+  };
+  $('viewMenuBtn').onclick = () => { $('viewMenu').hidden = !$('viewMenu').hidden; };
+  document.addEventListener('pointerdown', e => {
+    if (!$('viewMenu').hidden && !e.target.closest('#viewMenu, #viewMenuBtn')) $('viewMenu').hidden = true;
+  });
   $('edRun').onclick = () => simulate();
   $('apiFilter').oninput = renderApiHelp;
   for (const b of document.querySelectorAll('.ed-tabs button')) {
@@ -940,6 +989,8 @@ async function main() {
   $('showOdom').onchange = () => { vis(); if (run) show(); };
   $('showTargets').onchange = vis;
   $('showIr').onchange = e => view.setShowIr(e.target.checked);
+  $('showDraft').onchange = e => view.setShowPreview(e.target.checked);
+  $('mode').addEventListener('change', () => edPreview());
   $('markSize').onchange = e => { view.setMarkerScale(+e.target.value); try { localStorage.setItem('eurosim.mark', e.target.value); } catch (er) { /* ignore */ } };
   try { const k = localStorage.getItem('eurosim.mark'); if (k) { $('markSize').value = k; view.setMarkerScale(+k); } } catch (er) { /* ignore */ }
   $('follow').onchange = e => { view.follow = e.target.checked; };

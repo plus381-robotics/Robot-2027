@@ -132,6 +132,11 @@ export class FieldView {
     this.scene.add(this.elGroup);
     this.oppGroup = new THREE.Group();             // editable opponents (independent of the run)
     this.scene.add(this.oppGroup);
+    this.prevGroup = new THREE.Group();            // nacrt iz editora (plan S7)
+    this.scene.add(this.prevGroup);
+    this.cursorGroup = new THREE.Group();          // krst za x, y iz reda sa kursorom (plan S8)
+    this.scene.add(this.cursorGroup);
+    this.onPreviewClick = null; this.onAltPick = null;
     this.opponents = []; this.oppSel = -1; this.drag = null;
     this.onOppSelect = null; this.onOppMove = null;
 
@@ -146,6 +151,12 @@ export class FieldView {
     cv.addEventListener('pointerup', e => this._up(e));
     this.renderer.domElement.addEventListener('dblclick', e => {
       const p = this._pick(e); if (p && this.onPick) this.onPick(p);
+    });
+    // klik: Alt+klik = tačka sa mape u editor; klik na tačku nacrta = skok na red u kodu
+    cv.addEventListener('click', e => {
+      if (e.altKey) { const p = this._pick(e); if (p && this.onAltPick) { e.preventDefault(); this.onAltPick(p); } return; }
+      const line = this._hitPreview(e);
+      if (line && this.onPreviewClick) this.onPreviewClick(line);
     });
     new ResizeObserver(() => this.resize()).observe(el);
     this.resize();
@@ -185,6 +196,25 @@ export class FieldView {
     ax(new THREE.Vector3(1, 0, 0), 0xff5555); ax(new THREE.Vector3(0, 1, 0), 0x55dd55);
     const lx = textSprite('x', '#ff7777', 0.05, 'rgba(0,0,0,0)'); lx.position.set(0.29, 0, 0.02); this.scene.add(lx);
     const ly = textSprite('y', '#77ee77', 0.05, 'rgba(0,0,0,0)'); ly.position.set(0, 0.29, 0.02); this.scene.add(ly);
+    // lenjir uvek vidljiv (i preko slike pravila): brojevi na 500 mm van stola, crtice na 100 mm na ivici
+    const rule = new THREE.Group();
+    const tick = [];
+    for (let x = 0; x <= this.field.w; x += 100) {
+      const big = x % 500 === 0, l = big ? 0.05 : 0.025;
+      tick.push(x / 1000, -t, h + 0.001, x / 1000, -t - l, h + 0.001);
+      if (big) { const s = textSprite(String(x), '#c8d0da', 0.045, 'rgba(0,0,0,0)'); s.position.set(x / 1000, -t - 0.09, h); rule.add(s); }
+    }
+    for (let y = 0; y <= this.field.h; y += 100) {
+      const big = y % 500 === 0, l = big ? 0.05 : 0.025;
+      tick.push(-t, y / 1000, h + 0.001, -t - l, y / 1000, h + 0.001);
+      if (big) { const s = textSprite(String(y), '#c8d0da', 0.045, 'rgba(0,0,0,0)'); s.position.set(-t - 0.12, y / 1000, h); rule.add(s); }
+    }
+    const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.Float32BufferAttribute(tick, 3));
+    rule.add(new THREE.LineSegments(tg, new THREE.LineBasicMaterial({ color: 0xc8d0da })));
+    const o = textSprite('0, 0', '#ffffff', 0.05); o.position.set(-0.07, -0.07, h + 0.02); rule.add(o);
+    const xl = textSprite('x (mm) →', '#ff9b9b', 0.05, 'rgba(0,0,0,0)'); xl.position.set(W / 2, -t - 0.17, h); rule.add(xl);
+    const yl = textSprite('y (mm) ↑', '#9bee9b', 0.05, 'rgba(0,0,0,0)'); yl.position.set(-t - 0.13, H / 2 + 0.25, h); rule.add(yl);
+    this.scene.add(rule);
   }
 
   setTableLook(look) {                             // 'rules' (slika iz pravila) ili 'grid'
@@ -395,6 +425,80 @@ export class FieldView {
     }
     if (this.markerScale) this.setMarkerScale(this.markerScale);
     this.setFrame(this.frame && this.frame < n ? this.frame : 0);
+  }
+
+  // ---------------- nacrt iz editora (plan S7) ----------------
+
+  setPreview(p) {                                  // p: odgovor /api/preview ili null
+    this._dispose(this.prevGroup);
+    this.prevItems = [];
+    if (!p || !p.cmds) return;
+    const seg = [];
+    for (const c of p.cmds) if (c.x0 !== c.x1 || c.y0 !== c.y1) seg.push(c.x0 / 1000, c.y0 / 1000, 0.02, c.x1 / 1000, c.y1 / 1000, 0.02);
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
+    const lines = new THREE.LineSegments(g, new THREE.LineDashedMaterial({ color: 0xe0aaff, dashSize: 0.03, gapSize: 0.02, depthTest: false }));
+    lines.computeLineDistances(); lines.renderOrder = 7;
+    this.prevGroup.add(lines);
+    if (p.start) {
+      const s = textSprite('START', '#e0aaff', 0.04); s.position.set(p.start[0] / 1000, p.start[1] / 1000 - 0.06, 0.03); this.prevGroup.add(s);
+    }
+    let k = 0;
+    for (const c of p.cmds) {
+      if (!['goto', 'move', 'pose'].includes(c.kind)) continue;
+      k++;
+      const grp = new THREE.Group();
+      const dot = new THREE.Mesh(new THREE.CircleGeometry(0.03, 24), new THREE.MeshBasicMaterial({ color: 0xe0aaff, depthTest: false, transparent: true, opacity: 0.85 }));
+      dot.renderOrder = 8; dot.userData.line = c.line;
+      const num = textSprite(String(k), '#2a0040', 0.04, 'rgba(0,0,0,0)'); num.position.z = 0.01;
+      grp.add(dot, num);
+      const tth = c.target ? c.target[2] : null;
+      if (tth != null) {
+        const sh = new THREE.Shape(); sh.moveTo(0.09, 0); sh.lineTo(0.05, 0.022); sh.lineTo(0.05, -0.022);
+        const a = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color: 0xe0aaff, depthTest: false }));
+        a.renderOrder = 8; a.rotation.z = tth * Math.PI / 180; grp.add(a);
+      }
+      grp.position.set(c.x1 / 1000, c.y1 / 1000, 0.02);
+      grp.userData = { line: c.line, dot };
+      this.prevGroup.add(grp);
+      this.prevItems.push(grp);
+    }
+    this.highlightPreview(this._prevHi || 0);
+  }
+
+  setShowPreview(on) { this.prevGroup.visible = on; }
+
+  highlightPreview(line) {                         // red sa kursorom: njegove tačke veće i žute
+    this._prevHi = line;
+    for (const g of this.prevItems || []) {
+      const on = line && g.userData.line === line;
+      g.scale.setScalar(on ? 1.5 : 1);
+      g.userData.dot.material.color.setHex(on ? 0xffd166 : 0xe0aaff);
+    }
+  }
+
+  _hitPreview(e) {
+    if (!this.prevItems || !this.prevItems.length || !this.prevGroup.visible) return null;
+    const r = this.renderer.domElement.getBoundingClientRect();
+    this.mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const hit = this.raycaster.intersectObjects(this.prevItems.map(g => g.userData.dot))[0];
+    return hit ? hit.object.userData.line : null;
+  }
+
+  // Krst za tačku iz reda sa kursorom: isprekidane linije do leve i donje ivice i natpis sa x, y (plan S8).
+  setCursorPoint(pt, label) {
+    this._dispose(this.cursorGroup);
+    if (!pt) return;
+    const [x, y] = [pt[0] / 1000, pt[1] / 1000], z = 0.025;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute([0, y, z, x, y, z, x, 0, z, x, y, z], 3));
+    const l = new THREE.LineSegments(g, new THREE.LineDashedMaterial({ color: 0xffd166, dashSize: 0.025, gapSize: 0.015, depthTest: false }));
+    l.computeLineDistances(); l.renderOrder = 9;
+    const c = new THREE.BufferGeometry();
+    c.setAttribute('position', new THREE.Float32BufferAttribute([x - 0.06, y, z, x + 0.06, y, z, x, y - 0.06, z, x, y + 0.06, z], 3));
+    const cross = new THREE.LineSegments(c, new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false })); cross.renderOrder = 9;
+    const s = textSprite(label, '#ffd166', 0.05); s.position.set(x, y + 0.1, 0.05);
+    this.cursorGroup.add(l, cross, s);
   }
 
   // ---------------- opponents (editable, dragged with the mouse) ----------------

@@ -323,6 +323,17 @@ async def tactic_save(request):
     return web.json_response(r)
 
 
+async def preview(request):
+    """Nacrt putanje iz teksta taktike, bez simulacije (plan S7): lažni tac beleži komande."""
+    from . import preview as pv
+    q = await request.json()
+    api = request.app[STATE].setdefault("api", tacmod.tac_api())
+    r = await asyncio.get_running_loop().run_in_executor(
+        None, lambda: pv.preview(q.get("source", ""), q.get("side", "zuta"), api["ref_side"], api["field_x"],
+                                 q.get("mode", "mec")))
+    return web.json_response(r)
+
+
 async def tactic_rename(request):
     q = await request.json()
     try:
@@ -514,6 +525,7 @@ def make_app(prof=None):
     app.router.add_get("/api/tactic/{name}", tactic_get)
     app.router.add_post("/api/tactic/save", tactic_save)
     app.router.add_post("/api/tactic/rename", tactic_rename)
+    app.router.add_post("/api/preview", preview)
     app.router.add_post("/api/tactic/delete", tactic_delete)
     app.router.add_post("/api/check", check)
     app.router.add_post("/api/stage", stage)

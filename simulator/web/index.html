@@ -71,18 +71,18 @@
     <div class="ed-bar">
       <select id="edFile" title="Tactic file in ESP32/tactics"></select>
       <button id="edNew" title="New tactic from a template">New</button>
+      <select id="edFileMenu" title="Save as, rename, delete"><option value="">File ▾</option><option value="saveas">Save as… (Ctrl+Shift+S)</option><option value="rename">Rename…</option><option value="delete">Delete</option></select>
       <span id="edState" class="dim small"></span>
       <span class="sep"></span>
       <button id="edSave" title="Save to ESP32/tactics (Ctrl+S)">Save</button>
-      <button id="edSaveAs" title="Save under a new name, e.g. a copy to try something (Ctrl+Shift+S)">Save as…</button>
-      <button id="edRename" title="Rename this tactic file">Rename…</button>
-      <button id="edDelete" class="danger-text" title="Delete this tactic file">Delete</button>
+      <label class="small" title="Run the real simulation by itself when you stop typing (short tactics)"><input type="checkbox" id="autoSim" checked> auto-sim</label>
       <button id="edRun" class="primary" title="Check and simulate this text, saved or not (Ctrl+Enter)">▶ Run</button>
     </div>
     <div id="edHost"></div>
     <div class="ed-tabs">
       <button data-tab="edProblems" class="on">Problems <span id="edCount" class="dim"></span></button>
       <button data-tab="edApi">tac API</button>
+      <span id="edDraft" class="dim small ed-draft" title="Draft path, drawn on the table while you type (dashed purple). Click a draft point to jump to its line; Alt+click the table to put a point into the code."></span>
     </div>
     <div id="edProblems" class="ed-panel mono"></div>
     <div id="edApi" class="ed-panel" hidden><input id="apiFilter" placeholder="search the API…"><div id="apiList"></div></div>
@@ -91,13 +91,17 @@
     <div id="view"></div>
     <div id="viewtools">
       <button id="cam3d" class="on">3D</button><button id="cam2d">Top</button>
-      <label><input type="checkbox" id="showOdom" checked> odometry</label>
-      <label><input type="checkbox" id="showTargets" checked> targets</label>
-      <label title="IR sensor rays: grey = nothing within range, red = sees something (stops the robot)"><input type="checkbox" id="showIr" checked> IR</label>
-      <select id="markSize" title="Size of step points and target labels"><option value="0.7">small</option><option value="1" selected>markers</option><option value="1.5">large</option></select>
-      <label title="Table look: drawing from the 2027 rules or a plain grid"><input type="checkbox" id="rulesLook" checked> rules table</label>
-      <label title="Game elements of 2027 (10 stone quarries x 3 stones): obstacles for the robot and IR"><input type="checkbox" id="showElements" checked> game elements</label>
-      <label><input type="checkbox" id="follow"> follow</label>
+      <button id="viewMenuBtn" title="What is drawn on the table">Show ▾</button>
+      <div id="viewMenu" class="menu" hidden>
+        <label><input type="checkbox" id="showOdom" checked> odometry (what the robot thinks)</label>
+        <label><input type="checkbox" id="showTargets" checked> targets (GOTO points)</label>
+        <label title="IR sensor rays: grey = nothing within range, red = sees something (stops the robot)"><input type="checkbox" id="showIr" checked> IR sensor rays</label>
+        <label title="Draft path from the editor text (dashed purple)"><input type="checkbox" id="showDraft" checked> draft path from the editor</label>
+        <label>markers <select id="markSize" title="Size of step points and target labels"><option value="0.7">small</option><option value="1" selected>normal</option><option value="1.5">large</option></select></label>
+        <label title="Table look: drawing from the 2027 rules or a plain grid"><input type="checkbox" id="rulesLook" checked> rules table</label>
+        <label title="Game elements of 2027 (10 stone quarries x 3 stones): obstacles for the robot and IR"><input type="checkbox" id="showElements" checked> game elements</label>
+        <label><input type="checkbox" id="follow"> follow the robot</label>
+      </div>
       <button id="addOpp" title="Add an opponent (drag it on the table)">+ Opponent</button>
     </div>
     <div id="cmpTools" class="overlay">

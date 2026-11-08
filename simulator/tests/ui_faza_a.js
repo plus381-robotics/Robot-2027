@@ -37,11 +37,12 @@ const TMP = ['ui_tmp_a', 'ui_tmp_b'].map(n => path.join(DIR, n + '.py'));
     await p.click('#edBtn');
     await p.waitForSelector('.cm-content');
     await p.waitForFunction(() => /from tac import/.test(document.querySelector('.cm-content').textContent));
-    answers.push('ui_tmp_a'); await p.click('#edSaveAs'); await p.waitForTimeout(700);
+    answers.push('ui_tmp_a'); await p.selectOption('#edFileMenu', 'saveas'); await p.waitForTimeout(700);
     if (!fs.existsSync(TMP[0]) || (await ev(() => window.eurosim.ed.name)) !== 'ui_tmp_a') fail.push('S2 Save as');
-    answers.push('ui_tmp_b'); await p.click('#edRename'); await p.waitForTimeout(700);
+    answers.push('ui_tmp_b'); await p.selectOption('#edFileMenu', 'rename'); await p.waitForTimeout(700);
     if (fs.existsSync(TMP[0]) || !fs.existsSync(TMP[1])) fail.push('S2 Rename');
-    await p.click('#edDelete'); await p.waitForTimeout(900);
+    await p.selectOption('#edFileMenu', 'delete');
+    await p.waitForFunction(() => window.eurosim.ed.name === 'primer', null, { timeout: 8000 }).catch(() => {});
     if (fs.existsSync(TMP[1]) || (await ev(() => window.eurosim.ed.name)) !== 'primer') fail.push('S2 Delete');
 
     // S3: "g" -> lista sa goto prvim, Tab ubaci goto(x_mm, y_mm), Tab prelazi na y; Ctrl+Space ima grupe

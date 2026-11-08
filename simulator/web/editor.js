@@ -46,7 +46,7 @@ function escapeHtml(s) { return s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '
 export class TacticEditor {
   constructor(root, opts) {
     this.root = root;
-    this.opts = opts;                    // {api, onChange(text), onRun(), onSave(), onStepLine(line)}
+    this.opts = opts;                    // {api, onChange(text), onEdit(text), onCursor(line), onRun(), onSave(), onStepLine(line)}
     this.api = opts.api;
     this.diags = [];
     const self = this;
@@ -109,11 +109,17 @@ export class TacticEditor {
       } };
     });
 
-    let timer = null;
+    let timer = null, fast = null, lastLine = 0;
     const changed = EditorView.updateListener.of(u => {
+      if (u.selectionSet || u.docChanged) {                // red sa kursorom (krst na mapi, isticanje nacrta)
+        const ln = u.state.doc.lineAt(u.state.selection.main.head).number;
+        if ((ln !== lastLine || u.docChanged) && self.opts.onCursor) { lastLine = ln; self.opts.onCursor(ln); }
+      }
       if (!u.docChanged || this.silent) return;
       clearTimeout(timer);
       timer = setTimeout(() => self.opts.onChange(self.text()), 600);
+      clearTimeout(fast);                                  // nacrt putanje: brže od provere
+      if (self.opts.onEdit) fast = setTimeout(() => self.opts.onEdit(self.text()), 200);
     });
 
     this.view = new EditorView({
@@ -135,6 +141,30 @@ export class TacticEditor {
   }
 
   text() { return this.view.state.doc.toString(); }
+
+  cursorLine() { const s = this.view.state; return s.doc.lineAt(s.selection.main.head).number; }
+
+  // Tačka sa mape (Alt+klik): u redu sa kursorom zameni prva dva broja u goto/pose(...), ili ubaci goto(x, y)
+  // u novi red ispod.
+  putPoint(x, y) {
+    const s = this.view.state;
+    // kursor nije ni postavljen (početak fajla, komentari): tačka ide na kraj taktike
+    const line = s.selection.main.head === 0 ? s.doc.line(s.doc.lines) : s.doc.lineAt(s.selection.main.head);
+    const m = /\b(goto|pose)\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/.exec(line.text);
+    if (m) {
+      const from = line.from + m.index + m[1].length + 1;
+      const to = line.from + m.index + m[0].length;
+      this.view.dispatch({ changes: { from, to, insert: `${x}, ${y}` } });
+    } else {
+      const ind = /^\s*/.exec(line.text)[0];
+      const blank = !line.text.trim();
+      const ins = blank ? `${ind}goto(${x}, ${y})` : `\n${ind}goto(${x}, ${y})`;
+      const at = blank ? line.from : line.to;
+      this.view.dispatch({ changes: { from: at, to: blank ? line.to : at, insert: ins },
+        selection: { anchor: at + ins.length } });
+    }
+    this.view.focus();
+  }
 
   setText(t) {
     this.silent = true;
