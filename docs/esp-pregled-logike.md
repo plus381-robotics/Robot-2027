@@ -1,5 +1,11 @@
 # ESP32 kod: pregled logike i smislenosti
 
+> **Rešeno posle pregleda:** L1, L2, L7 (`lib/match.py`: meč samo na nov činč; stari meč na STM32 se
+> resetuje preko NRST sa ESP-a ili se naoružavanje odbija; ESP sat meča zaustavlja posle 100 s; restart
+> STM32 u meču: vraćanje poze (+25 ms procene) i MATCH_START, prekinut korak vraća False "RESTART";
+> STM32 koji se ne javlja 1,5 s: NRST; restart ESP-a u meču: robot stoji i javlja). Testovi:
+> `ESP32/tests/host/test_mec_zastita.py`, `simulator/tests/test_match_guard.py`.
+
 Datum: 2026-11-08. Obim: `ESP32/lib/*.py`, `ESP32/main.py`, `boot.py`, `config.py`, `ESP32/tactics/*.py`,
 `ESP32/tests/goto_test.py`, `tools/*.py`, `protocol/protocol.yaml`, a za drugu stranu veze
 `pogon-blackpill/Core/Lib/comm.c` i `comm_port.c`. Pravila: Eurobot 2027 (meč 100 s, faza napada od

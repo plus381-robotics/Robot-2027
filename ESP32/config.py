@@ -18,6 +18,9 @@ ENC_STEPS = 4
 
 # STM32 NRST (open-drain) i BOOT0 za flešovanje kad softverski ulazak u bootloader ne radi.
 # None = nije povezano (vidi dijagram povezivanja: 18 = NRST, 19 = BOOT0).
+# Sa NRST-om ESP sam resetuje STM32: pri naoružavanju ako je ostao u starom meču, i u meču ako se ne
+# javlja (posle reseta mu vrati pozu, vidi lib/match.py). Bez NRST-a: samo softverska zaštita.
+# ESP32-S3 (plan, docs/faza4-esp32s3-lidar.md): NRST 15, BOOT0 16.
 STM_NRST, STM_BOOT0 = None, None
 
 # Aktuatori na STM32 (komanda ACTUATOR id, value): ime -> id. Taktika piše actuator("hvataljka", 1).

@@ -63,7 +63,7 @@ class Sim:
         with contextlib.redirect_stdout(self.out):
             self.esp = Esp(lambda clock: SimSTM(self.prof, clock), self.tactics_dir, self._tmp.name,
                            screen=screen, loop_extra_ms=self.prof.get("esp", {}).get("loop_extra_ms", 5),
-                           inputs=True)
+                           inputs=True, nrst=self._nrst_pins())
         self.stm = self.esp.stm
         self.app = self.esp.app
         if net:
@@ -89,6 +89,7 @@ class Sim:
         self._abort_sent = False
         self.stop_requested = False
         self._tac_seen = None
+        self._nrst_low = False
         self._screen = None
         # live
         self.control, self.emit = control, emit
@@ -180,6 +181,27 @@ class Sim:
         tr.step = step
         app.error = error
 
+    # ---------------- NRST (ESP resetuje STM32) ----------------
+
+    def _nrst_pins(self):
+        """Profil [link] nrst = [pin NRST, pin BOOT0] (novi robot, S3) ili ništa (BlackPill, WROOM)."""
+        p = self.prof.get("link", {}).get("nrst")
+        return tuple(p) if p else None
+
+    def _watch_nrst(self):
+        """NRST nizak (lažni machine.Pin) = STM32 u resetu; kad se pusti, STM32 kreće ispočetka."""
+        pins = self._nrst_pins()
+        if not pins:
+            return
+        import machine
+        low = machine.Pin.levels.get(pins[0], 1) == 0
+        if low and not self._nrst_low:
+            self.stm.on = False
+        elif not low and self._nrst_low:
+            self.stm.hard_reset("reset (NRST sa ESP-a)")
+            self.stm.on = True
+        self._nrst_low = low
+
     # ---------------- vreme ----------------
 
     def t(self):
@@ -188,6 +210,7 @@ class Sim:
     # ---------------- servis u ESP petlji (radi i dok taktika čeka) ----------------
 
     def _service(self):
+        self._watch_nrst()
         self.stm.advance()
         t = self.t()
         if self.app.running:
@@ -341,6 +364,11 @@ class Sim:
         elif k == "pause":
             self.paused = bool(c[1])
             self._anchor = None
+        elif k == "stm_reset":                  # simulacija: STM32 se sam restartuje (watchdog, pad napona)
+            self.stm.hard_reset("restart (watchdog / napajanje)")
+        elif k == "stm_hang":                   # simulacija: STM32 se zaglavi (ne odgovara dok ga NRST ne resetuje)
+            self.stm.on = False
+            self.event("sim", {"text": "STM32 zaglavljen"})
         elif k == "quit":
             self.quit = True
             if a.running:

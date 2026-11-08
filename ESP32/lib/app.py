@@ -209,7 +209,14 @@ class App:
         items.append(("ok", "strana", side) if side else ("ne", "strana", "izaberi"))
         if self.unseen:
             items.append(("upoz", "greske", "%d novih" % self.unseen))
-        if self.match.armed:
+        s = r.status if r.alive else None
+        if s and s["state"] & (P.State.MATCH_RUNNING | P.State.MATCH_OVER) and not self.match.armed:
+            # stari meč na STM32 (pregled logike L1, L7): NRST ga resetuje pri naoružavanju, inače ručno
+            items.append(("upoz", "STM32 mec", "reset pri naoruz.") if self.match.hw
+                         else ("ne", "STM32 mec", "restartuj STM32"))
+        if self.match.state == "RESET":
+            items.append(("ceka", "STM32", "reset..."))
+        elif self.match.armed:
             items.append(("ceka", "cinc", "izvuci"))
         order = {"ne": 0, "upoz": 1, "ceka": 2, "ok": 3}
         items.sort(key=lambda i: order[i[0]])

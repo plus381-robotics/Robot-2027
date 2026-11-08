@@ -66,8 +66,12 @@ def fresh_import():
 class Esp:
     """ESP strana: App, Robot, Loop, tac, kao na robotu. stm = UART objekat (SimSTM)."""
 
-    def __init__(self, make_stm, tactics_dir, workdir, screen=False, loop_extra_ms=5, inputs=False):
+    def __init__(self, make_stm, tactics_dir, workdir, screen=False, loop_extra_ms=5, inputs=False, nrst=None):
+        """nrst = (pin NRST, pin BOOT0): kao config.STM_NRST/STM_BOOT0 (ESP može da resetuje STM32)."""
         fresh_import()
+        if nrst:
+            import config
+            config.STM_NRST, config.STM_BOOT0 = nrst
         import compat
         compat.fake = [EPOCH_MS]
         self.compat = compat

@@ -124,7 +124,11 @@ def here(max_age_ms=300):
 
 
 def remaining():
-    """Preostalo vreme meča u sekundama, ili None ako meč ne traje."""
+    """Preostalo vreme meča u sekundama, ili None ako meč ne traje. U meču po ESP satu (od činča), jer
+    STM32 posle restarta broji ispočetka."""
+    m = getattr(app, "match", None)
+    if m is not None and m.t_cord is not None and m.state in ("MEC", "KRAJ"):
+        return max(0, 100 - m.elapsed() / 1000)
     s = app.robot.status
     if not s or not (s["state"] & P.State.MATCH_RUNNING):
         return None
@@ -133,8 +137,9 @@ def remaining():
 
 def _robot():
     t0 = ticks_ms()
-    while not app.robot.ok:
-        _pump()
+    m = getattr(app, "match", None)
+    while not app.robot.ok or (m is not None and m.restoring()):
+        _pump()                         # i dok se posle restarta STM32 vraća poza (match.py)
         if ticks_diff(ticks_ms(), t0) > 2000:
             raise Abort("STM32 se ne javlja")
     return app.robot
@@ -155,6 +160,8 @@ def _cmd(name, label, timeout, next, motion, long=None, **f):
     """motion: kretanje (STOP kad nema odgovora, kraj i po STATUS-u). long: posle ACK čeka DONE."""
     long = motion if long is None else long
     r = _robot()
+    m = getattr(app, "match", None)
+    resets = m.stm_resets if m is not None else 0
     tracker.step(label, timeout, next)
     seq = r.send(name, **f)
     t0 = ticks_ms()
@@ -163,6 +170,10 @@ def _cmd(name, label, timeout, next, motion, long=None, **f):
     last_n = r.status_n
     while ticks_diff(ticks_ms(), t0) < timeout * 1000:
         _pump()
+        if m is not None and m.stm_resets != resets:
+            tracker.fail("RESTART")         # STM32 restartovan: komanda je izgubljena, poza vraćena
+            log("%s: STM32 restart, komanda prekinuta" % label)
+            return False
         for s, _, kind, reason in app.events:
             if s != seq:
                 continue

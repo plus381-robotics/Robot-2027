@@ -352,6 +352,21 @@ class SimSTM:
         elif self.phase == TURN and now - self.phase_t0 > self.c["ROT_TIMEOUT_MS"]:
             self._finish(P.Reason.TIMEOUT)
 
+    # ---------------- restart (NRST, watchdog, pad napona) ----------------
+
+    def hard_reset(self, why="reset"):
+        """STM32 se restartuje: sve iz comm.c / comm_port.c / regulacije ispočetka, odometrija (0, 0, 0),
+        motori stanu. Stvarna poza robota na stolu ostaje."""
+        pl = self.plant
+        x, y, th, obstacles = pl.x, pl.y, pl.th, pl.obstacles
+        trace, t, on = self.trace, self.clock(), self.on
+        acts = self.act_ms_by_id
+        self.__init__(self.p, self.clock)
+        self.plant.place(x * 1000, y * 1000, th * 180 / math.pi)
+        self.plant.obstacles = obstacles
+        self.trace, self.t, self.on, self.act_ms_by_id = trace, t, on, acts
+        self.log_event("stm", "STM32 %s: odometrija 0,0,0, mec ne broji" % why)
+
     # ---------------- za prikaz ----------------
 
     def log_event(self, kind, text):
