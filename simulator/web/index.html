@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eurosim</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="vendor/uPlot.min.css">
 <link rel="stylesheet" href="style.css">
 <script type="importmap">{"imports": {"three": "./vendor/three.module.min.js"}}</script>
@@ -106,6 +107,13 @@
   </section>
   <section id="viewwrap">
     <div id="view"></div>
+    <div id="legend" title="What is drawn on the table">
+      <span><i class="lg-dot"></i>step point (number = step; ring: <b class="ok">OK</b> <b class="fail">failed</b> <b class="run">now</b>)</span>
+      <span><i class="lg-path"></i>path, one color per step</span>
+      <span><i class="lg-odom"></i>odometry</span>
+      <span><i class="lg-draft"></i>draft from the editor</span>
+      <span><i class="lg-ir"></i>IR (red = sees something)</span>
+    </div>
     <aside id="apiDrawer" hidden>
       <div class="drawer-head"><b>Gambit Micro</b> <span class="dim">commands</span>
         <input id="apiFilter" placeholder="search, e.g. drive, turn, time…"><button id="apiClose" title="Close">✕</button></div>
@@ -116,7 +124,9 @@
       <button id="viewMenuBtn" title="What is drawn on the table">Show ▾</button>
       <div id="viewMenu" class="menu" hidden>
         <label><input type="checkbox" id="showOdom" checked> odometry (what the robot thinks)</label>
-        <label><input type="checkbox" id="showTargets" checked> targets (GOTO points)</label>
+        <label><input type="checkbox" id="showTargets" checked> step points (where each step takes the robot)</label>
+        <label>step labels <select id="labelMode" title="Name next to the step points"><option value="none">none</option><option value="current" selected>current step</option><option value="all">all</option></select></label>
+        <label><input type="checkbox" id="showLegend" checked> legend</label>
         <label title="IR sensor rays: grey = nothing within range, red = sees something (stops the robot)"><input type="checkbox" id="showIr" checked> IR sensor rays</label>
         <label title="Draft path from the editor text (dashed purple)"><input type="checkbox" id="showDraft" checked> draft path from the editor</label>
         <label>markers <select id="markSize" title="Size of step points and target labels"><option value="0.7">small</option><option value="1" selected>normal</option><option value="1.5">large</option></select></label>

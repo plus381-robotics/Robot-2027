@@ -231,3 +231,14 @@ body.has-banner { grid-template-rows: auto auto 1fr auto; }
 #repoBody .warn { color: #ffb547; } #repoBody .err { color: var(--fail); }
 .badge { background: #ffb547; color: #000; border-radius: 8px; padding: 0 5px; font-size: 10px; font-weight: 700; margin-left: 3px; }
 .badge[hidden] { display: none; }
+#legend { position: absolute; left: 8px; bottom: 34px; display: flex; flex-wrap: wrap; gap: 4px 12px; max-width: calc(100% - 330px);
+  background: #1a1f26cc; padding: 3px 8px; border-radius: 4px; font-size: 11px; color: var(--dim); pointer-events: none; }
+#legend[hidden] { display: none; }
+#legend i { display: inline-block; vertical-align: middle; margin-right: 4px; }
+#legend .lg-dot { width: 9px; height: 9px; border-radius: 50%; background: #4cc9f0; box-shadow: 0 0 0 2px #3ecf8e; }
+#legend .lg-path { width: 16px; height: 4px; background: linear-gradient(90deg, #4cc9f0 50%, #f72585 50%); }
+#legend .lg-odom { width: 16px; height: 2px; background: #ff9f43; }
+#legend .lg-draft { width: 16px; height: 0; border-top: 2px dashed #e0aaff; }
+#legend .lg-ir { width: 16px; height: 2px; background: #ff4d4d; }
+#legend b { font-weight: 600; } #legend b.ok { color: #3ecf8e; } #legend b.fail { color: #ff5c5c; } #legend b.run { color: #ffb547; }
+i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }

@@ -138,7 +138,9 @@ function renderSteps() {
     const tr = document.createElement('tr');
     const res = s.ok == null ? '<span class="res-run">…</span>' : s.ok ? '<span class="res-ok">OK</span>' :
       `<span class="res-fail">${REASON[s.reason] || s.reason || 'FAIL'}</span>`;
-    tr.innerHTML = `<td>${s.idx}</td><td title="${s.name}">${s.name}</td><td>${res}</td><td>${s.dur == null ? '' : secs(s.dur)}</td>`;
+    tr.innerHTML = `<td><i class="swatch" style="background:${stepColor(s.idx)}"></i>${s.idx}</td><td title="${s.name}">${s.name}</td><td>${res}</td><td>${s.dur == null ? '' : secs(s.dur)}</td>`;
+    tr.onmouseenter = () => view.highlightStep(s.idx);
+    tr.onmouseleave = () => view.highlightStep(0);
     tr.onclick = () => { seek(s.t); if (ed && s.line && edShowsRun()) ed.editor.reveal(s.line, false); };
     s.row = tr;
     tb.appendChild(tr);
@@ -1180,6 +1182,14 @@ async function main() {
   $('showOdom').onchange = () => { vis(); if (run) show(); };
   $('showTargets').onchange = vis;
   $('showIr').onchange = e => view.setShowIr(e.target.checked);
+  const pref = (k, el, apply) => {                 // izbor u Show ▾ se pamti (localStorage)
+    try { const v = localStorage.getItem('eurosim.' + k); if (v != null) { if (el.type === 'checkbox') el.checked = v === '1'; else el.value = v; } } catch (er) { /* ignore */ }
+    const go = () => { apply(el.type === 'checkbox' ? el.checked : el.value);
+      try { localStorage.setItem('eurosim.' + k, el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value); } catch (er) { /* ignore */ } };
+    el.addEventListener('change', go); go();
+  };
+  pref('labels', $('labelMode'), v => view.setLabelMode(v));
+  pref('legend', $('showLegend'), v => { $('legend').hidden = !v; });
   $('showDraft').onchange = e => view.setShowPreview(e.target.checked);
   $('mode').addEventListener('change', () => edPreview());
   $('markSize').onchange = e => { view.setMarkerScale(+e.target.value); try { localStorage.setItem('eurosim.mark', e.target.value); } catch (er) { /* ignore */ } };

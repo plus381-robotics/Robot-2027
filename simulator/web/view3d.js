@@ -305,20 +305,35 @@ export class FieldView {
     });
   }
 
-  highlightStep(idx) {                            // hover na traku koraka u timeline-u: tačka tog koraka veća
+  // Obod po ishodu (sivo = još nije, žuto = u toku, zeleno = OK, crveno = neuspeh), veličina, natpis.
+  _updateMarks() {
+    const t = this._t || 0, k = this.markerScale || 1, mode = this.labelMode || 'current';
     for (const g of (this.stepMarks ? this.stepMarks.children : [])) {
-      const k = this.markerScale || 1;
-      g.scale.setScalar(idx && g.userData.step.idx === idx ? k * 1.6 : k);
+      const s = g.userData.step;
+      const cur = s.t <= t && (s.end == null || s.end > t);
+      g.userData.rim.material.color.setHex(s.t > t ? 0x55606d : cur ? 0xffb547 : (s.ok ? 0x3ecf8e : 0xff5c5c));
+      const hi = s.idx === this._hiStep;
+      g.scale.setScalar(k * (hi ? 1.6 : cur ? 1.25 : 1));
+      g.userData.lbl.visible = mode === 'all' || hi || (mode === 'current' && cur);
     }
+  }
+
+  highlightStep(idx) { this._hiStep = idx; this._updateMarks(); }     // hover: timeline ili oznaka na mapi
+
+  setLabelMode(m) { this.labelMode = m; this._updateMarks(); }
+
+  _hitStep(e) {
+    if (!this.stepMarks || !this.stepMarks.visible || !this.stepMarks.children.length) return 0;
+    const r = this.renderer.domElement.getBoundingClientRect();
+    this.mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const hit = this.raycaster.intersectObjects(this.stepMarks.children.map(g => g.userData.hit))[0];
+    return hit ? hit.object.parent.userData.step.idx : 0;
   }
 
   setShowIr(on) { if (this.irGroup) this.irGroup.visible = on; }
 
-  setMarkerScale(k) {                              // veličina tačaka i natpisa koraka (0.7 / 1 / 1.5)
-    this.markerScale = k;
-    if (this.stepMarks) for (const g of this.stepMarks.children) g.scale.setScalar(k);
-    if (this.targets) for (const g of this.targets.children) g.scale.setScalar(k);
-  }
+  setMarkerScale(k) { this.markerScale = k; this._updateMarks(); }   // veličina oznaka koraka (0.7 / 1 / 1.5)
 
   _ghost() {
     const b = this.profile.body;
@@ -387,48 +402,39 @@ export class FieldView {
     this.dyn.add(this.odomPath);
     // steps: markers where each step started, colored by result
     this.stepMarks = new THREE.Group(); this.dyn.add(this.stepMarks);
-    this.targets = new THREE.Group(); this.dyn.add(this.targets);
-    // Tačke koraka (gde je korak počeo) i ciljevi GOTO: veliki, iznad svega (depthTest false), sa brojem i imenom.
-    // Grupa je u tački, pa setMarkerScale menja veličinu oko nje.
+    // Koraci na mapi (plan E1): JEDNA mala oznaka po koraku koji pomera robota, na mestu gde ga korak vodi
+    // (cilj GOTO, ili gde je robot bio na kraju MOVE). Okreti i aktuatori nemaju oznaku (vide se na timeline-u).
+    // Boja = boja koraka (ista kao putanja i traka na timeline-u); obod = ishod. Natpis: tekući korak, hover ili
+    // "all" (Show ▾ -> labels). Iznad svega (depthTest false).
     const over = o => { o.renderOrder = 6; if (o.material) o.material.depthTest = false; return o; };
+    this.targets = this.stepMarks;                     // jedna grupa (stari prekidač "targets" je skriva)
     for (const s of run.steps) {
-      const i = run.frameAt(s.t);
-      const sc = STEP_COLORS[(s.idx - 1 + STEP_COLORS.length) % STEP_COLORS.length];
-      const rim = over(new THREE.Mesh(new THREE.CircleGeometry(0.042, 28), new THREE.MeshBasicMaterial({ color: sc })));
-      const m = over(new THREE.Mesh(new THREE.CircleGeometry(0.032, 28), new THREE.MeshBasicMaterial({ color: 0xffffff })));
-      const num = textSprite(String(s.idx), '#000', 0.05, 'rgba(0,0,0,0)');
-      num.position.set(0, 0, 0.012);
-      const name = (s.name || '').length > 22 ? s.name.slice(0, 21) + '…' : (s.name || '');
-      const lbl = textSprite(`${s.idx} ${name}`, '#fff', 0.045);
-      lbl.position.set(0, -0.075, 0.03);
-      const grp = new THREE.Group(); grp.add(rim, m, num, lbl);
-      grp.position.set(c.x[i] / 1000, c.y[i] / 1000, 0.008);
-      grp.userData = { step: s, dot: m };
-      this.stepMarks.add(grp);
-      if (s.target) {                                    // GOTO target (field coordinates), [x, y, ugao|null]
-        const [tx, ty, tth] = s.target;
-        const ring = over(new THREE.Mesh(new THREE.RingGeometry(0.036, 0.05, 32),
-          new THREE.MeshBasicMaterial({ color: 0x4aa3ff, side: THREE.DoubleSide })));
-        const cross = over(new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position',
-          new THREE.Float32BufferAttribute([-0.03, 0, 0, 0.03, 0, 0, 0, -0.03, 0, 0, 0.03, 0], 3)),
-          new THREE.LineBasicMaterial({ color: 0xffffff })));
-        const tg = new THREE.Group(); tg.add(ring, cross);
-        if (tth != null) {                               // završni ugao: strelica
-          const sh = new THREE.Shape();
-          sh.moveTo(0.11, 0); sh.lineTo(0.06, 0.025); sh.lineTo(0.06, -0.025);
-          const head = over(new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color: 0x9cd0ff })));
-          const shaft = over(new THREE.Mesh(new THREE.PlaneGeometry(0.03, 0.008), new THREE.MeshBasicMaterial({ color: 0x9cd0ff })));
-          shaft.position.x = 0.065;
-          const arr = new THREE.Group(); arr.add(head, shaft); arr.rotation.z = tth * Math.PI / 180;
-          tg.add(arr);
-        }
-        const t = textSprite(`${s.idx}: ${Math.round(tx)}, ${Math.round(ty)}`, '#9cd0ff', 0.045);
-        t.position.set(0, 0.085, 0.03);
-        tg.add(t);
-        tg.position.set(tx / 1000, ty / 1000, 0.007);
-        tg.userData = { step: s, ring };
-        this.targets.add(tg);
+      let px, py, tth = null;
+      if (s.target) [px, py, tth] = s.target;
+      else {
+        const i0 = run.frameAt(s.t), i1 = run.frameAt(s.end != null ? s.end : run.duration);
+        if (Math.hypot(c.x[i1] - c.x[i0], c.y[i1] - c.y[i0]) < 30) continue;   // nije se pomerio
+        [px, py] = [c.x[i1], c.y[i1]];
       }
+      const sc = STEP_COLORS[(s.idx - 1 + STEP_COLORS.length) % STEP_COLORS.length];
+      const rim = over(new THREE.Mesh(new THREE.RingGeometry(0.019, 0.026, 28),
+        new THREE.MeshBasicMaterial({ color: 0x55606d, side: THREE.DoubleSide })));
+      const dot = over(new THREE.Mesh(new THREE.CircleGeometry(0.019, 24), new THREE.MeshBasicMaterial({ color: sc })));
+      const num = textSprite(String(s.idx), '#000', 0.03, 'rgba(0,0,0,0)');
+      num.position.set(0, 0, 0.01);
+      const grp = new THREE.Group(); grp.add(rim, dot, num);
+      if (tth != null) {                               // završni ugao: tanka strelica
+        const sh = new THREE.Shape(); sh.moveTo(0.06, 0); sh.lineTo(0.04, 0.012); sh.lineTo(0.04, -0.012);
+        const head = over(new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color: sc })));
+        head.rotation.z = tth * Math.PI / 180; grp.add(head);
+      }
+      const name = (s.name || '').length > 26 ? s.name.slice(0, 25) + '…' : (s.name || '');
+      const lbl = textSprite(`${s.idx}. ${name}`, '#fff', 0.04);
+      lbl.position.set(0, 0.055, 0.03); lbl.visible = false;
+      grp.add(lbl);
+      grp.position.set(px / 1000, py / 1000, 0.008);
+      grp.userData = { step: s, rim, dot, lbl, hit: dot };
+      this.stepMarks.add(grp);
     }
     if (this.markerScale) this.setMarkerScale(this.markerScale);
     this.setFrame(this.frame && this.frame < n ? this.frame : 0);
@@ -658,17 +664,8 @@ export class FieldView {
     k = lo;
     this.odomPath.geometry.setDrawRange(0, 2 * k);
     const t = c.t[i];
-    for (const g of this.stepMarks.children) {
-      const s = g.userData.step;
-      const col = s.t > t ? 0x55606d : (s.end == null || s.end > t) ? 0xffb547 : (s.ok ? 0x3ecf8e : 0xff5c5c);
-      g.userData.dot.material.color.setHex(col);
-    }
-    for (const g of this.targets.children) {
-      const s = g.userData.step;
-      const active = s.t <= t && (s.end == null || s.end > t);
-      g.userData.ring.material.color.setHex(active ? 0xffb547 : (s.t > t ? 0x4aa3ff : (s.ok ? 0x3ecf8e : 0xff5c5c)));
-      g.userData.ring.scale.setScalar(active ? 1.3 : 1);
-    }
+    this._t = t;
+    this._updateMarks();
   }
 
   // ---------------- camera ----------------
@@ -719,7 +716,11 @@ export class FieldView {
     return hit ? [hit.point.x * 1000, hit.point.y * 1000] : null;
   }
 
-  _hover(e) { if (this.onHover) this.onHover(this._pick(e)); }
+  _hover(e) {
+    if (this.onHover) this.onHover(this._pick(e));
+    const idx = this._hitStep(e);                   // oznaka koraka pod mišem: natpis
+    if (idx !== (this._hoverStep || 0)) { this._hoverStep = idx; this.highlightStep(idx); }
+  }
 
   _tick() {
     if (this.follow && this.robot.visible) {
