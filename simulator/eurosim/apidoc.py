@@ -22,15 +22,20 @@ DOC = {
                          ["speed", "mm per second (default 500)"],
                          ["timeout", "give up after this many seconds (default: worked out from the distance)"],
                          ["name", "text for the robot screen and the log instead of 'GOTO x,y'"],
-                         ["next", "text shown as 'next step' on the robot screen"]],
+                         ["next", "text shown as 'next step' on the robot screen"],
+                         ["near", "True: approach to a game element (quarry). The IR sensors do NOT stop the robot "
+                                  "and it drives at most 200 mm/s. Use it only for the last short bit, because then "
+                                  "an opponent does not stop the robot either."]],
                  ret="True if it got there, False if something stopped it (opponent, time, error).",
                  example="goto(600, 1000)              # 35 cm right of the start zone, middle height\n"
-                         "goto(750, 1540, deg=90)      # and face up when there"),
+                         "goto(750, 1540, deg=90)      # and face up when there\n"
+                         "goto(750, 1770, near=True)   # last bit up to the quarry: IR does not stop it"),
     "move": dict(group="Motion",
                  say="Drive straight forwards (positive mm) or backwards (negative mm), without turning.",
                  params=[["dist", "mm; positive = forwards, negative = backwards"], ["speed", "mm per second (default 300)"],
                          ["timeout", "give up after this many seconds"], ["name", "text for the screen and log"],
-                         ["next", "text shown as 'next step'"]],
+                         ["next", "text shown as 'next step'"],
+                         ["near", "True: approach to a game element: IR does not stop the robot, at most 200 mm/s"]],
                  ret="True if it drove the whole distance, False if stopped.",
                  example="move(200)        # 20 cm forwards\nmove(-100)       # 10 cm back"),
     "turn_to": dict(group="Motion",

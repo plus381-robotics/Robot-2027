@@ -10,8 +10,9 @@
 # Jedinice: mm, cdeg (stotinke stepena, -18000..18000), mm/s, mrad/s, ms.
 # Tipovi polja: u8 i8 u16 i16 u32 i32 f32, i "bytes" (ostatak paketa, samo poslednje polje).
 
-version: 4          # v3: STATUS.last_seq/last_result (ishod kretanja i kad se DONE/FAIL izgubi)
+version: 5          # v3: STATUS.last_seq/last_result (ishod kretanja i kad se DONE/FAIL izgubi)
                     # v4: RESET, RESUME, STATUS.uptime_ms/w, PONG.reset_cause, Reason.LINK; bez debug poruka
+                    # v5: GotoFlags.NEAR (prilaz elementu: IR ne zaustavlja, sporo), MOVE.flags
 
 enums:
   Reason:          # razlog u FAIL poruci
@@ -25,6 +26,7 @@ enums:
   GotoFlags:
     REVERSE: 1     # vozi unazad
     NO_THETA: 2    # ignoriši završni ugao
+    NEAR: 4        # v5, prilaz elementu igre: za ovu komandu IR ne zaustavlja robota, brzina najviše 200 mm/s
   State:           # bitovi u STATUS.state
     MOVING: 1
     BLOCKED: 2     # rezervisano: STM32 ga još ne postavlja (IR senzori na novom robotu)
@@ -45,7 +47,7 @@ messages:
   SET_POSE:      {type: 0x10, dir: e2n, fields: [[x, i16], [y, i16], [theta, i16]]}
   GOTO:          {type: 0x11, dir: e2n, fields: [[x, i16], [y, i16], [theta, i16], [flags, u8], [max_speed, u16]]}
   ROTATE:        {type: 0x12, dir: e2n, fields: [[theta, i16]]}
-  MOVE:          {type: 0x13, dir: e2n, fields: [[dist, i16], [max_speed, u16]]}
+  MOVE:          {type: 0x13, dir: e2n, fields: [[dist, i16], [max_speed, u16], [flags, u8, 5]]}   # flags: GotoFlags.NEAR
   STOP:          {type: 0x1F, dir: e2n, fields: []}
   ACTUATOR:      {type: 0x20, dir: e2n, fields: [[id, u8], [value, i16]]}
   MATCH_START:   {type: 0x30, dir: e2n, fields: []}

@@ -48,7 +48,7 @@ class Bench:
 def test_ping_pong_verzija_i_status_20hz():
     b = Bench()
     b.send("PING", 0)
-    assert ("PONG", {"version": 4, "reset_cause": P.ResetCause.POWER}) in [(nm, f) for _, nm, _, f in b.rx]
+    assert ("PONG", {"version": 5, "reset_cause": P.ResetCause.POWER}) in [(nm, f) for _, nm, _, f in b.rx]
     b.run(1000)
     assert 19 <= len(b.statuses()) <= 21
 

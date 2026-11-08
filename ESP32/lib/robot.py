@@ -20,10 +20,11 @@ LONG = MOTION + ("ACTUATOR",)            # posle ACK čekaju DONE/FAIL (aktuator
 RESULTS = 32                             # koliko poslednjih ishoda se pamti (za tac.done())
 
 REASONS = {getattr(P.Reason, k): k for k in dir(P.Reason) if not k.startswith("_")}
-COMPAT = (1, 2, 3, 4)                    # verzije protokola sa kojima ESP sme da radi
+COMPAT = (1, 2, 3, 4, 5)                 # verzije protokola sa kojima ESP sme da radi
 # mogućnost -> najmanja verzija. result: ishod kretanja u STATUS-u. v4: komanda RESET, RESUME (poza + meč
 # jednom porukom), uptime u STATUS-u (siguran znak restarta), razlog LINK, ugaona brzina w.
-FEATURES = {"bootloader": 2, "result": 3, "reset": 4, "resume": 4, "uptime": 4, "link_reason": 4, "w": 4}
+FEATURES = {"bootloader": 2, "result": 3, "reset": 4, "resume": 4, "uptime": 4, "link_reason": 4, "w": 4,
+            "near": 5}                   # v5: GotoFlags.NEAR (prilaz elementu, IR ne zaustavlja)
 CAUSES = (("PIN", "NRST"), ("POWER", "napajanje"), ("SOFT", "softver"), ("IWDG", "watchdog"),
           ("WWDG", "WWDG"), ("LOW_POWER", "low power"))
 

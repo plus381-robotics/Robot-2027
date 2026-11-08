@@ -28,4 +28,8 @@ void comm_port_match_start(void);
  * Vraća 0 ili REASON_*. */
 uint8_t comm_port_resume(int16_t x_mm, int16_t y_mm, int16_t theta_cdeg, uint32_t elapsed_ms);
 
+/* IR senzori -> regulacija (bitovi 1 napred, 2 nazad). Zove ga kod koji čita IR; u prilazu elementu
+ * (GOTOFLAGS_NEAR, v5) se ne prosleđuje. */
+void comm_port_set_obstacle(uint8_t bits);
+
 #endif /* INC_COMM_PORT_H_ */

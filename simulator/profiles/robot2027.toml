@@ -60,7 +60,7 @@ ROT_TIMEOUT_MS = 5000
 D_ARRIVED = 0.02
 
 [link]
-protocol_version = 4   # posle flešovanja novog comm.c (v4); stari firmver: BlackPill 2, Nucleo 1
+protocol_version = 5   # posle flešovanja novog comm.c (v5); stari firmver: BlackPill 2, Nucleo 1
 heartbeat_ms = 500
 nrst = [15, 16]        # ESP pinovi za STM32 NRST i BOOT0 (S3 plan): ESP može da resetuje STM32; [] = nema
 status_period_ms = 50

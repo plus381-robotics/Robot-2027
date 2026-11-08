@@ -60,7 +60,7 @@ def test_argumenti_ugao_tip_brzina(app, stm):
     g = sent(stm, "GOTO")[-1]
     assert g["theta"] == 4000 and g["max_speed"] == 1500
     m = sent(stm, "MOVE")[-1]
-    assert m == {"dist": 150, "max_speed": 300}
+    assert m == {"dist": 150, "max_speed": 300, "flags": None}          # bez near: MOVE kao u v4
     write(app, "z", "move(100, speed=0)\n")
     run_tactic(app, "z")
     assert any("ValueError" in t for _, t in app.errors)

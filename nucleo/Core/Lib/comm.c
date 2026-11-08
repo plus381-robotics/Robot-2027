@@ -161,7 +161,7 @@ __weak uint8_t comm_hook_goto(int16_t x_mm, int16_t y_mm, int16_t theta_cdeg, ui
 __weak uint8_t comm_hook_rotate(int16_t theta_cdeg) {
 	return REASON_INVALID;
 }
-__weak uint8_t comm_hook_move(int16_t dist_mm, uint16_t max_speed) {
+__weak uint8_t comm_hook_move(int16_t dist_mm, uint16_t max_speed, uint8_t flags) {
 	return REASON_INVALID;
 }
 __weak uint8_t comm_hook_actuator(uint8_t seq, uint8_t id, int16_t value) {
@@ -235,12 +235,12 @@ static void handle(const link_frame_t *f) {
 			start_motion(f->seq, comm_hook_rotate(m.theta));
 		}
 		return;
-	case MSG_MOVE:
-		if (!PAYLOAD_IS(msg_move_t)) break;
+	case MSG_MOVE:                            /* v5: + flags (NEAR); stari ESP šalje bez flags */
+		if (f->len != sizeof(msg_move_t) && f->len != sizeof(msg_move_t) - 1) break;
 		{
-			msg_move_t m;
-			memcpy(&m, f->payload, sizeof m);
-			start_motion(f->seq, comm_hook_move(m.dist, m.max_speed));
+			msg_move_t m = { 0 };
+			memcpy(&m, f->payload, f->len);
+			start_motion(f->seq, comm_hook_move(m.dist, m.max_speed, m.flags));
 		}
 		return;
 	case MSG_STOP:

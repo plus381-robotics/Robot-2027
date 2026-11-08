@@ -2,7 +2,7 @@
 #pragma once
 #include <stdint.h>
 
-#define PROTO_VERSION 4
+#define PROTO_VERSION 5
 
 #define REASON_INVALID 1
 #define REASON_BLOCKED 2
@@ -14,6 +14,7 @@
 
 #define GOTOFLAGS_REVERSE 1
 #define GOTOFLAGS_NO_THETA 2
+#define GOTOFLAGS_NEAR 4
 
 #define STATE_MOVING 1
 #define STATE_BLOCKED 2
@@ -69,8 +70,9 @@ _Static_assert(sizeof(msg_rotate_t) == 2, "ROTATE size");
 typedef struct __attribute__((packed)) {
     int16_t dist;
     uint16_t max_speed;
+    uint8_t flags;
 } msg_move_t;
-_Static_assert(sizeof(msg_move_t) == 4, "MOVE size");
+_Static_assert(sizeof(msg_move_t) == 5, "MOVE size");
 
 typedef struct __attribute__((packed)) {
     uint8_t id;

@@ -104,10 +104,14 @@ def gen_py():
     out.append('''
 
 def encode(name, **kw):
-    """encode('GOTO', x=..., y=...) -> (type, payload bytes)"""
+    """encode('GOTO', x=..., y=...) -> (type, payload bytes). Polja novijih verzija (na kraju) koja nisu zadata
+    se izostave: poruka je kao u starijoj verziji (za stari STM32)."""
     t = NAMES[name]
-    _, fmt, names, tail, _ = _MSGS[t]
-    payload = struct.pack(fmt, *[kw[n] for n in names]) if names else b""
+    _, fmt, names, tail, mins = _MSGS[t]
+    k = len(names)
+    while k and names[k - 1] not in kw and struct.calcsize(fmt[:k]) >= mins:   # samo polja novijih verzija
+        k -= 1
+    payload = struct.pack(fmt[:k + 1], *[kw[n] for n in names[:k]]) if k else b""
     if tail:
         payload += bytes(kw.get(tail, b""))
     return t, payload

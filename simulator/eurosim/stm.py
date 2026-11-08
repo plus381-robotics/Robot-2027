@@ -12,6 +12,7 @@
 #    ROTATE timeout 5 s, statusi regulacije -1 DONE / -3 -4 BLOCKED / -5 TIMEOUT, SET_POSE samo
 #    kad robot stoji, meč 100 s pa MATCH_OVER
 #  - aktuatori (novi robot: AX i pumpe): ACK pa DONE posle zadatog vremena, nikad FAIL
+#  - protokol v5: GotoFlags.NEAR u GOTO/MOVE (prilaz elementu): IR ne zaustavlja robota, najviše 0,2 m/s
 #  - protokol v4: RESET (restart 30 ms posle ACK), RESUME (poza + meč od elapsed_ms), uptime_ms i w u
 #    STATUS-u, reset_cause u PONG-u, pad veze prekida kretanje sa LINK. Profil [link] protocol_version < 4:
 #    PONG/STATUS su kraći (kao stari firmver), RESET/RESUME -> INVALID.
@@ -29,6 +30,7 @@ import protocol as P                     # noqa: E402  (ESP32/lib/protocol.py, g
 from link import build_frame, FrameParser  # noqa: E402
 
 MATCH_MS = 100000
+NEAR_V = 0.2                             # m/s, comm_port.c V_NEAR (prilaz elementu, v5)
 IDLE, DRIVE, TURN = "IDLE", "DRIVE", "TURN"
 REASON_NAME = {getattr(P.Reason, k): k for k in dir(P.Reason) if not k.startswith("_")}
 QUIET = ("PING", "PONG", "STATUS")       # ne upisuju se u trag poruka (ima ih previše)
@@ -74,6 +76,7 @@ class SimSTM:
         self.has_final = False
         self.final_phi = 0.0
         self.stop_request = 0
+        self.near = False                       # v5: kretanje u toku je prilaz (GotoFlags.NEAR)
         self.req = None
         self.match_running = self.match_over = False
         self.match_start = 0
@@ -132,6 +135,8 @@ class SimSTM:
         self._port_update()
         if self.plant.obstacles:
             self.goal.obstacle = self.plant.scan()
+            if self.near:                                   # comm_port_update: u prilazu IR ne zaustavlja
+                self.goal.obstacle = 0
         else:
             self.goal.obstacle = self.plant.ir = 0
         self.ctl.move_goal(self.goal, self.odom())
@@ -218,7 +223,7 @@ class SimSTM:
         elif name == "ROTATE":
             self._start_motion(seq, self._hook_rotate(d["theta"]))
         elif name == "MOVE":
-            self._start_motion(seq, self._hook_move(d["dist"], d["max_speed"]))
+            self._start_motion(seq, self._hook_move(d["dist"], d["max_speed"], d.get("flags")))
         elif name == "STOP":
             self._hook_stop()
             self.motion_finished(R.STOPPED)
@@ -288,8 +293,11 @@ class SimSTM:
             return P.Reason.MATCH_OVER
         self.req = dict(type=1, x=x / 1000, y=y / 1000, phi=theta * math.pi / 18000,
                         dir=-1 if flags & P.GotoFlags.REVERSE else 1, v=self._speed(max_speed),
-                        final=not (flags & P.GotoFlags.NO_THETA))
+                        final=not (flags & P.GotoFlags.NO_THETA), near=self._near(flags))
         return 0
+
+    def _near(self, flags):
+        return bool(flags and flags & P.GotoFlags.NEAR and self.version >= 5)
 
     def _hook_rotate(self, theta):
         if self.match_over:
@@ -297,7 +305,7 @@ class SimSTM:
         self.req = dict(type=-1, phi=theta * math.pi / 18000, final=False)
         return 0
 
-    def _hook_move(self, dist, max_speed):
+    def _hook_move(self, dist, max_speed, flags=None):
         if self.match_over:
             return P.Reason.MATCH_OVER
         if dist == 0:
@@ -305,7 +313,8 @@ class SimSTM:
         d = dist / 1000
         pl = self.plant
         self.req = dict(type=1, x=pl.ox + d * math.cos(pl.oth), y=pl.oy + d * math.sin(pl.oth),
-                        dir=1 if d > 0 else -1, v=self._speed(max_speed), final=False, phi=0.0)
+                        dir=1 if d > 0 else -1, v=self._speed(max_speed), final=False, phi=0.0,
+                        near=self._near(flags))
         return 0
 
     def _hook_actuator(self, seq, aid, value):
@@ -323,6 +332,7 @@ class SimSTM:
         self.motion_finished(reason)
         self.ctl.reset_goal(self.goal, self.odom())
         self.phase = IDLE
+        self.near = False
 
     def _start_turn(self, phi):
         self.ctl.reset_goal(self.goal, self.odom())
@@ -335,6 +345,9 @@ class SimSTM:
     def _start(self):
         r = self.req
         self.has_final, self.final_phi = r["final"], r["phi"]
+        self.near = r.get("near", False)                    # comm_port.c: near + V_NEAR
+        if self.near and r.get("v", 0) > NEAR_V:
+            r["v"] = NEAR_V
         if r["type"] == -1:
             self._start_turn(r["phi"])
             return

@@ -103,10 +103,10 @@ def _module(fk):
         fk.x, fk.y, fk.th = float(x), float(y), float(deg)
         fk._add("pose", "POZA %d,%d" % (x, y), x, y, x, y, 0, target=list(fk.field_xy(x, y)) + [fk.field_deg(deg)])
 
-    def goto(x, y, deg=None, reverse=False, speed=500, timeout=None, name=None, next=None):
+    def goto(x, y, deg=None, reverse=False, speed=500, timeout=None, name=None, next=None, near=False):
         fk.begin()
         x0, y0 = fk.x, fk.y
-        dist, dt = fk._drive(float(x), float(y), speed, reverse)
+        dist, dt = fk._drive(float(x), float(y), min(speed, 200) if near else speed, reverse)
         if deg is not None:
             dt += fk._turn(float(deg))
         tgt = list(fk.field_xy(x, y)) + [None if deg is None else fk.field_deg(deg)]
@@ -125,12 +125,12 @@ def _module(fk):
         fk._add("turn", name or "OKRET za %d" % deg, fk.x, fk.y, fk.x, fk.y, dt)
         return True
 
-    def move(dist, speed=300, timeout=None, name=None, next=None):
+    def move(dist, speed=300, timeout=None, name=None, next=None, near=False):
         fk.begin()
         x0, y0 = fk.x, fk.y
         a = math.radians(fk.th)
         x1, y1 = x0 + dist * math.cos(a), y0 + dist * math.sin(a)
-        dt = abs(dist) / max(speed or 1000, 150) * 1.15 + 0.3
+        dt = abs(dist) / max(min(speed, 200) if near else (speed or 1000), 150) * 1.15 + 0.3
         fk.x, fk.y = x1, y1
         fk._add("move", name or "MOVE %d" % dist, x0, y0, x1, y1, dt)
         return True

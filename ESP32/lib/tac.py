@@ -23,6 +23,7 @@
 # Strana terena: taktika se piše za REF_SIDE ("zuta", leva strana stola, x 0..500 po pravilima 2027). Na drugoj strani se sve koordinate same
 # ogledaju (x -> 3000 - x, ugao -> 180° - ugao, relativni okret menja smer).
 # goto/turn_to/turn_by/move vraćaju True (DONE) ili False (FAIL, nema odgovora, isteklo vreme).
+# near=True u goto/move: prilaz elementu igre (IR ne zaustavlja robota, najviše 200 mm/s; protokol v5).
 # Dok taktika čeka, glavna petlja radi dalje (ekran, PING, WiFi); taster STOP ili
 # `tools/tactic.py` Ctrl+C prekidaju taktiku i šalju STOP.
 from compat import ticks_ms, ticks_diff
@@ -38,6 +39,7 @@ REF_SIDE = "zuta"              # strana za koju se taktike pišu (pravila 2027: 
 SIDES = ("plava", "zuta")
 MIN_SPEED = 150                # regulacija na STM32 ne ide sporije (mm/s)
 MAX_SPEED = 1500               # ni brže (BlackPill V_MAX; novi robot ~1200)
+NEAR_SPEED = 200               # prilaz elementu (near=True): STM32 (v5) ne vozi brže od 200 mm/s
 MATCH_S = 100
 ATTACK_S = 85                  # pravila 2027 (E.4): faza napada od 85. s
 HOME = (250, 1000)             # centar startne zone ("throne room") za REF_SIDE (pravila 2027: x 0..500, y 750..1250)
@@ -382,14 +384,29 @@ def pose(x, y, deg=0):
                 x=int(round(mx)), y=int(round(my)), theta=_cdeg(mirror_deg(deg)))
 
 
-def goto(x, y, deg=None, reverse=False, speed=500, timeout=None, name=None, next=None):
-    """Idi na x, y (naša strana). deg = završni ugao (None = ostani kako je stigao)."""
+def _near(near):
+    """near=True: prilaz elementu igre (protokol v5): IR ne zaustavlja robota, STM32 vozi najviše NEAR_SPEED.
+    Stari STM32 (v < 5) to ne zna: komanda ide bez zastavice (IR može da zaustavi robota) i javi se."""
+    if not near:
+        return 0
+    if app.robot.can("near"):
+        return P.GotoFlags.NEAR
+    log("near: STM32 v%s ne zna za prilaz (treba v5), IR moze da zaustavi" % app.robot.version)
+    return 0
+
+
+def goto(x, y, deg=None, reverse=False, speed=500, timeout=None, name=None, next=None, near=False):
+    """Idi na x, y (naša strana). deg = završni ugao (None = ostani kako je stigao). near=True: prilaz elementu
+    igre (kamenolom): IR senzori ne zaustavljaju robota, a vozi najviše NEAR_SPEED; samo za kratak poslednji deo
+    puta, jer tada ni protivnik ne zaustavlja robota."""
     speed = _speed(speed)
+    if near:
+        speed = min(speed, NEAR_SPEED)
     if timeout is None:
         hx, hy, _ = here()
         timeout = _drive_timeout(((x - hx) ** 2 + (y - hy) ** 2) ** 0.5, speed)
     mx, my = mirror_xy(x, y)
-    flags = (P.GotoFlags.REVERSE if reverse else 0) | (P.GotoFlags.NO_THETA if deg is None else 0)
+    flags = (P.GotoFlags.REVERSE if reverse else 0) | (P.GotoFlags.NO_THETA if deg is None else 0) | _near(near)
     th = _cdeg(mirror_deg(deg)) if deg is not None else 0
     return _cmd("GOTO", name or "GOTO %d,%d" % (x, y), timeout, next, True,
                 x=int(round(mx)), y=int(round(my)), theta=th, flags=flags, max_speed=speed)
@@ -485,13 +502,17 @@ def wait_done(h, timeout=3.0):
     return False
 
 
-def move(dist, speed=300, timeout=None, name=None, next=None):
-    """Pravo napred (dist > 0) ili nazad (dist < 0), u mm."""
+def move(dist, speed=300, timeout=None, name=None, next=None, near=False):
+    """Pravo napred (dist > 0) ili nazad (dist < 0), u mm. near=True: prilaz elementu (vidi goto)."""
     speed = _speed(speed)
+    if near:
+        speed = min(speed, NEAR_SPEED)
     dist = int(round(dist))
     if timeout is None:
         timeout = _drive_timeout(dist, speed)
-    return _cmd("MOVE", name or "MOVE %d" % dist, timeout, next, True, dist=dist, max_speed=speed)
+    f = _near(near)
+    kw = {"flags": f} if f else {}                   # bez zastavice: poruka kao u v4 (radi i sa starim STM32)
+    return _cmd("MOVE", name or "MOVE %d" % dist, timeout, next, True, dist=dist, max_speed=speed, **kw)
 
 
 def go_home(speed=600, name="KUCI", timeout=None):

@@ -2,7 +2,7 @@
 # Radi i u MicroPythonu i u CPythonu.
 import struct
 
-VERSION = 4
+VERSION = 5
 
 class Reason:
     INVALID = 1
@@ -16,6 +16,7 @@ class Reason:
 class GotoFlags:
     REVERSE = 1
     NO_THETA = 2
+    NEAR = 4
 
 class State:
     MOVING = 1
@@ -55,7 +56,7 @@ _MSGS = {
     0x10: ('SET_POSE', '<hhh', ('x', 'y', 'theta'), None, 6),
     0x11: ('GOTO', '<hhhBH', ('x', 'y', 'theta', 'flags', 'max_speed'), None, 9),
     0x12: ('ROTATE', '<h', ('theta',), None, 2),
-    0x13: ('MOVE', '<hH', ('dist', 'max_speed'), None, 4),
+    0x13: ('MOVE', '<hHB', ('dist', 'max_speed', 'flags'), None, 4),
     0x1F: ('STOP', '<', (), None, 0),
     0x20: ('ACTUATOR', '<Bh', ('id', 'value'), None, 3),
     0x30: ('MATCH_START', '<', (), None, 0),
@@ -73,10 +74,14 @@ NAMES = {v[0]: k for k, v in _MSGS.items()}
 
 
 def encode(name, **kw):
-    """encode('GOTO', x=..., y=...) -> (type, payload bytes)"""
+    """encode('GOTO', x=..., y=...) -> (type, payload bytes). Polja novijih verzija (na kraju) koja nisu zadata
+    se izostave: poruka je kao u starijoj verziji (za stari STM32)."""
     t = NAMES[name]
-    _, fmt, names, tail, _ = _MSGS[t]
-    payload = struct.pack(fmt, *[kw[n] for n in names]) if names else b""
+    _, fmt, names, tail, mins = _MSGS[t]
+    k = len(names)
+    while k and names[k - 1] not in kw and struct.calcsize(fmt[:k]) >= mins:   # samo polja novijih verzija
+        k -= 1
+    payload = struct.pack(fmt[:k + 1], *[kw[n] for n in names[:k]]) if k else b""
     if tail:
         payload += bytes(kw.get(tail, b""))
     return t, payload
