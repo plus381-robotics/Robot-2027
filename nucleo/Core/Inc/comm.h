@@ -37,7 +37,12 @@ void comm_tick_1ms(void);    /* 1 kHz prekid: provera heartbeat-a */
 
 uint8_t comm_esp_connected(void);   /* 1 = ESP se javio i veza je živa */
 uint8_t comm_motion_allowed(void);  /* 0 = veza sa ESP-om je pukla, motori treba da stoje */
-uint8_t comm_stop_reason(void);    /* za comm_hook_stop: REASON_LINK posle pada veze, inače STOPPED */
+uint8_t comm_stop_reason(void);
+/* IR senzori (v5): IR kod javlja šta vidi svaki senzor (bitovi IR_F1..IR_B4 iz protocol.h) i zaustavlja robota
+ * kad comm_ir_obstacle() nije 0 (1 = napred, 2 = nazad, samo uključeni senzori; ESP ih bira sa IR_MASK). */
+void comm_ir_set(uint8_t raw);
+uint8_t comm_ir_mask(void);
+uint8_t comm_ir_obstacle(void);    /* za comm_hook_stop: REASON_LINK posle pada veze, inače STOPPED */
 
 /* Kad se završi kretanje koje je pokrenuo ESP (GOTO/ROTATE/MOVE):
  * reason 0 = uspešno (DONE), inače REASON_* iz protocol.h (FAIL). */
@@ -59,7 +64,7 @@ void comm_log(const char *text);
  */
 uint8_t comm_hook_goto(int16_t x_mm, int16_t y_mm, int16_t theta_cdeg, uint8_t flags, uint16_t max_speed);
 uint8_t comm_hook_rotate(int16_t theta_cdeg);
-uint8_t comm_hook_move(int16_t dist_mm, uint16_t max_speed, uint8_t flags);   /* flags: GOTOFLAGS_NEAR (v5) */
+uint8_t comm_hook_move(int16_t dist_mm, uint16_t max_speed);
 uint8_t comm_hook_actuator(uint8_t seq, uint8_t id, int16_t value);
 void comm_hook_stop(void);   /* podrazumevano: pwm_set(0, 0) */
 

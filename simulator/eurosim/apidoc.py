@@ -22,20 +22,15 @@ DOC = {
                          ["speed", "mm per second (default 500)"],
                          ["timeout", "give up after this many seconds (default: worked out from the distance)"],
                          ["name", "text for the robot screen and the log instead of 'GOTO x,y'"],
-                         ["next", "text shown as 'next step' on the robot screen"],
-                         ["near", "True: approach to a game element (quarry). The IR sensors do NOT stop the robot "
-                                  "and it drives at most 200 mm/s. Use it only for the last short bit, because then "
-                                  "an opponent does not stop the robot either."]],
+                         ["next", "text shown as 'next step' on the robot screen"]],
                  ret="True if it got there, False if something stopped it (opponent, time, error).",
                  example="goto(600, 1000)              # 35 cm right of the start zone, middle height\n"
-                         "goto(750, 1540, deg=90)      # and face up when there\n"
-                         "goto(750, 1770, near=True)   # last bit up to the quarry: IR does not stop it"),
+                         "goto(750, 1540, deg=90)      # and face up when there"),
     "move": dict(group="Motion",
                  say="Drive straight forwards (positive mm) or backwards (negative mm), without turning.",
                  params=[["dist", "mm; positive = forwards, negative = backwards"], ["speed", "mm per second (default 300)"],
                          ["timeout", "give up after this many seconds"], ["name", "text for the screen and log"],
-                         ["next", "text shown as 'next step'"],
-                         ["near", "True: approach to a game element: IR does not stop the robot, at most 200 mm/s"]],
+                         ["next", "text shown as 'next step'"]],
                  ret="True if it drove the whole distance, False if stopped.",
                  example="move(200)        # 20 cm forwards\nmove(-100)       # 10 cm back"),
     "turn_to": dict(group="Motion",
@@ -112,6 +107,18 @@ DOC = {
                    example="log(status())"),
     "side": dict(group="Where is the robot", say="Which side we play on: \"zuta\" (yellow) or \"plava\" (blue).",
                  params=[], ret="\"zuta\" or \"plava\".", example="if side() == \"plava\":\n    log(\"blue\")"),
+    "ir_off": dict(group="Sensors",
+                   say="Switch IR sensors off: they no longer stop the robot (they still measure). Front F1-F4, back "
+                       "B1-B4, from left to right; F = all front, B = all back. They switch back on at the end of the "
+                       "tactic and on STOP.",
+                   params=[], ret="True if the drive board confirmed it.",
+                   example="ir_off(\"F\")          # e.g. close to a quarry or after picking stones\ngoto(750, 1770)\nir_on()"),
+    "ir_on": dict(group="Sensors", say="Switch IR sensors back on. ir_on() = all of them.",
+                  params=[], ret="True if the drive board confirmed it.", example="ir_on()\nir_on(\"B\")"),
+    "ir_sees": dict(group="Sensors",
+                    say="Does one of these sensors see something right now (also when it is switched off)?",
+                    params=[], ret="True / False.",
+                    example="if ir_sees(\"F2\", \"F3\"):\n    goto(1250, 1540)      # something in front: other plan"),
     "log": dict(group="Other", say="Write a line to the log (on the robot screen report and in the simulator).",
                 params=[["text", "any text"]], ret="Nothing.", example="log(\"got 3 stones\")"),
     "Abort": dict(group="Other", say="Stop the tactic on purpose: raise Abort(\"why\").",

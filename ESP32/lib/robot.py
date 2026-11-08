@@ -24,7 +24,7 @@ COMPAT = (1, 2, 3, 4, 5)                 # verzije protokola sa kojima ESP sme d
 # mogućnost -> najmanja verzija. result: ishod kretanja u STATUS-u. v4: komanda RESET, RESUME (poza + meč
 # jednom porukom), uptime u STATUS-u (siguran znak restarta), razlog LINK, ugaona brzina w.
 FEATURES = {"bootloader": 2, "result": 3, "reset": 4, "resume": 4, "uptime": 4, "link_reason": 4, "w": 4,
-            "near": 5}                   # v5: GotoFlags.NEAR (prilaz elementu, IR ne zaustavlja)
+            "ir": 5}                     # v5: IR_MASK (pojedinačni IR senzori), STATUS.ir_raw/ir_mask
 CAUSES = (("PIN", "NRST"), ("POWER", "napajanje"), ("SOFT", "softver"), ("IWDG", "watchdog"),
           ("WWDG", "WWDG"), ("LOW_POWER", "low power"))
 

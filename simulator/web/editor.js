@@ -14,6 +14,7 @@ const GROUPS = [
   ['Waiting', ['wait', 'wait_until', 'step']],
   ['Match time', ['remaining', 'match_time', 'in_match', 'attack_phase', 'deadline', 'TimeUp']],
   ['Where is the robot', ['here', 'status', 'side']],
+  ['Sensors', ['ir_off', 'ir_on', 'ir_sees']],
 ];
 const GROUP_OF = {};
 GROUPS.forEach(([g, names], i) => names.forEach(n => { GROUP_OF[n] = { name: g, rank: i }; }));

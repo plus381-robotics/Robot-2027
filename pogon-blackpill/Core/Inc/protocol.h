@@ -14,12 +14,20 @@
 
 #define GOTOFLAGS_REVERSE 1
 #define GOTOFLAGS_NO_THETA 2
-#define GOTOFLAGS_NEAR 4
 
 #define STATE_MOVING 1
 #define STATE_BLOCKED 2
 #define STATE_MATCH_RUNNING 4
 #define STATE_MATCH_OVER 8
+
+#define IR_F1 1
+#define IR_F2 2
+#define IR_F3 4
+#define IR_F4 8
+#define IR_B1 16
+#define IR_B2 32
+#define IR_B3 64
+#define IR_B4 128
 
 #define RESETCAUSE_PIN 1
 #define RESETCAUSE_POWER 2
@@ -39,6 +47,7 @@
 #define MSG_RESUME 0x32  /* e2n */
 #define MSG_ENTER_BOOTLOADER 0x40  /* e2n */
 #define MSG_RESET 0x41  /* e2n */
+#define MSG_IR_MASK 0x33  /* e2n */
 #define MSG_PONG 0x81  /* n2e */
 #define MSG_ACK 0x90  /* n2e */
 #define MSG_DONE 0x91  /* n2e */
@@ -70,9 +79,8 @@ _Static_assert(sizeof(msg_rotate_t) == 2, "ROTATE size");
 typedef struct __attribute__((packed)) {
     int16_t dist;
     uint16_t max_speed;
-    uint8_t flags;
 } msg_move_t;
-_Static_assert(sizeof(msg_move_t) == 5, "MOVE size");
+_Static_assert(sizeof(msg_move_t) == 4, "MOVE size");
 
 typedef struct __attribute__((packed)) {
     uint8_t id;
@@ -87,6 +95,11 @@ typedef struct __attribute__((packed)) {
     uint32_t elapsed_ms;
 } msg_resume_t;
 _Static_assert(sizeof(msg_resume_t) == 10, "RESUME size");
+
+typedef struct __attribute__((packed)) {
+    uint8_t mask;
+} msg_ir_mask_t;
+_Static_assert(sizeof(msg_ir_mask_t) == 1, "IR_MASK size");
 
 typedef struct __attribute__((packed)) {
     uint8_t version;
@@ -110,5 +123,7 @@ typedef struct __attribute__((packed)) {
     uint8_t last_result;
     uint32_t uptime_ms;
     int16_t w;
+    uint8_t ir_raw;
+    uint8_t ir_mask;
 } msg_status_t;
-_Static_assert(sizeof(msg_status_t) == 21, "STATUS size");
+_Static_assert(sizeof(msg_status_t) == 23, "STATUS size");

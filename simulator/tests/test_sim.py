@@ -111,9 +111,25 @@ def test_elementi_igre_2027():
 
 
 def test_kamenolom_na_putu_blocked_a_bez_elemenata_stize(tmp_path):
-    d = write(tmp_path, "t", "START = (250, 1000, 0)\nlog('rez %s' % goto(750, 1700, speed=400))\n")
+    # IR je iznad kamenoloma (340 > 330 mm) pa ga ne vidi; robot koji vozi u kamenolom se zaglavi (BLOCKED)
+    d = write(tmp_path, "t", "START = (250, 1000, 0)\nlog('rez %s' % goto(750, 1830, speed=400))\n")
     r = simulate("t", tactics_dir=d, mode="mec")
     assert "rez False" in r.logs() and r.steps()[0][3] == "BLOCKED"       # kamenolom (750, 1945)
+    assert not any(f.get("irh") for f in r.frames)                         # IR ga nije video
     assert len(r.meta["elements"]) == 10 and r.meta["obstacles"] == []
     r2 = simulate("t", tactics_dir=d, mode="mec", elements=False)
     assert "rez True" in r2.logs()
+
+
+def test_ir_off_prednji_ne_zaustavljaju(tmp_path):
+    """Protokol v5: ir_off('F') -> prednji senzori ne zaustavljaju robota (i dalje mere), pa udari u protivnika."""
+    opp = [dict(x=900, y=1000, w=300, h=300)]
+    src = "START = (250, 1000, 0)\n{off}log('rez %s' % goto(1500, 1000, speed=400))\n"
+    on = simulate("t", tactics_dir=write(tmp_path, "t", src.format(off="")), mode="mec", obstacles=opp)
+    off = simulate("t", tactics_dir=write(tmp_path, "t", src.format(off="ir_off('F')\n")), mode="mec", obstacles=opp)
+    assert on.steps()[0][3] == "BLOCKED" and off.steps()[-1][3] == "BLOCKED"
+    x_on, x_off = on.result["pose"][0], off.result["pose"][0]
+    assert x_on < 900 - 150 - 82 - 100 < x_off                       # sa IR stao ranije; bez IR tek na sudaru
+    f = [f for f in off.frames if f.get("irh")]
+    assert any(x["irm"] == 0xF0 for x in f)                         # mereno i kad je isključen; maska u snimku
+    assert off.frames[-1]["irm"] == 0xFF                           # na kraju taktike svi ponovo uključeni

@@ -34,6 +34,7 @@ class FakeSTM:
         self.reset_cause = P.ResetCause.POWER
         self.link_ms = None            # pad veze: posle 500 ms bez PING-a staje (kretanje FAIL LINK/STOPPED)
         self.last_rx = None
+        self.ir_raw, self.ir_mask = 0, 0xFF      # v5: šta vide IR senzori (test postavlja), koji su uključeni
 
     # ---- UART interfejs (ono što robot.py koristi) ----
     def write(self, data):
@@ -54,7 +55,7 @@ class FakeSTM:
 
     # ---- unutra ----
     # koliko bajtova poruka ima u starijoj verziji (polja novijih verzija su na kraju)
-    _OLD = {"STATUS": ((3, 13), (4, 15)), "PONG": ((4, 1),)}
+    _OLD = {"STATUS": ((3, 13), (4, 15), (5, 21)), "PONG": ((4, 1),)}
 
     def _send(self, name, seq=0, **f):
         t, pl = P.encode(name, **f)
@@ -70,6 +71,7 @@ class FakeSTM:
         self.state, self.match0, self.pose = 0, None, [0, 0, 0]
         self.last_motion = (0, 0)
         self.boot0, self.reset_cause = compat.ticks_ms(), cause
+        self.ir_mask = 0xFF
         self._reboot_at = None
 
     def _frame(self, t, seq, pl):
@@ -116,7 +118,9 @@ class FakeSTM:
             self._ack(seq)
             self.reboot(P.ResetCause.SOFT)
             return
-        elif name in ("RESUME", "RESET"):
+        elif name == "IR_MASK" and self.version >= 5:
+            self.ir_mask = d["mask"]
+        elif name in ("RESUME", "RESET", "IR_MASK"):
             self._send("FAIL", seq, reason=P.Reason.INVALID)
             return
         self._ack(seq)
@@ -155,4 +159,4 @@ class FakeSTM:
             self._send("STATUS", x=self.pose[0], y=self.pose[1], theta=self.pose[2],
                        v=300 if self.motion else 0, state=self.state, match_ms=mm,
                        last_seq=self.last_motion[0], last_result=self.last_motion[1],
-                       uptime_ms=now - self.boot0, w=0)
+                       uptime_ms=now - self.boot0, w=0, ir_raw=self.ir_raw, ir_mask=self.ir_mask)

@@ -76,10 +76,13 @@ default_ms = 300       # (P)
 # lift = 600
 
 [ir]
-# IR senzori: po 4 napred i nazad (u uglovima: 2 dole, 2 gore, malo ispod vrha robota).
-# Vide protivnika; ivice stola ne (P). Domet se podešava na robotu.
+# IR senzori (protokol v5): 4 napred (F1..F4) i 4 nazad (B1..B4), s leva na desno gledano iz robota, ravnomerno
+# po širini. Iznad kutija (kamen 110 mm x 3 = 330 mm): vide protivnika (350 mm) i preko kutija, kamenolome ne.
+# Taktika ih pali i gasi pojedinačno: ir_off("F"), ir_on(), ir_sees("F2").
 range = 250            # (P) [mm] od ivice robota
-low_z = 40             # (P) visina donjih senzora
-high_z = 320           # (P) visina gornjih senzora
+front = 4              # broj senzora napred
+back = 4               # broj senzora nazad
+z = 340                # (P) visina senzora [mm]
+spread = 240           # (P) razmak između krajnjeg levog i desnog [mm]
 see_walls = false
 see_elements = true    # (P) vide i kamenje u kamenolomima (330 mm visoko); false = samo protivnika

@@ -269,15 +269,14 @@ export class FieldView {
 
   // IR senzori (isti raspored kao plant.sensors(): napred/nazad x levo/desno x dole/gore): zrak do dometa,
   // crven do pogotka. Deo robota, pa ga prati.
-  _irRays() {
-    const b = this.profile.body, ir = this.profile.ir || {};
-    const L = b.length / 1000, hw = b.width / 2000 - 0.01, off = (b.axle_offset || 0) / 1000;
-    const range = (ir.range || 250) / 1000, zs = [(ir.low_z || 40) / 1000, (ir.high_z || 320) / 1000];
+  _irRays() {                                      // senzori iz profila (server: info.profile.ir_sensors, F1..B4)
+    const ir = this.profile.ir || {};
+    const range = (ir.range || 250) / 1000;
     const grp = new THREE.Group();
     this.irRays = [];
-    for (const d of [1, -1]) for (const s of [hw, -hw]) for (const z of zs) {
+    for (const sn of this.profile.ir_sensors || []) {
+      const d = sn.d, s = sn.y / 1000, z = sn.z / 1000, x0 = sn.x / 1000;
       const geo = new THREE.BufferGeometry();
-      const x0 = d * L / 2 + off;
       geo.setAttribute('position', new THREE.Float32BufferAttribute([x0, s, z, x0 + d * range, s, z], 3));
       const m = new THREE.LineBasicMaterial({ color: 0xaab4c0, transparent: true, opacity: 0.35, depthTest: false });
       const line = new THREE.Line(geo, m);
@@ -285,21 +284,25 @@ export class FieldView {
       const dot = new THREE.Mesh(new THREE.CircleGeometry(0.012, 12), new THREE.MeshBasicMaterial({ color: 0xff4d4d, depthTest: false }));
       dot.position.set(x0, s, z); dot.visible = false; dot.renderOrder = 4;
       grp.add(line, dot);
-      this.irRays.push({ line, dot, x0, d, s, z, range });
+      const lbl = textSprite(sn.name, '#c8d0da', 0.025, 'rgba(0,0,0,0)');
+      lbl.position.set(x0 + d * 0.03, s, z + 0.01);
+      grp.add(lbl);
+      this.irRays.push({ line, dot, x0, d, s, z, range, name: sn.name });
     }
     this.irGroup = grp;
     return grp;
   }
 
-  setIr(hits) {                                    // hits: [mm po senzoru, -1 = ništa] ili null
+  setIr(hits, mask = 0xFF) {                       // hits: [mm po senzoru, -1 = ništa] ili null; mask: uključeni
     if (!this.irRays) return;
     this.irRays.forEach((r, k) => {
+      const off = !(mask & (1 << k));                // isključen (ir_off): i dalje meri, ne zaustavlja; crta se tamno
       const h = hits && hits[k] >= 0 ? hits[k] / 1000 : null;
       const len = h == null ? r.range : h;
       const a = r.line.geometry.attributes.position;
       a.setX(1, r.x0 + r.d * len); a.needsUpdate = true;
-      r.line.material.color.setHex(h == null ? 0xaab4c0 : 0xff4d4d);
-      r.line.material.opacity = h == null ? 0.35 : 1;
+      r.line.material.color.setHex(off ? 0x55606d : h == null ? 0xaab4c0 : 0xff4d4d);
+      r.line.material.opacity = off ? 0.25 : h == null ? 0.35 : 1;
       r.dot.visible = h != null;
       if (h != null) r.dot.position.set(r.x0 + r.d * h, r.s, r.z);
     });
@@ -636,7 +639,7 @@ export class FieldView {
     this.robot.rotation.z = f.th * Math.PI / 180;
     this.ghost.position.set(f.ox / 1000, f.oy / 1000, 0);
     this.ghost.rotation.z = f.oth * Math.PI / 180;
-    this.setIr(f.irh || null);
+    this.setIr(f.irh || null, f.irm != null ? f.irm : 0xFF);
   }
 
   setVisibility({ odom, targets }) {
@@ -658,7 +661,7 @@ export class FieldView {
     const diff = Math.hypot(c.x[i] - c.ox[i], c.y[i] - c.oy[i]) > 1 || Math.abs(c.th[i] - c.oth[i]) > 0.3;
     this.ghost.visible = this.showOdom !== false && diff;
     this.pathDone.geometry.setDrawRange(0, 6 * i);
-    this.setIr(c.irh ? c.irh[i] : null);
+    this.setIr(c.irh ? c.irh[i] : null, c.irm && c.irm[i] != null ? c.irm[i] : 0xFF);
     let k = 0, lo = 0, hi = this.odomSeg.length;          // segments ending at or before frame i
     while (lo < hi) { const m = (lo + hi) >> 1; if (this.odomSeg[m] <= i) lo = m + 1; else hi = m; }
     k = lo;

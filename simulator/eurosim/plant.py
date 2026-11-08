@@ -127,7 +127,11 @@ class Plant:
         ir = p.get("ir", {})
         self.ir_on = ir.get("enabled", True)
         self.ir_range = ir.get("range", 250) / 1000
-        self.ir_z = (ir.get("low_z", 40), ir.get("high_z", 320))
+        # senzori (protokol v5): napred F1..F4 i nazad B1..B4, s leva na desno, ravnomerno po širini "spread"
+        self.ir_n = (int(ir.get("front", 4)), int(ir.get("back", 4)))
+        self.ir_zh = ir.get("z", 340)
+        self.ir_spread = ir.get("spread", self.width * 1000 - 60) / 1000
+        self.ir_mask = 0xFF                    # uključeni (STM32 IR_MASK), samo za prikaz
         self.ir_walls = ir.get("see_walls", False)
         self.ir_elements = ir.get("see_elements", True)
         self.reach = math.hypot(self.length, self.width) / 2 + abs(self.offset)    # robot u krugu ovog poluprečnika
@@ -139,7 +143,7 @@ class Plant:
         self.ov = self.ow = 0.0
         self.stuck = False
         self.obstacles = []
-        self.ir = 0                             # bitovi: 1 napred, 2 nazad
+        self.ir = 0                             # bit po senzoru (protocol.Ir: F1=1 ... B4=128): šta vidi
         self.ir_hits = []                       # [(senzor, d_m)] za prikaz
 
     # ---------------- poza ----------------
@@ -211,18 +215,21 @@ class Plant:
 
     # ---------------- IR ----------------
 
-    def sensors(self):
-        """Senzori: (ime, x, y, smer, z) u metrima. 4 napred i 4 nazad, u uglovima tela."""
+    def sensor_layout(self):
+        """[(ime, x, y, smer, z)] u koordinatama robota (m; x napred, y levo; smer +1 napred, -1 nazad)."""
         out = []
-        c, s = math.cos(self.th), math.sin(self.th)
-        hl, hw = self.length / 2, self.width / 2 - 0.01
-        for name, a, d in (("napred", hl, 1), ("nazad", -hl, -1)):
-            for side, b in (("L", hw), ("D", -hw)):
-                for lvl, z in (("dole", self.ir_z[0]), ("gore", self.ir_z[1])):
-                    a2 = a + self.offset
-                    out.append(("%s %s %s" % (name, side, lvl), self.x + a2 * c - b * s, self.y + a2 * s + b * c,
-                                (c * d, s * d), z))
+        for pre, d, n in (("F", 1, self.ir_n[0]), ("B", -1, self.ir_n[1])):
+            x = d * self.length / 2 + self.offset          # prednja ili zadnja ivica tela
+            for k in range(n):
+                y = self.ir_spread / 2 - self.ir_spread * k / (n - 1) if n > 1 else 0.0
+                out.append(("%s%d" % (pre, k + 1), x, y, d, self.ir_zh))
         return out
+
+    def sensors(self):
+        """Senzori na stolu: (ime, x, y, (dx, dy), z) u metrima. Redosled = bitovi protocol.Ir (F1..F4, B1..B4)."""
+        c, s = math.cos(self.th), math.sin(self.th)
+        return [(name, self.x + a * c - b * s, self.y + a * s + b * c, (c * d, s * d), z)
+                for name, a, b, d, z in self.sensor_layout()]
 
     def scan(self):
         """Osveži IR bitove. Vidi prepreke više od senzora (i ivice, ako je see_walls)."""
@@ -238,7 +245,7 @@ class Plant:
         if not near and not self.ir_walls:
             self.ir, self.ir_hits = 0, []
             return 0
-        for name, sx, sy, (dx, dy), z in self.sensors():
+        for k, (name, sx, sy, (dx, dy), z) in enumerate(self.sensors()):
             best = None
             for o in near:
                 if o.z < z:
@@ -253,6 +260,6 @@ class Plant:
                     best = d
             if best is not None:
                 hits.append((name, best))
-                bits |= 1 if name.startswith("napred") else 2
+                bits |= 1 << k                    # protocol.Ir: F1=1, F2=2 ... B4=128
         self.ir, self.ir_hits = bits, hits
         return bits

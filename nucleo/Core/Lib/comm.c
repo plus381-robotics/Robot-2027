@@ -49,6 +49,8 @@ static uint8_t motion_seq;           /* aktivna komanda kretanja, 0 = nema */
 static uint8_t last_motion_seq;      /* v3: seq poslednje ZAVRŠENE komande kretanja (0 = nijedna) */
 static uint8_t last_motion_result;   /* v3: njen ishod, 0 = DONE, inače REASON_* */
 static uint32_t last_status_ms;
+static volatile uint8_t ir_raw;          /* v5: šta vidi svaki IR senzor (comm_ir_set) */
+static volatile uint8_t ir_mask = 0xFF;  /* v5: koji smeju da zaustave robota (IR_MASK) */
 static uint8_t reset_cause;          /* v4: razlog poslednjeg pokretanja (RESETCAUSE_*), za PONG */
 static volatile uint8_t reset_request; /* v4: komanda RESET: restart posle RESET_DELAY_MS (da ACK ode) */
 static uint32_t reset_t0;
@@ -161,7 +163,7 @@ __weak uint8_t comm_hook_goto(int16_t x_mm, int16_t y_mm, int16_t theta_cdeg, ui
 __weak uint8_t comm_hook_rotate(int16_t theta_cdeg) {
 	return REASON_INVALID;
 }
-__weak uint8_t comm_hook_move(int16_t dist_mm, uint16_t max_speed, uint8_t flags) {
+__weak uint8_t comm_hook_move(int16_t dist_mm, uint16_t max_speed) {
 	return REASON_INVALID;
 }
 __weak uint8_t comm_hook_actuator(uint8_t seq, uint8_t id, int16_t value) {
@@ -235,13 +237,18 @@ static void handle(const link_frame_t *f) {
 			start_motion(f->seq, comm_hook_rotate(m.theta));
 		}
 		return;
-	case MSG_MOVE:                            /* v5: + flags (NEAR); stari ESP šalje bez flags */
-		if (f->len != sizeof(msg_move_t) && f->len != sizeof(msg_move_t) - 1) break;
+	case MSG_MOVE:
+		if (!PAYLOAD_IS(msg_move_t)) break;
 		{
-			msg_move_t m = { 0 };
-			memcpy(&m, f->payload, f->len);
-			start_motion(f->seq, comm_hook_move(m.dist, m.max_speed, m.flags));
+			msg_move_t m;
+			memcpy(&m, f->payload, sizeof m);
+			start_motion(f->seq, comm_hook_move(m.dist, m.max_speed));
 		}
+		return;
+	case MSG_IR_MASK:                         /* v5: koji IR senzori smeju da zaustave robota */
+		if (!PAYLOAD_IS(msg_ir_mask_t)) break;
+		ir_mask = f->payload[0];
+		reply(f->seq, 0);
 		return;
 	case MSG_STOP:
 		comm_hook_stop();
@@ -283,6 +290,24 @@ static void handle(const link_frame_t *f) {
 	reply(f->seq, REASON_INVALID);            /* nepoznata komanda ili pogrešna dužina */
 }
 
+/* ---------------- IR senzori (v5) ----------------
+ * Kod koji čita IR senzore (GPIO, 1 kHz) javlja šta svaki vidi preko comm_ir_set(bitovi IR_F1..IR_B4) i
+ * zaustavlja robota kad comm_ir_obstacle() nije 0 (1 = napred, 2 = nazad). ESP bira koji senzori smeju da
+ * zaustave robota (IR_MASK); ugašen senzor i dalje meri i ide u STATUS (ir_raw). Posle pokretanja: svi uključeni. */
+
+void comm_ir_set(uint8_t raw) {
+	ir_raw = raw;
+}
+
+uint8_t comm_ir_mask(void) {
+	return ir_mask;
+}
+
+uint8_t comm_ir_obstacle(void) {
+	uint8_t on = ir_raw & ir_mask;
+	return ((on & (IR_F1 | IR_F2 | IR_F3 | IR_F4)) ? 1 : 0) | ((on & (IR_B1 | IR_B2 | IR_B3 | IR_B4)) ? 2 : 0);
+}
+
 /* ---------------- STATUS ---------------- */
 
 static int16_t clamp16(float v) {
@@ -302,6 +327,8 @@ static void send_status(void) {
 	s.last_seq = last_motion_seq;
 	s.last_result = last_motion_result;
 	s.uptime_ms = get_time_ms();
+	s.ir_raw = ir_raw;
+	s.ir_mask = ir_mask;
 	s.w = clamp16(get_angular_velocity() * 1000.0f);   /* rad/s -> mrad/s */
 	send(MSG_STATUS, 0, &s, sizeof s);
 }

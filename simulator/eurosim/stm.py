@@ -12,7 +12,7 @@
 #    ROTATE timeout 5 s, statusi regulacije -1 DONE / -3 -4 BLOCKED / -5 TIMEOUT, SET_POSE samo
 #    kad robot stoji, meč 100 s pa MATCH_OVER
 #  - aktuatori (novi robot: AX i pumpe): ACK pa DONE posle zadatog vremena, nikad FAIL
-#  - protokol v5: GotoFlags.NEAR u GOTO/MOVE (prilaz elementu): IR ne zaustavlja robota, najviše 0,2 m/s
+#  - protokol v5: IR_MASK (koji IR senzori smeju da zaustave robota), STATUS.ir_raw/ir_mask (comm_ir_*)
 #  - protokol v4: RESET (restart 30 ms posle ACK), RESUME (poza + meč od elapsed_ms), uptime_ms i w u
 #    STATUS-u, reset_cause u PONG-u, pad veze prekida kretanje sa LINK. Profil [link] protocol_version < 4:
 #    PONG/STATUS su kraći (kao stari firmver), RESET/RESUME -> INVALID.
@@ -30,7 +30,6 @@ import protocol as P                     # noqa: E402  (ESP32/lib/protocol.py, g
 from link import build_frame, FrameParser  # noqa: E402
 
 MATCH_MS = 100000
-NEAR_V = 0.2                             # m/s, comm_port.c V_NEAR (prilaz elementu, v5)
 IDLE, DRIVE, TURN = "IDLE", "DRIVE", "TURN"
 REASON_NAME = {getattr(P.Reason, k): k for k in dir(P.Reason) if not k.startswith("_")}
 QUIET = ("PING", "PONG", "STATUS")       # ne upisuju se u trag poruka (ima ih previše)
@@ -69,6 +68,7 @@ class SimSTM:
         self.boot_t = self.t                    # v4: uptime_ms = t - boot_t
         self.reset_cause = P.ResetCause.POWER
         self.reset_at = None                    # komanda RESET: kad se restartuje
+        self.ir_mask = 0xFF                     # v5: comm.c ir_mask (posle pokretanja svi uključeni)
         # comm_port.c
         self.goal = Goal()
         self.phase = IDLE
@@ -76,7 +76,6 @@ class SimSTM:
         self.has_final = False
         self.final_phi = 0.0
         self.stop_request = 0
-        self.near = False                       # v5: kretanje u toku je prilaz (GotoFlags.NEAR)
         self.req = None
         self.match_running = self.match_over = False
         self.match_start = 0
@@ -133,12 +132,13 @@ class SimSTM:
                 self._send("DONE", a[1])
         # comm_port_update + move_goal + control_loop (1 kHz)
         self._port_update()
-        if self.plant.obstacles:
-            self.goal.obstacle = self.plant.scan()
-            if self.near:                                   # comm_port_update: u prilazu IR ne zaustavlja
-                self.goal.obstacle = 0
+        if self.plant.obstacles:                # comm_ir_set(raw) + comm_ir_obstacle(): samo uključeni senzori
+            raw = self.plant.scan()
+            on = raw & (self.ir_mask if self.version >= 5 else 0xFF)
+            self.goal.obstacle = (1 if on & 0x0F else 0) | (2 if on & 0xF0 else 0)
         else:
             self.goal.obstacle = self.plant.ir = 0
+        self.plant.ir_mask = self.ir_mask if self.version >= 5 else 0xFF   # za prikaz (isključeni zraci)
         self.ctl.move_goal(self.goal, self.odom())
         vr, vl = self.ctl.loop(self.odom())
         self.plant.step(vr, vl)
@@ -153,7 +153,7 @@ class SimSTM:
 
     # ---------------- comm.c ----------------
 
-    _OLD = {"STATUS": ((3, 13), (4, 15)), "PONG": ((4, 1),)}   # starija verzija: kraća poruka
+    _OLD = {"STATUS": ((3, 13), (4, 15), (5, 21)), "PONG": ((4, 1),)}   # starija verzija: kraća poruka
 
     def _send(self, name, seq=0, **f):
         t, pl = P.encode(name, **f)
@@ -223,7 +223,7 @@ class SimSTM:
         elif name == "ROTATE":
             self._start_motion(seq, self._hook_rotate(d["theta"]))
         elif name == "MOVE":
-            self._start_motion(seq, self._hook_move(d["dist"], d["max_speed"], d.get("flags")))
+            self._start_motion(seq, self._hook_move(d["dist"], d["max_speed"]))
         elif name == "STOP":
             self._hook_stop()
             self.motion_finished(R.STOPPED)
@@ -240,6 +240,9 @@ class SimSTM:
                 self.match_running = True
                 self.log_event("stm", "RESUME: poza i mec od %.1f s" % (d["elapsed_ms"] / 1000))
             self._reply(seq, r)
+        elif name == "IR_MASK" and self.version >= 5:
+            self.ir_mask = d["mask"]
+            self._reply(seq, 0)
         elif name == "RESET" and self.version >= 4:
             self._hook_stop()
             self._reply(seq, 0)
@@ -264,7 +267,8 @@ class SimSTM:
         self._send("STATUS", x=cl(pl.ox * 1000), y=cl(pl.oy * 1000), theta=cl(phi * 18000 / math.pi),
                    v=cl(pl.ov * 1000), state=state, match_ms=match_ms,
                    last_seq=self.last_motion[0], last_result=self.last_motion[1],
-                   uptime_ms=(self.t - self.boot_t) & 0xFFFFFFFF, w=cl(pl.ow * 1000))
+                   uptime_ms=(self.t - self.boot_t) & 0xFFFFFFFF, w=cl(pl.ow * 1000),
+                   ir_raw=pl.ir & 0xFF, ir_mask=self.ir_mask)
 
     # ---------------- comm_port.c ----------------
 
@@ -293,11 +297,8 @@ class SimSTM:
             return P.Reason.MATCH_OVER
         self.req = dict(type=1, x=x / 1000, y=y / 1000, phi=theta * math.pi / 18000,
                         dir=-1 if flags & P.GotoFlags.REVERSE else 1, v=self._speed(max_speed),
-                        final=not (flags & P.GotoFlags.NO_THETA), near=self._near(flags))
+                        final=not (flags & P.GotoFlags.NO_THETA))
         return 0
-
-    def _near(self, flags):
-        return bool(flags and flags & P.GotoFlags.NEAR and self.version >= 5)
 
     def _hook_rotate(self, theta):
         if self.match_over:
@@ -305,7 +306,7 @@ class SimSTM:
         self.req = dict(type=-1, phi=theta * math.pi / 18000, final=False)
         return 0
 
-    def _hook_move(self, dist, max_speed, flags=None):
+    def _hook_move(self, dist, max_speed):
         if self.match_over:
             return P.Reason.MATCH_OVER
         if dist == 0:
@@ -313,8 +314,7 @@ class SimSTM:
         d = dist / 1000
         pl = self.plant
         self.req = dict(type=1, x=pl.ox + d * math.cos(pl.oth), y=pl.oy + d * math.sin(pl.oth),
-                        dir=1 if d > 0 else -1, v=self._speed(max_speed), final=False, phi=0.0,
-                        near=self._near(flags))
+                        dir=1 if d > 0 else -1, v=self._speed(max_speed), final=False, phi=0.0)
         return 0
 
     def _hook_actuator(self, seq, aid, value):
@@ -332,7 +332,6 @@ class SimSTM:
         self.motion_finished(reason)
         self.ctl.reset_goal(self.goal, self.odom())
         self.phase = IDLE
-        self.near = False
 
     def _start_turn(self, phi):
         self.ctl.reset_goal(self.goal, self.odom())
@@ -345,9 +344,6 @@ class SimSTM:
     def _start(self):
         r = self.req
         self.has_final, self.final_phi = r["final"], r["phi"]
-        self.near = r.get("near", False)                    # comm_port.c: near + V_NEAR
-        if self.near and r.get("v", 0) > NEAR_V:
-            r["v"] = NEAR_V
         if r["type"] == -1:
             self._start_turn(r["phi"])
             return
@@ -425,7 +421,7 @@ class SimSTM:
             "ox": pl.ox * 1000, "oy": pl.oy * 1000, "oth": math.degrees(pl.oth),
             "v": pl.v, "w": pl.w, "vl": pl.vl, "vr": pl.vr,
             "v_ref": c.v_ref, "w_ref": c.w_ref, "phase": self.phase, "reg": c.reg_phase,
-            "ms": c.movement_state, "stuck": pl.stuck, "ir": pl.ir,
+            "ms": c.movement_state, "stuck": pl.stuck, "ir": pl.ir, "irm": pl.ir_mask,
             "match": self.t - self.match_start if self.match_running and not self.match_over else
             (MATCH_MS if self.match_over else None),
             "link": not self.link_lost and self.esp_seen,

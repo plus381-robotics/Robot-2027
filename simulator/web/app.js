@@ -82,7 +82,10 @@ function stateCells(c, i) {
   const dx = Math.hypot(c.x[i] - c.ox[i], c.y[i] - c.oy[i]);
   const match = c.match[i];
   const rem = match == null ? '–' : Math.max(0, (100000 - match) / 1000).toFixed(1) + ' s';
-  const ir = c.ir[i] ? ((c.ir[i] & 1 ? 'front ' : '') + (c.ir[i] & 2 ? 'back' : '')) : '–';
+  const IRN = (info.profile.ir_sensors || []).map(s => s.name);       // bit k = senzor k (F1..F4, B1..B4)
+  const irm = c.irm && c.irm[i] != null ? c.irm[i] : 0xFF;
+  const ir = c.ir[i] ? IRN.filter((n, k) => c.ir[i] & (1 << k)).map(n => (irm & (1 << IRN.indexOf(n)) ? n : n + '(off)')).join(' ') : '–';
+  const irOff = IRN.filter((n, k) => !(irm & (1 << k)));
   const act = c.act && c.act[i] ? Object.entries(c.act[i]).map(([k, v]) => `${k}=${v}`).join(' ') : '–';
   return [
     ['time', secs(t) + ' s'], ['match left', rem],
@@ -93,7 +96,7 @@ function stateCells(c, i) {
     ['v', f2(c.v[i]) + ' m/s'], ['v ref', f2(c.v_ref[i])],
     ['ω', f2(c.w[i]) + ' r/s'], ['ω ref', f2(c.w_ref[i])],
     ['wheel L', f2(c.vl[i])], ['wheel R', f2(c.vr[i])],
-    ['IR', ir, c.ir[i] ? 'warn' : ''], ['stuck', c.stuck[i] ? 'YES' : 'no', c.stuck[i] ? 'bad' : ''],
+    ['IR', ir + (irOff.length ? ` · off: ${irOff.join(' ')}` : ''), c.ir[i] & irm ? 'warn' : ''], ['stuck', c.stuck[i] ? 'YES' : 'no', c.stuck[i] ? 'bad' : ''],
     ['actuators', act],
   ];
 }
@@ -676,7 +679,7 @@ function renderApiHelp() {
     if (f && !(name + ' ' + h.say + ' ' + fn.doc).toLowerCase().includes(f)) continue;
     (groups[h.group] = groups[h.group] || []).push([name, fn, h]);
   }
-  const order = ['Motion', 'Actuators', 'Waiting', 'Match time', 'Where is the robot', 'Other'];
+  const order = ['Motion', 'Actuators', 'Waiting', 'Sensors', 'Match time', 'Where is the robot', 'Other'];
   const parts = [`<p class="coords">${esc(ed.api.coords || '')}</p>`];
   for (const g of order.concat(Object.keys(groups).filter(k => !order.includes(k)))) {
     if (!groups[g]) continue;

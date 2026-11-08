@@ -27,7 +27,6 @@
 #define W_ROTATE        3.14     /* rad/s, kao lazarov rot_goal u main.c */
 #define D_ARRIVED       0.02     /* m; bliže od ovoga se ne vozi (go_to_xy bi se okretao ka atan2(0, 0)) */
 #define ROT_TIMEOUT_MS  5000     /* rotate() nema detekciju zaglavljivanja */
-#define V_NEAR          0.2      /* m/s: najveća brzina u prilazu elementu (GOTOFLAGS_NEAR, v5) */
 
 enum { IDLE, DRIVE, TURN };
 
@@ -43,10 +42,7 @@ static struct {
 	double x, y, phi, v;
 	int8_t dir;
 	uint8_t final;
-	uint8_t near;                      /* v5: prilaz elementu (IR ne zaustavlja, sporo) */
 } req;
-static uint8_t near;                   /* kretanje u toku je prilaz (GOTOFLAGS_NEAR) */
-static volatile uint8_t ir_bits;       /* poslednje stanje IR-a (comm_port_set_obstacle) */
 static volatile uint8_t req_pending;
 
 static volatile uint8_t boot_request;
@@ -126,7 +122,6 @@ uint8_t comm_hook_goto(int16_t x_mm, int16_t y_mm, int16_t theta_cdeg, uint8_t f
 	req.dir = (flags & GOTOFLAGS_REVERSE) ? -1 : 1;
 	req.v = speed(max_speed);
 	req.final = !(flags & GOTOFLAGS_NO_THETA);
-	req.near = (flags & GOTOFLAGS_NEAR) ? 1 : 0;
 	req_pending = 1;
 	return 0;
 }
@@ -137,12 +132,11 @@ uint8_t comm_hook_rotate(int16_t theta_cdeg) {
 	req.type = -1;
 	req.phi = theta_cdeg * M_PI / 18000.0;
 	req.final = 0;
-	req.near = 0;
 	req_pending = 1;
 	return 0;
 }
 
-uint8_t comm_hook_move(int16_t dist_mm, uint16_t max_speed, uint8_t flags) {
+uint8_t comm_hook_move(int16_t dist_mm, uint16_t max_speed) {
 	if (match_over)
 		return REASON_MATCH_OVER;
 	if (dist_mm == 0)
@@ -154,7 +148,6 @@ uint8_t comm_hook_move(int16_t dist_mm, uint16_t max_speed, uint8_t flags) {
 	req.dir = d > 0 ? 1 : -1;
 	req.v = speed(max_speed);
 	req.final = 0;
-	req.near = (flags & GOTOFLAGS_NEAR) ? 1 : 0;
 	req_pending = 1;
 	return 0;
 }
@@ -202,14 +195,6 @@ static void finish(uint8_t reason) {
 	comm_motion_finished(reason);      /* 0 = DONE; ako ESP-ova komanda nije aktivna, ne šalje ništa */
 	reset_goal(&goal);
 	phase = IDLE;
-	near = 0;
-}
-
-/* IR (prepreka): bitovi 1 = napred, 2 = nazad, kao goal.obstacle u control.c. Ovo zove kod koji čita IR
- * senzore (još ne postoji na BlackPill-u); comm_port_update() ih prosleđuje regulaciji, osim u prilazu
- * elementu (GOTOFLAGS_NEAR, v5), kad IR ne zaustavlja robota. */
-void comm_port_set_obstacle(uint8_t bits) {
-	ir_bits = bits;
 }
 
 static void start_turn(double phi) {
@@ -224,9 +209,6 @@ static void start_turn(double phi) {
 static void start(void) {
 	has_final = req.final;
 	final_phi = req.phi;
-	near = req.near;
-	if (near && req.v > V_NEAR)
-		req.v = V_NEAR;                /* prilaz: sporo, jer IR ne zaustavlja */
 	if (req.type == -1) {
 		start_turn(req.phi);
 		return;
@@ -272,7 +254,7 @@ void comm_port_update(void) {
 		req_pending = 0;
 		start();
 	}
-	goal.obstacle = near ? 0 : ir_bits;  /* v5: u prilazu elementu IR ne zaustavlja robota */
+	goal.obstacle = comm_ir_obstacle();  /* v5: samo uključeni IR senzori (IR_MASK); IR kod zove comm_ir_set() */
 	if (phase == IDLE)
 		return;
 	/* goal.status je movement_state_ iz poslednjeg move_goal() */

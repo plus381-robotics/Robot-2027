@@ -142,13 +142,20 @@ def _safe_name(s):
     return s or "run"
 
 
+def _ir_layout(prof):
+    """IR senzori za prikaz: [{name, x, y, d, z}] u mm, koordinate robota (isto kao plant.sensor_layout)."""
+    from .plant import Plant
+    return [{"name": n, "x": a * 1000, "y": b * 1000, "d": d, "z": z} for n, a, b, d, z in Plant(prof).sensor_layout()]
+
+
 async def info(request):
     prof = request.app[STATE]["profile"]
     tactics = sorted(f.stem for f in paths.TACTICS.glob("*.py"))
     return web.json_response({
         "tactics": tactics, "field": field.describe(),
         "profile": {"name": prof.get("name"), "body": prof["body"], "drive": prof["drive"],
-                    "odometry": prof["odometry"], "ir": prof.get("ir", {}), "model": prof.get("model", {})},
+                    "odometry": prof["odometry"], "ir": prof.get("ir", {}), "model": prof.get("model", {}),
+                    "ir_sensors": _ir_layout(prof)},
         "sides": ["zuta", "plava"], "ref_side": tacmod.tac_api()["ref_side"], "runs": _runs(), "where": paths.describe(),
     })
 

@@ -12,7 +12,7 @@
 
 version: 5          # v3: STATUS.last_seq/last_result (ishod kretanja i kad se DONE/FAIL izgubi)
                     # v4: RESET, RESUME, STATUS.uptime_ms/w, PONG.reset_cause, Reason.LINK; bez debug poruka
-                    # v5: GotoFlags.NEAR (prilaz elementu: IR ne zaustavlja, sporo), MOVE.flags
+                    # v5: IR_MASK (taktika pali/gasi pojedinačne IR senzore), STATUS.ir_raw/ir_mask
 
 enums:
   Reason:          # razlog u FAIL poruci
@@ -26,13 +26,22 @@ enums:
   GotoFlags:
     REVERSE: 1     # vozi unazad
     NO_THETA: 2    # ignoriši završni ugao
-    NEAR: 4        # v5, prilaz elementu igre: za ovu komandu IR ne zaustavlja robota, brzina najviše 200 mm/s
   State:           # bitovi u STATUS.state
     MOVING: 1
     BLOCKED: 2     # rezervisano: STM32 ga još ne postavlja (IR senzori na novom robotu)
     MATCH_RUNNING: 4
     MATCH_OVER: 8
     # 16 je bio LINK_LOST (nikad postavljen); pad veze se vidi kao last_result = LINK
+  Ir:              # v5: IR senzori, bit po senzoru (IR_MASK.mask, STATUS.ir_raw/ir_mask). Napred F1..F4, nazad
+                   # B1..B4, s leva na desno gledano iz robota. Senzori su iznad kutija (vide protivnika).
+    F1: 1
+    F2: 2
+    F3: 4
+    F4: 8
+    B1: 16
+    B2: 32
+    B3: 64
+    B4: 128
   ResetCause:      # bitovi u PONG.reset_cause (RCC->CSR pri pokretanju STM32); 0 = nepoznato
     PIN: 1         # NRST (taster ili ESP)
     POWER: 2       # uključenje / pad napona (POR, BOR)
@@ -47,7 +56,7 @@ messages:
   SET_POSE:      {type: 0x10, dir: e2n, fields: [[x, i16], [y, i16], [theta, i16]]}
   GOTO:          {type: 0x11, dir: e2n, fields: [[x, i16], [y, i16], [theta, i16], [flags, u8], [max_speed, u16]]}
   ROTATE:        {type: 0x12, dir: e2n, fields: [[theta, i16]]}
-  MOVE:          {type: 0x13, dir: e2n, fields: [[dist, i16], [max_speed, u16], [flags, u8, 5]]}   # flags: GotoFlags.NEAR
+  MOVE:          {type: 0x13, dir: e2n, fields: [[dist, i16], [max_speed, u16]]}
   STOP:          {type: 0x1F, dir: e2n, fields: []}
   ACTUATOR:      {type: 0x20, dir: e2n, fields: [[id, u8], [value, i16]]}
   MATCH_START:   {type: 0x30, dir: e2n, fields: []}
@@ -56,6 +65,9 @@ messages:
   RESUME:        {type: 0x32, dir: e2n, fields: [[x, i16], [y, i16], [theta, i16], [elapsed_ms, u32]]}
   ENTER_BOOTLOADER: {type: 0x40, dir: e2n, fields: []}   # posle ACK STM32 skače u ugrađeni bootloader (AN3155)
   RESET:         {type: 0x41, dir: e2n, fields: []}      # posle ACK softverski restart STM32 (od v4)
+  # v5: koji IR senzori smeju da zaustave robota (bit po senzoru, Ir; 1 = uključen). Posle pokretanja STM32 su
+  # svi uključeni. Ugašen senzor i dalje meri (STATUS.ir_raw), samo ne zaustavlja robota.
+  IR_MASK:       {type: 0x33, dir: e2n, fields: [[mask, u8]]}
 
   # ---------------- Nucleo -> ESP32 ---------------
   PONG:          {type: 0x81, dir: n2e, fields: [[version, u8], [reset_cause, u8, 4]]}
@@ -65,7 +77,9 @@ messages:
   # last_seq: seq poslednje ZAVRŠENE komande kretanja (0 = nijedna od pokretanja);
   # last_result: njen ishod, 0 = DONE, inače Reason (kao FAIL). Od v3 (starija STATUS poruka je kraća).
   # uptime_ms: ms od pokretanja STM32 (manji nego u prethodnom STATUS-u = STM32 restartovan). w: mrad/s. Od v4.
+  # ir_raw: šta svaki IR senzor vidi sada (bit po senzoru, Ir), i ugašen; ir_mask: koji su uključeni. Od v5.
   STATUS:        {type: 0xA0, dir: n2e, fields: [[x, i16], [y, i16], [theta, i16], [v, i16], [state, u8], [match_ms, u32],
                                                 [last_seq, u8, 3], [last_result, u8, 3],
-                                                [uptime_ms, u32, 4], [w, i16, 4]]}
+                                                [uptime_ms, u32, 4], [w, i16, 4],
+                                                [ir_raw, u8, 5], [ir_mask, u8, 5]]}
   LOG:           {type: 0xF0, dir: n2e, fields: [[text, bytes]]}

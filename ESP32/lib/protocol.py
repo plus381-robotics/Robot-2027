@@ -16,13 +16,22 @@ class Reason:
 class GotoFlags:
     REVERSE = 1
     NO_THETA = 2
-    NEAR = 4
 
 class State:
     MOVING = 1
     BLOCKED = 2
     MATCH_RUNNING = 4
     MATCH_OVER = 8
+
+class Ir:
+    F1 = 1
+    F2 = 2
+    F3 = 4
+    F4 = 8
+    B1 = 16
+    B2 = 32
+    B3 = 64
+    B4 = 128
 
 class ResetCause:
     PIN = 1
@@ -43,6 +52,7 @@ MATCH_START = 0x30
 RESUME = 0x32
 ENTER_BOOTLOADER = 0x40
 RESET = 0x41
+IR_MASK = 0x33
 PONG = 0x81
 ACK = 0x90
 DONE = 0x91
@@ -56,18 +66,19 @@ _MSGS = {
     0x10: ('SET_POSE', '<hhh', ('x', 'y', 'theta'), None, 6),
     0x11: ('GOTO', '<hhhBH', ('x', 'y', 'theta', 'flags', 'max_speed'), None, 9),
     0x12: ('ROTATE', '<h', ('theta',), None, 2),
-    0x13: ('MOVE', '<hHB', ('dist', 'max_speed', 'flags'), None, 4),
+    0x13: ('MOVE', '<hH', ('dist', 'max_speed'), None, 4),
     0x1F: ('STOP', '<', (), None, 0),
     0x20: ('ACTUATOR', '<Bh', ('id', 'value'), None, 3),
     0x30: ('MATCH_START', '<', (), None, 0),
     0x32: ('RESUME', '<hhhI', ('x', 'y', 'theta', 'elapsed_ms'), None, 10),
     0x40: ('ENTER_BOOTLOADER', '<', (), None, 0),
     0x41: ('RESET', '<', (), None, 0),
+    0x33: ('IR_MASK', '<B', ('mask',), None, 1),
     0x81: ('PONG', '<BB', ('version', 'reset_cause'), None, 1),
     0x90: ('ACK', '<', (), None, 0),
     0x91: ('DONE', '<', (), None, 0),
     0x92: ('FAIL', '<B', ('reason',), None, 1),
-    0xA0: ('STATUS', '<hhhhBIBBIh', ('x', 'y', 'theta', 'v', 'state', 'match_ms', 'last_seq', 'last_result', 'uptime_ms', 'w'), None, 13),
+    0xA0: ('STATUS', '<hhhhBIBBIhBB', ('x', 'y', 'theta', 'v', 'state', 'match_ms', 'last_seq', 'last_result', 'uptime_ms', 'w', 'ir_raw', 'ir_mask'), None, 13),
     0xF0: ('LOG', '<', (), 'text', 0),
 }
 NAMES = {v[0]: k for k, v in _MSGS.items()}

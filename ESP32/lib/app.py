@@ -29,6 +29,8 @@ class App:
         self.robot, self.st, self.fb = robot, settings, fb
         self._pose_sent = False
         self._cause_logged = 0
+        self.ir_want = 0xFF                 # IR maska koju je taktika tražila (tac.ir_off/ir_on); 0xFF = svi
+        self._ir_boot = 0
         self._seen_start = None
         self.events = []                   # događaji iz poslednjeg robot.poll() (za tac.py)
         self.abort = None                  # razlog prekida taktike (STOP)
@@ -109,6 +111,10 @@ class App:
         # Auto poza samo za razvoj: svaki put kad se STM32 poveže (i posle njegovog restarta ili flešovanja,
         # L27), ogledana po izabranoj strani (PROBLEMI 5), i to samo ako STATUS kaže da ne traje meč, robot ne
         # vozi i ne radi taktika. Restart ESP-a usred meča ne sme da pregazi odometriju.
+        if r.boot_n != self._ir_boot:                  # STM32 restartovan: posle pokretanja su svi IR uključeni
+            self._ir_boot = r.boot_n
+            if self.ir_want != 0xFF and r.can("ir"):
+                r.send("IR_MASK", mask=self.ir_want)
         if r.boot_n and r.cause_n == r.boot_n and self._cause_logged != r.boot_n:
             self._cause_logged = r.boot_n      # v4: restart STM32 bez prekida veze (watchdog, NRST, RESET)
             self.tlog("STM32 restartovan (%s)" % (r.cause() or "razlog nepoznat"))
@@ -148,6 +154,7 @@ class App:
 
     def stop(self, src="taster"):
         """STOP: taster (radi uvek, i bez veze i dok je ekran ugašen), WiFi (upload STOP) ili simulator."""
+        self.ir_all_on()                       # pre STOP-a: robot.py ponavlja samo poslednju komandu (STOP)
         self.robot.send("STOP")
         self.request = None                    # izabrana taktika koja još nije krenula ne kreće
         self.match.cancel()                    # naoružan meč se otkazuje
@@ -278,8 +285,16 @@ class App:
         if self.match.state != "MEC":           # u meču su greške obrisane pri naoružavanju (L14)
             self.errors, self.unseen = [], 0
 
+    def ir_all_on(self):
+        """Kraj taktike ili STOP: svi IR senzori ponovo uključeni (bezbednost)."""
+        if self.ir_want != 0xFF:
+            self.ir_want = 0xFF
+            if self.robot.can("ir"):
+                self.robot.send("IR_MASK", mask=0xFF)
+
     def on_tactic_end(self, name, how):
         """how: None = završila normalno, inače razlog prekida. Pravi izveštaj, čuva ga, prikazuje."""
+        self.ir_all_on()
         r, run = self.robot, self._run or {"t0": ticks_ms(), "crc": 0, "retries": 0, "noreply": 0, "ping_max": 0}
         h = list(tracker.history)
         end = how == "kraj meca"                # L9: kraj meča (100 s) nije prekid ni greška

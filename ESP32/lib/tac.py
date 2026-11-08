@@ -23,7 +23,9 @@
 # Strana terena: taktika se piše za REF_SIDE ("zuta", leva strana stola, x 0..500 po pravilima 2027). Na drugoj strani se sve koordinate same
 # ogledaju (x -> 3000 - x, ugao -> 180° - ugao, relativni okret menja smer).
 # goto/turn_to/turn_by/move vraćaju True (DONE) ili False (FAIL, nema odgovora, isteklo vreme).
-# near=True u goto/move: prilaz elementu igre (IR ne zaustavlja robota, najviše 200 mm/s; protokol v5).
+# IR senzori (protokol v5): napred F1..F4, nazad B1..B4 (s leva na desno), iznad kutija. ir_off("F") gasi
+# prednje (ne zaustavljaju robota, ali i dalje mere), ir_on() pali sve, ir_sees("F2") = da li senzor sada vidi
+# nešto. Na kraju taktike i na STOP svi se pale. Na plavoj strani se levo/desno menjaju sami (F1 <-> F4).
 # Dok taktika čeka, glavna petlja radi dalje (ekran, PING, WiFi); taster STOP ili
 # `tools/tactic.py` Ctrl+C prekidaju taktiku i šalju STOP.
 from compat import ticks_ms, ticks_diff
@@ -32,14 +34,14 @@ from tactic import tracker
 
 __all__ = ("pose", "goto", "turn_to", "turn_by", "rotate", "move", "wait", "wait_until", "step",
            "actuator", "done", "wait_done", "log", "status", "here", "remaining", "side", "Abort",
-           "match_time", "in_match", "attack_phase", "deadline", "go_home", "TimeUp")
+           "match_time", "in_match", "attack_phase", "deadline", "go_home", "TimeUp",
+           "ir_off", "ir_on", "ir_sees")
 
 FIELD_X = 3000                 # mm, dužina terena (ogledanje po x)
 REF_SIDE = "zuta"              # strana za koju se taktike pišu (pravila 2027: žuta startna zona x 0..500)
 SIDES = ("plava", "zuta")
 MIN_SPEED = 150                # regulacija na STM32 ne ide sporije (mm/s)
 MAX_SPEED = 1500               # ni brže (BlackPill V_MAX; novi robot ~1200)
-NEAR_SPEED = 200               # prilaz elementu (near=True): STM32 (v5) ne vozi brže od 200 mm/s
 MATCH_S = 100
 ATTACK_S = 85                  # pravila 2027 (E.4): faza napada od 85. s
 HOME = (250, 1000)             # centar startne zone ("throne room") za REF_SIDE (pravila 2027: x 0..500, y 750..1250)
@@ -384,29 +386,14 @@ def pose(x, y, deg=0):
                 x=int(round(mx)), y=int(round(my)), theta=_cdeg(mirror_deg(deg)))
 
 
-def _near(near):
-    """near=True: prilaz elementu igre (protokol v5): IR ne zaustavlja robota, STM32 vozi najviše NEAR_SPEED.
-    Stari STM32 (v < 5) to ne zna: komanda ide bez zastavice (IR može da zaustavi robota) i javi se."""
-    if not near:
-        return 0
-    if app.robot.can("near"):
-        return P.GotoFlags.NEAR
-    log("near: STM32 v%s ne zna za prilaz (treba v5), IR moze da zaustavi" % app.robot.version)
-    return 0
-
-
-def goto(x, y, deg=None, reverse=False, speed=500, timeout=None, name=None, next=None, near=False):
-    """Idi na x, y (naša strana). deg = završni ugao (None = ostani kako je stigao). near=True: prilaz elementu
-    igre (kamenolom): IR senzori ne zaustavljaju robota, a vozi najviše NEAR_SPEED; samo za kratak poslednji deo
-    puta, jer tada ni protivnik ne zaustavlja robota."""
+def goto(x, y, deg=None, reverse=False, speed=500, timeout=None, name=None, next=None):
+    """Idi na x, y (naša strana). deg = završni ugao (None = ostani kako je stigao)."""
     speed = _speed(speed)
-    if near:
-        speed = min(speed, NEAR_SPEED)
     if timeout is None:
         hx, hy, _ = here()
         timeout = _drive_timeout(((x - hx) ** 2 + (y - hy) ** 2) ** 0.5, speed)
     mx, my = mirror_xy(x, y)
-    flags = (P.GotoFlags.REVERSE if reverse else 0) | (P.GotoFlags.NO_THETA if deg is None else 0) | _near(near)
+    flags = (P.GotoFlags.REVERSE if reverse else 0) | (P.GotoFlags.NO_THETA if deg is None else 0)
     th = _cdeg(mirror_deg(deg)) if deg is not None else 0
     return _cmd("GOTO", name or "GOTO %d,%d" % (x, y), timeout, next, True,
                 x=int(round(mx)), y=int(round(my)), theta=th, flags=flags, max_speed=speed)
@@ -502,19 +489,84 @@ def wait_done(h, timeout=3.0):
     return False
 
 
-def move(dist, speed=300, timeout=None, name=None, next=None, near=False):
-    """Pravo napred (dist > 0) ili nazad (dist < 0), u mm. near=True: prilaz elementu (vidi goto)."""
+def move(dist, speed=300, timeout=None, name=None, next=None):
+    """Pravo napred (dist > 0) ili nazad (dist < 0), u mm."""
     speed = _speed(speed)
-    if near:
-        speed = min(speed, NEAR_SPEED)
     dist = int(round(dist))
     if timeout is None:
         timeout = _drive_timeout(dist, speed)
-    f = _near(near)
-    kw = {"flags": f} if f else {}                   # bez zastavice: poruka kao u v4 (radi i sa starim STM32)
-    return _cmd("MOVE", name or "MOVE %d" % dist, timeout, next, True, dist=dist, max_speed=speed, **kw)
+    return _cmd("MOVE", name or "MOVE %d" % dist, timeout, next, True, dist=dist, max_speed=speed)
 
 
 def go_home(speed=600, name="KUCI", timeout=None):
     """Vozi do centra svoje startne zone (pravila 2027: robot na kraju meča u zoni = 5/10 poena)."""
     return goto(HOME[0], HOME[1], speed=speed, name=name, timeout=timeout)
+
+
+# ---------------- IR senzori (protokol v5) ----------------
+
+IR_ALL = 0xFF
+_IR_GROUPS = {"F": 0x0F, "B": 0xF0, "ALL": 0xFF}
+_IR_MIRROR = {"F1": "F4", "F2": "F3", "F3": "F2", "F4": "F1", "B1": "B4", "B2": "B3", "B3": "B2", "B4": "B1"}
+
+
+def _ir_bits(names):
+    """Imena senzora (F1..F4, B1..B4) ili grupa (F, B, ALL) -> bitovi (protocol.Ir). Bez imena: svi.
+    Na plavoj strani se levo i desno zamene (taktika se piše za žutu)."""
+    if not names:
+        return IR_ALL
+    b = 0
+    for n in names:
+        n = str(n).upper()
+        if n in _IR_GROUPS:
+            b |= _IR_GROUPS[n]
+            continue
+        if _mirrored():
+            n = _IR_MIRROR.get(n, n)
+        bit = getattr(P.Ir, n, None)
+        if bit is None:
+            raise Abort("nepoznat IR senzor %s (F1-F4, B1-B4, F, B)" % n)
+        b |= bit
+    return b
+
+
+def _ir_names(mask):
+    return " ".join(n for n in ("F1", "F2", "F3", "F4", "B1", "B2", "B3", "B4") if mask & getattr(P.Ir, n)) or "-"
+
+
+def _ir_set(mask):
+    """Pošalji masku STM32-u i sačekaj ACK (najviše 300 ms). Pamti se u app.ir_want (vraća se na kraju taktike,
+    na STOP i posle restarta STM32)."""
+    app.ir_want = mask
+    r = _robot()
+    if not r.can("ir"):
+        log("IR: STM32 v%s ne zna za IR masku (treba v5)" % r.version)
+        return False
+    seq = r.send("IR_MASK", mask=mask)
+    t0 = ticks_ms()
+    while ticks_diff(ticks_ms(), t0) < 300:
+        _pump()
+        if any(s == seq and k == "ok" for s, _, k, _ in app.events):
+            log("IR iskljuceni: %s" % _ir_names(IR_ALL & ~mask) if mask != IR_ALL else "IR: svi ukljuceni")
+            return True
+    log("IR: nema ACK")
+    return False
+
+
+def ir_off(*names):
+    """Isključi IR senzore (ne zaustavljaju robota, ali i dalje mere): ir_off("F") prednje, ir_off("F1", "F2"),
+    ir_off() sve. Na kraju taktike i na STOP se sami ponovo uključe."""
+    return _ir_set(getattr(app, "ir_want", IR_ALL) & ~_ir_bits(names))
+
+
+def ir_on(*names):
+    """Ponovo uključi IR senzore: ir_on() sve, ir_on("B") zadnje, ir_on("F4")."""
+    return _ir_set(getattr(app, "ir_want", IR_ALL) | _ir_bits(names))
+
+
+def ir_sees(*names):
+    """Da li neki od navedenih senzora sada vidi nešto (i kad je isključen). ir_sees("F") = bilo koji prednji.
+    False kad STM32 ne šalje stanje senzora (v < 5)."""
+    s = app.robot.status
+    raw = s.get("ir_raw") if s else None
+    return bool(raw is not None and raw & _ir_bits(names))
