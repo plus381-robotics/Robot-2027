@@ -55,6 +55,16 @@ const { chromium } = require('playwright');
     await p.selectOption('#side', 'plava');
     await p.waitForFunction(() => window.eurosim.view.prevItems.length && window.eurosim.view.prevItems[0].position.x > 2, null, { timeout: 5000 })
       .catch(() => fail.push('nacrt za plavu nije ogledan'));
+    // S9 timeline: traka koraka, zastavice, klik na korak skače na njegov početak
+    await p.selectOption('#side', 'zuta');
+    await p.click('#edRun');
+    await p.waitForFunction(() => document.querySelectorAll('.bstep').length >= 4, null, { timeout: 20000 })
+      .catch(() => fail.push('S9: nema traka koraka'));
+    const flags = await p.$$eval('#bandFlags .flag', l => l.map(x => x.textContent));
+    if (!flags.includes('CORD') || !flags.includes('ARMED')) fail.push('S9 zastavice: ' + flags);
+    await p.click('.bstep >> nth=1');
+    const t2 = await ev(() => [window.eurosim.play.t, window.eurosim.run.steps[1].t]);
+    if (t2[0] !== t2[1]) fail.push('S9 klik na korak: ' + t2);
     if (process.argv[3]) await p.screenshot({ path: process.argv[3] });
     console.log(JSON.stringify({ ok: !fail.length && !errs.length, fail, errs, draft, lastLine }));
   } finally {

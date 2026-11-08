@@ -55,6 +55,30 @@ export class Charts {
     if (!this.plots.length) return this.setRun(run);
     const c = run.cols, t = c.t.map(v => v / 1000);
     DEFS.forEach((d, i) => this.plots[i].setData([t, ...d.series.map(([k]) => c[k] || t.map(() => null))]));
+    this._placeSteps();
+  }
+
+  // Početak svakog koraka: tanka linija u boji koraka sa brojem (u svakom grafiku), da se vidi koji deo
+  // brzine pripada kom koraku.
+  setSteps(steps) {
+    this.steps = steps || [];
+    this.stepEls = this.plots.map(u => {
+      for (const e of u.over.querySelectorAll('.cstep')) e.remove();
+      return this.steps.map(s => {
+        const d = document.createElement('div'); d.className = 'cstep' + (s.fail ? ' fail' : '');
+        d.style.setProperty('--c', s.color); d.dataset.idx = s.idx;
+        d.innerHTML = `<span>${s.idx}</span>`;
+        u.over.appendChild(d); return d;
+      });
+    });
+    this._placeSteps();
+  }
+
+  _placeSteps() {
+    (this.stepEls || []).forEach((els, i) => {
+      const u = this.plots[i];
+      els.forEach((d, k) => { d.style.left = u.valToPos(this.steps[k].t / 1000, 'x') + 'px'; });
+    });
   }
 
   setTime(tms) {
@@ -62,6 +86,7 @@ export class Charts {
       const x = u.valToPos(tms / 1000, 'x');
       this.lines[i].style.left = x + 'px';
     });
+    this._placeSteps();                            // uPlot dobije veličinu tek posle prvog crtanja
   }
 
   resize() {
@@ -69,5 +94,6 @@ export class Charts {
     const w = Math.max(200, Math.floor((this.el.clientWidth - 6 * (n - 1)) / n));
     const h = Math.max(100, this.el.clientHeight - 30);
     for (const u of this.plots) u.setSize({ width: w, height: h });
+    this._placeSteps();
   }
 }

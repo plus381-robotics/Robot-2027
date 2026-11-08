@@ -26,7 +26,9 @@ const TMP = ['ui_tmp_a', 'ui_tmp_b'].map(n => path.join(DIR, n + '.py'));
     await p.click('#liveBtn'); await p.waitForTimeout(1500);
     await p.selectOption('#side', 'plava'); await p.waitForTimeout(800);
     await p.click('#armBtn'); await p.waitForTimeout(1200);
-    await p.click('#cordBtn'); await p.waitForTimeout(6000);
+    if (!(await p.isVisible('#bandCord'))) fail.push('S9: nema dugmeta za činč na timeline-u dok je naoružan');
+    await p.click('#bandCord'); await p.waitForTimeout(6000);                // činč sa timeline-a (S9)
+    if (await p.isVisible('#bandCord')) fail.push('S9: dugme za činč ostalo posle činča');
     const s1 = await ev(() => { const r = window.eurosim.run, c = r.cols, i = c.t.length - 1;
       return { x: c.x[i], ox: c.ox[i], y: c.y[i], oy: c.oy[i], side: r.meta.side }; });
     if (!(s1.x > 1500 && Math.abs(s1.x - s1.ox) < 20 && Math.abs(s1.y - s1.oy) < 20 && s1.side === 'plava'))

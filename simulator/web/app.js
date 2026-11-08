@@ -208,16 +208,63 @@ function renderResult() {
     ${warn.map(w => `<div style="color:var(--warn)">⚠ ${w}</div>`).join('')}`;
 }
 
-function renderMarks() {
-  const el = $('marks'); el.innerHTML = '';
-  const D = run.duration || 1;
-  for (const s of run.steps) {
-    const i = document.createElement('i');
-    i.style.left = (s.t / D * 100) + '%';
-    if (s.ok === false) i.className = 'fail';
-    i.title = `${s.idx}. ${s.name}`;
-    el.appendChild(i);
+// Timeline (plan S9): traka koraka (od početka do kraja, boja kao na stolu, crveno = neuspeh), zastavice
+// NAORUŽAN / ČINČ / upozorenja, senka faze napada (85-100 s meča) i os u sekundama meča.
+const STEP_COLORS = ['#4cc9f0', '#f72585', '#b5e48c', '#ffd166', '#9d4edd', '#ff8c42', '#06d6a0', '#ef476f'];
+const stepColor = idx => STEP_COLORS[(idx - 1 + STEP_COLORS.length) % STEP_COLORS.length];
+
+function runFlags(r) {
+  const out = [];
+  for (const l of r.log) {
+    if (/^NAORUZAN/.test(l.text)) out.push({ t: l.t, k: 'armed', label: 'ARMED', title: l.text });
+    else if (/^CINC: start/.test(l.text)) out.push({ t: l.t, k: 'cord', label: 'CORD', title: 'cord pulled: the match starts' });
+    else if (/STM32 restart|nema veze|pad veze|STM32 se ne javlja|ESP restart/.test(l.text)) out.push({ t: l.t, k: 'warn', label: '⚠', title: l.text });
+    else if (/^KRAJ meca/.test(l.text)) out.push({ t: l.t, k: 'end', label: 'END', title: 'match over' });
   }
+  return out;
+}
+
+function renderMarks() {
+  $('marks').innerHTML = '';
+  const D = run.duration || 1, pct = t => (Math.max(0, Math.min(D, t)) / D * 100) + '%';
+  const st = $('bandSteps'); st.innerHTML = '';
+  run.steps.forEach((s, k) => {
+    const end = s.end ?? (run.steps[k + 1] ? run.steps[k + 1].t : D);
+    const b = document.createElement('div');
+    b.className = 'bstep' + (s.ok === false ? ' fail' : '') + (s.end == null ? ' open' : '');
+    b.style.left = pct(s.t); b.style.width = `calc(${(Math.max(end - s.t, 0) / D * 100)}% - 1px)`;
+    b.style.setProperty('--c', stepColor(s.idx));
+    b.textContent = `${s.idx} ${s.name}`;
+    b.title = `${s.idx}. ${s.name}\n${secs(s.t)} s → ${s.end != null ? secs(s.end) + ' s' : '…'}` +
+      (s.ok === false ? `\nFAILED: ${s.reason || ''}` : s.ok ? '\nOK' : '') + '\nclick: jump here';
+    b.onclick = () => seek(s.t);
+    b.onmouseenter = () => view.highlightStep(s.idx);
+    b.onmouseleave = () => view.highlightStep(0);
+    st.appendChild(b);
+  });
+  const fl = $('bandFlags'); fl.innerHTML = '';
+  const flags = runFlags(run);
+  const cord = flags.find(f => f.k === 'cord');
+  if (cord) {                                        // faza napada: 85..100 s od činča
+    const a = document.createElement('div'); a.className = 'attack';
+    a.style.left = pct(cord.t + 85000); a.style.width = `calc(${pct(cord.t + 100000)} - ${pct(cord.t + 85000)})`;
+    a.title = 'attack phase (85-100 s of the match)';
+    if (cord.t + 85000 < D) fl.appendChild(a);
+  }
+  for (const f of flags) {
+    const e = document.createElement('div'); e.className = 'flag ' + f.k; e.style.left = pct(f.t);
+    e.textContent = f.label; e.title = `${secs(f.t)} s: ${f.title}`; e.onclick = () => seek(f.t);
+    fl.appendChild(e);
+  }
+  // os: sekunde meča kad postoji činč, inače vreme simulacije
+  const ax = $('bandAxis'); ax.innerHTML = '';
+  const span = (D - (cord ? cord.t : 0)) / 1000;
+  const t0 = cord ? cord.t : 0, stepS = span > 60 ? 10 : span > 15 ? 5 : 1;
+  for (let s = 0; t0 + s * 1000 <= D; s += stepS) {
+    const e = document.createElement('span'); e.style.left = pct(t0 + s * 1000); e.textContent = s + (s === 0 ? (cord ? ' s match' : ' s') : '');
+    ax.appendChild(e);
+  }
+  charts.setSteps(run.steps.map(s => ({ t: s.t, idx: s.idx, color: stepColor(s.idx), fail: s.ok === false })));
 }
 
 // ---------------- playback ----------------
@@ -736,6 +783,7 @@ async function startLive() {
     if (m.type === 'data') {
       const L = live; if (!L) return;
       if (m.meta) L.raw.meta = m.meta;
+      $('bandCord').hidden = m.mec !== 'NAORUZAN';         // naoružan: čeka činč (dugme na timeline-u)
       if (m.frames.length) { L.raw.frames.push(...m.frames); L.dirty = true; }
       if (m.events.length) {
         L.raw.events.push(...m.events); L.dirty = true;
@@ -766,6 +814,7 @@ function stopLiveUi() {
   if (!live) return;
   try { live.ws.close(); } catch (e) { /* ignore */ }
   live = null;
+  $('bandCord').hidden = true;
   $('liveGroup').hidden = true;
   $('robotGroup').hidden = true;
   $('robotBtn').classList.remove('live-on');
@@ -1025,6 +1074,7 @@ async function main() {
   }
   window.addEventListener('beforeunload', e => { if (ed && ed.editor.text() !== ed.saved) e.preventDefault(); });
   $('cordBtn').onclick = () => liveSend(['cord']);
+  $('bandCord').onclick = () => liveSend(['cord']);
   $('stopBtn').onclick = () => liveSend(['stop']);
   $('pace').onchange = e => liveSend(['speed', +e.target.value]);
   $('pauseBtn').onclick = () => liveSend(['pause', !$('pauseBtn').classList.contains('on')]);

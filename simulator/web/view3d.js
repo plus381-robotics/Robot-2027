@@ -305,6 +305,13 @@ export class FieldView {
     });
   }
 
+  highlightStep(idx) {                            // hover na traku koraka u timeline-u: tačka tog koraka veća
+    for (const g of (this.stepMarks ? this.stepMarks.children : [])) {
+      const k = this.markerScale || 1;
+      g.scale.setScalar(idx && g.userData.step.idx === idx ? k * 1.6 : k);
+    }
+  }
+
   setShowIr(on) { if (this.irGroup) this.irGroup.visible = on; }
 
   setMarkerScale(k) {                              // veličina tačaka i natpisa koraka (0.7 / 1 / 1.5)

@@ -194,3 +194,28 @@ button.live-on { background: #e5484d; border-color: #e5484d; color: #fff; }
 #apiList svg.tbl { display: block; margin: 6px 0; }
 #edCmdBtn.on { color: var(--accent); border-color: var(--accent); }
 #edCmdBtn { white-space: nowrap; }
+#band { position: relative; height: 22px; margin-top: 6px; }
+#bandSteps, #bandFlags { position: absolute; inset: 0; }
+#bandFlags { pointer-events: none; }
+.bstep { position: absolute; top: 2px; height: 18px; background: color-mix(in srgb, var(--c) 30%, transparent);
+  border-left: 3px solid var(--c); border-radius: 3px; font-size: 11px; line-height: 18px; padding: 0 4px; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis; cursor: pointer; color: var(--text); box-sizing: border-box; }
+.bstep:hover { background: color-mix(in srgb, var(--c) 55%, transparent); }
+.bstep.fail { border-left-color: var(--fail); background: repeating-linear-gradient(45deg, #ff5c5c33 0 6px, #ff5c5c18 6px 12px); }
+.bstep.open { border-right: 1px dashed var(--c); }
+#bandFlags .flag { position: absolute; top: -4px; transform: translateX(-1px); font-size: 10px; font-weight: 700; padding: 0 3px;
+  border-left: 2px solid; pointer-events: auto; cursor: pointer; background: #12151acc; line-height: 12px; }
+#bandFlags .flag.cord { color: #3ecf8e; border-color: #3ecf8e; }
+#bandFlags .flag.armed { color: #ffd166; border-color: #ffd166; }
+#bandFlags .flag.warn { color: #ff9f43; border-color: #ff9f43; }
+#bandFlags .flag.end { color: #c8d0da; border-color: #c8d0da; }
+#bandFlags .attack { position: absolute; top: 0; bottom: 0; background: #ff5c5c22; border-left: 1px dashed #ff5c5c88; }
+#bandCord { position: absolute; left: 50%; top: -2px; transform: translateX(-50%); z-index: 5; background: #3ecf8e; color: #062; font-weight: 700;
+  border: none; padding: 2px 14px; border-radius: 12px; }
+#bandCord[hidden] { display: none; }
+#bandAxis { position: relative; height: 12px; font-size: 10px; }
+#bandAxis span { position: absolute; transform: translateX(-50%); }
+#bandAxis span:first-child { transform: none; }
+.cstep { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed var(--c); pointer-events: none; opacity: .7; }
+.cstep.fail { border-left-color: var(--fail); }
+.cstep span { position: absolute; top: 0; left: 2px; font-size: 9px; color: var(--c); }
