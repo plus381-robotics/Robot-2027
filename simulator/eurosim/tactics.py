@@ -303,10 +303,40 @@ def sha(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+PROTECTED = ("primer", "provera")      # primeri: ne brišu se i ne preimenuju iz editora
+
+
 def path_of(name):
-    if not NAME_RE.match(name or ""):
-        raise ValueError("ime taktike: slova, cifre i _, do 40 znakova (npr. zuta_1)")
+    import keyword
+    if not NAME_RE.match(name or "") or keyword.iskeyword(name or ""):
+        raise ValueError("ime taktike: slova, cifre i _, ne počinje cifrom, do 40 znakova (npr. zuta_1)")
     return paths.TACTICS / (name + ".py")
+
+
+def rename(name, new):
+    """Preimenuj taktiku (i <ime>_obnova.py ako postoji). Ne prepisuje postojeću."""
+    src, dst = path_of(name), path_of(new)
+    if name in PROTECTED:
+        raise ValueError("%s je primer: koristi Save as" % name)
+    if not src.exists():
+        raise ValueError("nema taktike %s" % name)
+    if dst.exists():
+        raise FileExistsError("taktika %s već postoji" % new)
+    src.rename(dst)
+    ob, ob_new = paths.TACTICS / (name + "_obnova.py"), paths.TACTICS / (new + "_obnova.py")
+    if ob.exists() and not ob_new.exists():
+        ob.rename(ob_new)
+    return {"renamed": name, "name": new}
+
+
+def delete(name):
+    p = path_of(name)
+    if name in PROTECTED:
+        raise ValueError("%s je primer i ne briše se" % name)
+    if not p.exists():
+        raise ValueError("nema taktike %s" % name)
+    p.unlink()
+    return {"deleted": name}
 
 
 def read(name):

@@ -166,3 +166,5 @@ button.live-on { background: #e5484d; border-color: #e5484d; color: #fff; }
 #profBody .pr .c.p { color: var(--warn); }
 #cmpTools { top: 44px; left: 8px; display: flex; gap: 6px; align-items: center; padding: 4px 7px; }
 #cmpTools select { max-width: 200px; }
+
+button.danger-text { color: #ff7b72; }

@@ -91,6 +91,7 @@ export class TacticEditor {
           autocompletion({ override: [completion], icons: true }), hover, marksField, changed,
           keymap.of([
             { key: 'Mod-s', preventDefault: true, run: () => { self.opts.onSave(); return true; } },
+            { key: 'Mod-Shift-s', preventDefault: true, run: () => { if (self.opts.onSaveAs) self.opts.onSaveAs(); return true; } },
             { key: 'Mod-Enter', preventDefault: true, run: () => { self.opts.onRun(); return true; } },
           ]),
           EditorView.theme({ '&': { height: '100%', fontSize: '13px' }, '.cm-scroller': { fontFamily: 'ui-monospace, "JetBrains Mono", Consolas, monospace' } }),

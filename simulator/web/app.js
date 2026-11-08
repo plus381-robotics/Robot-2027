@@ -500,10 +500,59 @@ async function edSave(force = false) {
   }
 }
 
+const NAME_OK = n => /^[A-Za-z_][A-Za-z0-9_]{0,40}$/.test(n);
+
+function askName(title, def) {
+  const name = (prompt(title + '\n(letters, digits and _, not starting with a digit)', def) || '').trim();
+  if (!name) return null;
+  if (!NAME_OK(name)) { msg('name: letters, digits and _ only, not starting with a digit', true); return null; }
+  return name;
+}
+
+async function edSaveAs() {
+  const name = askName(`Save "${ed.name}" as:`, ed.name + '_2');
+  if (!name || name === ed.name) return;
+  let sha = null;
+  if (info.tactics.includes(name)) {
+    if (!confirm(`ESP32/tactics/${name}.py already exists.\n\nOverwrite it with this text?`)) return;
+    try { sha = (await api('/api/tactic/' + encodeURIComponent(name))).sha; } catch (e) { msg(e.message, true); return; }
+  }
+  const old = ed.name, oldSha = ed.sha, oldSaved = ed.saved;
+  ed.name = name; ed.sha = sha;
+  try { localStorage.removeItem('eurosim.draft.' + old); } catch (e) { /* ignore */ }
+  await edSave(true);
+  if (ed.sha === sha) { ed.name = old; ed.sha = oldSha; ed.saved = oldSaved; fillTacticSelects(); edState(); return; }   // nije sačuvano
+  $('tactic').value = name;
+}
+
+async function edRename() {
+  if (!ed.sha) { msg('save the tactic first', true); return; }
+  if (ed.editor.text() !== ed.saved) { msg('save your changes before renaming', true); return; }
+  const name = askName(`Rename "${ed.name}" to:`, ed.name);
+  if (!name || name === ed.name) return;
+  try {
+    await api('/api/tactic/rename', { name: ed.name, new: name });
+    info = await api('/api/info');
+    ed.name = name; $('tactic').value = name;
+    fillTacticSelects(); edState();
+    msg(`renamed to ESP32/tactics/${name}.py`);
+  } catch (e) { msg(e.message, true); }
+}
+
+async function edDelete() {
+  if (!confirm(`Delete ESP32/tactics/${ed.name}.py?\n\nIn the repo you can get it back with git; outside the repo it is gone.`)) return;
+  try {
+    await api('/api/tactic/delete', { name: ed.name });
+    try { localStorage.removeItem('eurosim.draft.' + ed.name); } catch (e) { /* ignore */ }
+    info = await api('/api/info');
+    msg(`deleted ${ed.name}`);
+    await edLoad(info.tactics.includes('primer') ? 'primer' : info.tactics[0]);
+  } catch (e) { msg(e.message, true); }
+}
+
 function edNew() {
-  const name = prompt('Name of the new tactic (letters, digits, _):', 'nova');
+  const name = askName('Name of the new tactic:', 'nova');
   if (!name) return;
-  if (!/^[A-Za-z_][A-Za-z0-9_]{0,40}$/.test(name)) { msg('name: letters, digits and _ only', true); return; }
   if (info.tactics.includes(name)) { msg(`${name} already exists`, true); return; }
   ed.name = name; ed.sha = null; ed.saved = '';
   ed.editor.setText(ed.api.template);
@@ -535,7 +584,7 @@ async function toggleEditor() {
   const tapi = await api('/api/tacapi');
   $('editorPane').hidden = false; $('main').classList.add('editing'); $('edBtn').classList.add('on');
   ed = { api: tapi, name: $('tactic').value, sha: null, saved: '' };
-  ed.editor = new TacticEditor($('edHost'), { api: tapi, onChange: edChanged, onRun: () => simulate(), onSave: () => edSave() });
+  ed.editor = new TacticEditor($('edHost'), { api: tapi, onChange: edChanged, onRun: () => simulate(), onSave: () => edSave(), onSaveAs: () => edSaveAs() });
   renderApiHelp();
   await edLoad(ed.name);
 }
@@ -862,6 +911,9 @@ async function main() {
   $('tactic').addEventListener('change', () => { if (live && live.kind !== 'robot') selChanged(); });
   $('edNew').onclick = edNew;
   $('edSave').onclick = () => edSave();
+  $('edSaveAs').onclick = () => edSaveAs();
+  $('edRename').onclick = () => edRename();
+  $('edDelete').onclick = () => edDelete();
   $('edRun').onclick = () => simulate();
   $('apiFilter').oninput = renderApiHelp;
   for (const b of document.querySelectorAll('.ed-tabs button')) {

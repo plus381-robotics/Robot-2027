@@ -323,6 +323,24 @@ async def tactic_save(request):
     return web.json_response(r)
 
 
+async def tactic_rename(request):
+    q = await request.json()
+    try:
+        return web.json_response(tacmod.rename(q.get("name"), q.get("new")))
+    except FileExistsError as e:
+        return web.json_response({"error": str(e)}, status=409)
+    except (ValueError, OSError) as e:
+        return web.json_response({"error": str(e)}, status=400)
+
+
+async def tactic_delete(request):
+    q = await request.json()
+    try:
+        return web.json_response(tacmod.delete(q.get("name")))
+    except (ValueError, OSError) as e:
+        return web.json_response({"error": str(e)}, status=400)
+
+
 async def check(request):
     q = await request.json()
     api = request.app[STATE].setdefault("api", tacmod.tac_api())
@@ -495,6 +513,8 @@ def make_app(prof=None):
     app.router.add_get("/api/tacapi", tac_api_h)
     app.router.add_get("/api/tactic/{name}", tactic_get)
     app.router.add_post("/api/tactic/save", tactic_save)
+    app.router.add_post("/api/tactic/rename", tactic_rename)
+    app.router.add_post("/api/tactic/delete", tactic_delete)
     app.router.add_post("/api/check", check)
     app.router.add_post("/api/stage", stage)
     app.router.add_get("/ws/robot", robot_ws)

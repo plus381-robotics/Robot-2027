@@ -162,6 +162,26 @@ def test_cuvanje_preko_servera(base, tmp_path, monkeypatch):
     assert st == 400
 
 
+def test_save_as_rename_delete(base, tmp_path, monkeypatch):
+    """Plan S2: Save as (nov fajl, sha None), Rename (i <ime>_obnova.py), Delete; primeri zaštićeni."""
+    from eurosim import paths
+    monkeypatch.setattr(paths, "TACTICS", tmp_path)
+    assert post(base + "/api/tactic/save", {"name": "a", "source": "x = 1\n", "sha": None})[0] == 200
+    (tmp_path / "a_obnova.py").write_text("go = 1\n")
+    st, d = post(base + "/api/tactic/save", {"name": "a", "source": "y\n", "sha": None})     # Save as preko postojeće
+    assert st == 409
+    st, d = post(base + "/api/tactic/rename", {"name": "a", "new": "b"})
+    assert st == 200 and (tmp_path / "b.py").exists() and (tmp_path / "b_obnova.py").exists()
+    assert not (tmp_path / "a.py").exists()
+    post(base + "/api/tactic/save", {"name": "c", "source": "z\n", "sha": None})
+    assert post(base + "/api/tactic/rename", {"name": "b", "new": "c"})[0] == 409         # ne prepisuje
+    assert post(base + "/api/tactic/rename", {"name": "b", "new": "1x"})[0] == 400         # loše ime
+    assert post(base + "/api/tactic/rename", {"name": "b", "new": "class"})[0] == 400      # Python reč
+    assert post(base + "/api/tactic/delete", {"name": "c"})[0] == 200 and not (tmp_path / "c.py").exists()
+    (tmp_path / "primer.py").write_text("x\n")
+    assert post(base + "/api/tactic/delete", {"name": "primer"})[0] == 400                 # primer se ne briše
+
+
 def test_model_robota_iz_cad_a(base):
     d = get(base + "/api/info")
     f = d["profile"]["model"]["file"]
