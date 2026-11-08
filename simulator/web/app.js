@@ -571,15 +571,26 @@ function edState() {
   return dirty;
 }
 
-function fillTacticSelects() {
+function fillTacticSelects() {                  // jedna lista taktika (gore); editor uvek prikazuje izabranu
   const names = [...info.tactics];
-  if (ed && !names.includes(ed.name)) names.push(ed.name);
-  const opts = names.map(t => `<option>${t}</option>`).join('');
-  const cur = $('tactic').value;
-  $('tactic').innerHTML = info.tactics.map(t => `<option>${t}</option>`).join('');
-  if (info.tactics.includes(cur)) $('tactic').value = cur;
-  $('edFile').innerHTML = opts;
-  if (ed) { $('edFile').value = ed.name; if (info.tactics.includes(ed.name)) $('tactic').value = ed.name; }
+  if (ed && !names.includes(ed.name)) names.push(ed.name);        // nova, još nesačuvana taktika iz editora
+  const cur = ed ? ed.name : $('tactic').value;
+  $('tactic').innerHTML = names.map(t => `<option>${t}</option>`).join('');
+  if (names.includes(cur)) $('tactic').value = cur;
+}
+
+// Kartice Simulate / Live / Robot (plan U1): drugi red pokazuje samo dugmad izabrane kartice. Dok traje Live
+// ili veza sa robotom, ostale kartice su zaključane (prvo End / Disconnect).
+let tab = 'sim';
+function setTab(t) {
+  if (live && ((live.kind === 'robot') !== (t === 'robot') || (!live.kind && t !== 'live'))) {
+    msg(live.kind === 'robot' ? 'disconnect from the robot first' : 'end Live first', true);
+    return;
+  }
+  tab = t;
+  for (const b of document.querySelectorAll('.tabs button')) b.classList.toggle('on', b.dataset.tab === t);
+  $('rowSim').hidden = t !== 'sim'; $('rowLive').hidden = t !== 'live'; $('rowRobot').hidden = t !== 'robot';
+  try { localStorage.setItem('eurosim.tab', t); } catch (e) { /* ignore */ }
 }
 
 let edCheckSeq = 0;
@@ -870,7 +881,7 @@ async function startLive() {
   const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/live?${q}`);
   live = { ws, raw: { meta: null, frames: [], events: [] }, follow: true, dirty: false, screen: null };
   $('liveGroup').hidden = false;
-  $('liveBtn').classList.add('live-on'); $('liveBtn').textContent = '● LIVE';
+  $('liveBtn').hidden = true;                     // u Live kartici sada: Arm, Cord, Test, STOP... End
   $('run').disabled = true; $('result').style.display = 'none';
   esp.setEnabled(true);
   setFollow(true);
@@ -914,9 +925,8 @@ function stopLiveUi() {
   $('bandCord').hidden = true;
   $('liveGroup').hidden = true;
   $('robotGroup').hidden = true;
-  $('robotBtn').classList.remove('live-on');
+  $('liveBtn').hidden = false; $('robotBtn').hidden = false;
   $('liveBtn').disabled = false; $('robotBtn').disabled = false;
-  $('liveBtn').classList.remove('live-on'); $('liveBtn').textContent = '● Live';
   $('run').disabled = false;
   esp.setEnabled(false);
 }
@@ -941,8 +951,7 @@ function startRobot(host, password, label) {
   const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/robot?${q}`);
   live = { kind: 'robot', ws, raw: { meta: null, frames: [], events: [] }, follow: true, dirty: false, host };
   $('robotGroup').hidden = false;
-  $('robotBtn').classList.add('live-on');
-  $('liveBtn').disabled = true; $('robotBtn').disabled = true;
+  $('robotBtn').hidden = true;                    // u Robot kartici sada: Push, Push & Run, STOP... Disconnect
   $('run').disabled = true; $('result').style.display = 'none';
   $('robotStatus').textContent = 'connecting…'; $('robotStatus').className = 'pill';
   esp.setEnabled(false); esp.setScreen(null);
@@ -1160,6 +1169,12 @@ async function main() {
   };
 
   $('run').onclick = () => simulate();
+  for (const b of document.querySelectorAll('.tabs button')) b.onclick = () => setTab(b.dataset.tab);
+  try { const t = localStorage.getItem('eurosim.tab'); if (t) setTab(t); } catch (e) { /* ignore */ }
+  $('moreBtn').onclick = () => { $('moreMenu').hidden = !$('moreMenu').hidden; };
+  document.addEventListener('pointerdown', e => {
+    if (!$('moreMenu').hidden && !e.target.closest('#moreMenu, #moreBtn')) $('moreMenu').hidden = true;
+  });
   esp = new EspPanel($('espPanel'), c => liveSend(c));
   esp.setEnabled(false);
   try { opponents = JSON.parse(localStorage.getItem('eurosim.opp') || '[]'); } catch (e) { opponents = []; }
@@ -1185,6 +1200,9 @@ async function main() {
   $('oppDel').onclick = () => { opponents.splice(oppSel, 1); oppSel = -1; refreshOpponents(); opponentsChanged(true); };
   for (const id of ['oppX', 'oppY', 'oppW', 'oppH', 'oppTh', 'oppZ', 'oppRound']) $(id).onchange = editOpponent;
   $('liveBtn').onclick = () => (live ? liveSend(['quit']) : startLive());
+  for (const id of ['tabSim', 'tabLive', 'tabRobot']) $(id).title = { tabSim: 'Fast simulation: the whole match in a few seconds, then play it back',
+    tabLive: 'Real-time simulation: ESP screen and buttons, cord, STOP, move the opponent while it drives',
+    tabRobot: 'The real robot (or a virtual one) over WiFi: push and run tactics, live telemetry' }[id];
   $('robotBtn').onclick = () => { $('robotConnect').hidden = !$('robotConnect').hidden; };
   $('rCancel').onclick = () => { $('robotConnect').hidden = true; };
   $('rConnect').onclick = () => {
@@ -1241,7 +1259,6 @@ async function main() {
   fillScenarios();
   $('rulesLook').onchange = e => view.setTableLook(e.target.checked ? 'rules' : 'grid');
   $('edBtn').onclick = () => toggleEditor().catch(e => msg('editor: ' + e.message, true));
-  $('edFile').onchange = e => edLoad(e.target.value);
   $('tactic').addEventListener('change', e => { if (ed) edLoad(e.target.value); });
   // Strana/taktika: u Live-u robot (dok miruje) prelazi na START izabrane strane (ranije je ostajao na
   // strani sa kojom je Live pokrenut); inače se prikazani snimak odmah ponovo simulira za novu stranu.
@@ -1262,7 +1279,6 @@ async function main() {
   document.addEventListener('pointerdown', e => {
     if (!$('viewMenu').hidden && !e.target.closest('#viewMenu, #viewMenuBtn')) $('viewMenu').hidden = true;
   });
-  $('edRun').onclick = () => simulate();
   $('apiFilter').oninput = renderApiHelp;
   $('edCmdBtn').onclick = () => toggleCommands();
   $('apiClose').onclick = () => toggleCommands(false);
@@ -1328,7 +1344,7 @@ async function main() {
     else if (e.key === 'Home') seek(0);
     else if (e.key === 'End') run && seek(run.duration);
     else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) simulate();
-    else if (e.key === 'Escape' && live && live.kind === 'robot') liveSend(['stop']);
+    else if (e.key === 'Escape' && live) liveSend(['stop']);          // STOP: Live i Robot
   });
   requestAnimationFrame(tick);
   const w = info.where || {};

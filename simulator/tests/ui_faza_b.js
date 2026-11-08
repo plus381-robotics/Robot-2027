@@ -57,7 +57,7 @@ const { chromium } = require('playwright');
       .catch(() => fail.push('nacrt za plavu nije ogledan'));
     // S9 timeline: traka koraka, zastavice, klik na korak skače na njegov početak
     await p.selectOption('#side', 'zuta');
-    await p.click('#edRun');
+    await p.click('#tabSim'); await p.click('#run');
     await p.waitForFunction(() => document.querySelectorAll('.bstep').length >= 4, null, { timeout: 20000 })
       .catch(() => fail.push('S9: nema traka koraka'));
     const flags = await p.$$eval('#bandFlags .flag', l => l.map(x => x.textContent));

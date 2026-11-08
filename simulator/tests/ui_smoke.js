@@ -12,7 +12,7 @@ const { chromium } = require('playwright');
   await p.waitForSelector('#tactic option', { state: 'attached' });
   await p.selectOption('#tactic', 'primer');
   await p.selectOption('#side', 'zuta');
-  await p.click('#run');
+  await p.click('#tabSim'); await p.click('#run');
   await p.waitForFunction(() => document.getElementById('result').style.display === 'block', null, { timeout: 30000 });
   await p.keyboard.press('End');
   await p.waitForTimeout(300);

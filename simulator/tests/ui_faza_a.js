@@ -23,7 +23,7 @@ const TMP = ['ui_tmp_a', 'ui_tmp_b'].map(n => path.join(DIR, n + '.py'));
 
     // S1: Live sa žutom, pa plava, Arm, činč: robot vozi po plavoj, odometrija se slaže
     await p.selectOption('#side', 'zuta');
-    await p.click('#liveBtn'); await p.waitForTimeout(1500);
+    await p.click('#tabLive'); await p.click('#liveBtn'); await p.waitForTimeout(1500);
     await p.selectOption('#side', 'plava'); await p.waitForTimeout(800);
     await p.click('#armBtn'); await p.waitForTimeout(1200);
     if (!(await p.isVisible('#bandCord'))) fail.push('S9: nema dugmeta za činč na timeline-u dok je naoružan');

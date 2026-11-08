@@ -16,8 +16,24 @@ button:disabled { opacity: .45; cursor: default; }
 button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
 button.on { border-color: var(--accent); color: var(--accent); }
 
-#bar { display: flex; align-items: center; gap: 12px; padding: 7px 12px; background: var(--panel);
-  border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+#bar { display: flex; flex-direction: column; gap: 5px; padding: 6px 12px; background: var(--panel);
+  border-bottom: 1px solid var(--line); }
+#bar .bar-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 28px; }
+#bar .row2 { padding-top: 5px; border-top: 1px solid var(--line); }
+#bar .tabrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#bar .tabrow[hidden] { display: none; }
+.tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.tabs button { border: none; border-radius: 0; padding: 4px 14px; background: transparent; }
+.tabs button + button { border-left: 1px solid var(--line); }
+.tabs button.on[data-tab=sim] { background: #1f4f7a; color: #fff; }
+.tabs button.on[data-tab=live] { background: #1f6b4a; color: #fff; }
+.tabs button.on[data-tab=robot] { background: #7a2a2a; color: #fff; }
+.tabs button:disabled { opacity: .4; }
+.more-wrap { position: relative; }
+#moreMenu { position: absolute; right: 0; top: 100%; margin-top: 4px; background: #1a1f26f2; border: 1px solid var(--line);
+  border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px; z-index: 60; min-width: 180px; }
+#moreMenu[hidden] { display: none; }
+#bar .msg { margin-left: auto; }
 #bar label { display: flex; align-items: center; gap: 5px; color: var(--dim); }
 .brand { font-weight: 700; letter-spacing: .5px; }
 .sep { flex: 1; }

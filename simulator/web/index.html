@@ -12,41 +12,59 @@
 </head>
 <body>
 <header id="bar">
-  <span class="brand">Eurosim</span>
-  <label>Tactic <select id="tactic"></select></label>
-  <label>Side <select id="side"><option value="zuta">Yellow</option><option value="plava">Blue</option></select></label>
-  <label>Mode <select id="mode"><option value="mec">Match (arm, cord, 100 s)</option><option value="test">Test (run now)</option></select></label>
-  <button id="edBtn" title="Tactic editor (ESP32/tactics)">✎ Editor</button>
-  <button id="run" class="primary" title="Run the whole simulation fast, then play it back (Ctrl+Enter)">▶ Simulate</button>
-  <button id="liveBtn" title="Interactive simulation in real time: ESP screen and buttons, cord, STOP, move the opponent">● Live</button>
-  <span id="liveGroup" class="group" hidden>
-    <button id="armBtn" title="Select tactic + side and arm the match (like the ESP menu)">Arm match</button>
-    <button id="cordBtn" title="Pull the start cord: match starts, 100 s">Pull cord</button>
-    <button id="testBtn" title="Run the tactic now, without a match (like tools/tactic.py)">Run test</button>
-    <button id="stopBtn" class="danger" title="STOP (like the STOP button on the robot)">■ STOP</button>
-    <select id="pace" title="Simulation speed in Live mode">
-      <option value="0.25">×0.25</option><option value="0.5">×0.5</option><option value="1" selected>×1</option>
-      <option value="2">×2</option><option value="5">×5</option>
-    </select>
-    <button id="pauseBtn" title="Pause the simulation">⏸</button>
-    <button id="followBtn" class="on" title="Follow the live robot (otherwise you can scrub back)">Follow</button>
-    <button id="endBtn" title="End Live; the session stays as a recording you can replay or save">End</button>
-  </span>
-  <button id="robotBtn" title="Connect to the real robot (or a virtual one): send and run tactics, live telemetry">🤖 Robot</button>
-  <span id="robotGroup" class="group" hidden>
-    <span id="robotStatus" class="pill">…</span>
-    <button id="rPush" title="Send the tactic (editor text, or the file) to the robot">Push</button>
-    <button id="rRun" title="Send and run the tactic now (test, no match). THE ROBOT MOVES.">Push &amp; Run</button>
-    <button id="rStop" class="danger" title="STOP (Esc)">■ STOP</button>
-    <button id="rFollow" class="on" title="Follow the robot (otherwise you can scrub back)">Follow</button>
-    <button id="rEnd" title="Disconnect; the session stays as a recording">Disconnect</button>
-  </span>
-  <span class="sep"></span>
-  <button id="repoBtn" title="Team repo (GitHub): get the latest tactics and robot profile, save yours">⎇ Repo <span id="repoBadge" class="badge" hidden></span></button>
-  <button id="profBtn" title="Robot profile: dimensions, drive, control, IR (simulator/profiles)">⚙ Robot profile</button>
-  <button id="save" disabled title="Save this run to simulator/runs/">Save run</button>
-  <select id="runs" title="Load a saved run"><option value="">Saved runs…</option></select>
-  <span id="msg" class="msg"></span>
+  <div class="bar-row">
+    <span class="brand">Eurosim</span>
+    <label>Tactic <select id="tactic" title="Which tactic (ESP32/tactics); the editor shows this one"></select></label>
+    <label>Side <select id="side"><option value="zuta">Yellow</option><option value="plava">Blue</option></select></label>
+    <button id="edBtn" title="Tactic editor for the selected tactic">✎ Editor</button>
+    <span class="tabs" title="How to run: fast simulation, real-time simulation, or the real robot">
+      <button id="tabSim" class="on" data-tab="sim">Simulate</button><button id="tabLive" data-tab="live">Live</button><button id="tabRobot" data-tab="robot">Robot</button>
+    </span>
+    <span class="sep"></span>
+    <span class="more-wrap">
+      <button id="moreBtn" title="Runs: save, load, compare">⋯ Runs</button>
+      <div id="moreMenu" class="menu" hidden>
+        <button id="save" disabled title="Save this run to simulator/runs/">Save run…</button>
+        <select id="runs" title="Load a saved run"><option value="">Load run…</option></select>
+      </div>
+    </span>
+    <button id="repoBtn" title="Team repo (GitHub): get the latest tactics and robot profile, save yours">⎇ Repo <span id="repoBadge" class="badge" hidden></span></button>
+    <button id="profBtn" title="Robot profile: dimensions, drive, control, IR (simulator/profiles)">⚙ Profile</button>
+  </div>
+  <div class="bar-row row2">
+    <span id="rowSim" class="tabrow">
+      <label>Mode <select id="mode"><option value="mec">Match (arm, cord, 100 s)</option><option value="test">Test (run now)</option></select></label>
+      <button id="run" class="primary" title="Run the whole simulation fast, then play it back. With the editor open: the editor text, saved or not (Ctrl+Enter)">▶ Run</button>
+    </span>
+    <span id="rowLive" class="tabrow" hidden>
+      <button id="liveBtn" class="primary" title="Start the interactive simulation in real time: ESP screen and buttons, cord, STOP, move the opponent">▶ Start Live</button>
+      <span id="liveGroup" class="group" hidden>
+        <button id="armBtn" title="Select tactic + side and arm the match (like the ESP menu)">Arm match</button>
+        <button id="cordBtn" title="Pull the start cord: match starts, 100 s">Pull cord</button>
+        <button id="testBtn" title="Run the tactic now, without a match (like tools/tactic.py)">Run test</button>
+        <button id="stopBtn" class="danger" title="STOP (like the STOP button on the robot) · Esc">■ STOP</button>
+        <select id="pace" title="Simulation speed in Live mode">
+          <option value="0.25">×0.25</option><option value="0.5">×0.5</option><option value="1" selected>×1</option>
+          <option value="2">×2</option><option value="5">×5</option>
+        </select>
+        <button id="pauseBtn" title="Pause the simulation">⏸</button>
+        <button id="followBtn" class="on" title="Follow the live robot (otherwise you can scrub back)">Follow</button>
+        <button id="endBtn" title="End Live; the session stays as a recording you can replay or save">■ End</button>
+      </span>
+    </span>
+    <span id="rowRobot" class="tabrow" hidden>
+      <button id="robotBtn" class="primary" title="Connect to the real robot (or a virtual one): send and run tactics, live telemetry">Connect…</button>
+      <span id="robotGroup" class="group" hidden>
+        <span id="robotStatus" class="pill">…</span>
+        <button id="rPush" title="Send the tactic (editor text, or the file) to the robot">Push</button>
+        <button id="rRun" title="Send and run the tactic now (test, no match). THE ROBOT MOVES.">Push &amp; Run</button>
+        <button id="rStop" class="danger" title="STOP · Esc">■ STOP</button>
+        <button id="rFollow" class="on" title="Follow the robot (otherwise you can scrub back)">Follow</button>
+        <button id="rEnd" title="Disconnect; the session stays as a recording">Disconnect</button>
+      </span>
+    </span>
+    <span id="msg" class="msg"></span>
+  </div>
 </header>
 
 <div id="repoBanner" hidden>
@@ -88,7 +106,6 @@
 <main id="main">
   <section id="editorPane" hidden>
     <div class="ed-bar">
-      <select id="edFile" title="Tactic file in ESP32/tactics"></select>
       <button id="edNew" title="New tactic from a template">New</button>
       <button id="edCmdBtn" title="All Gambit Micro commands explained, with examples (click Insert to put one into the code)">📖 Commands</button>
       <select id="edFileMenu" title="Save as, rename, delete"><option value="">File ▾</option><option value="saveas">Save as… (Ctrl+Shift+S)</option><option value="rename">Rename…</option><option value="delete">Delete</option></select>
@@ -96,7 +113,6 @@
       <span class="sep"></span>
       <button id="edSave" title="Save to ESP32/tactics (Ctrl+S)">Save</button>
       <label class="small" title="Run the real simulation by itself when you stop typing (short tactics)"><input type="checkbox" id="autoSim" checked> auto-sim</label>
-      <button id="edRun" class="primary" title="Check and simulate this text, saved or not (Ctrl+Enter)">▶ Run</button>
     </div>
     <div id="edHost"></div>
     <div class="ed-tabs">

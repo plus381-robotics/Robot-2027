@@ -34,7 +34,7 @@ const TMP = path.join(__dirname, '..', '..', 'ESP32', 'tactics', 'ui_test_tmp.py
     // nova taktika, pokretanje, isticanje linije, čuvanje
     await p.click('#edNew');
     await p.waitForFunction(() => /START = /.test(document.querySelector('.cm-content').textContent));
-    await p.click('#edRun');
+    await p.click('#tabSim'); await p.click('#run');
     await p.waitForFunction(() => /^OK/.test(document.getElementById('result').textContent), null, { timeout: 20000 })
       .catch(() => fail.push('nova taktika nije prošla simulaciju'));
     await p.evaluate(() => { window.eurosim.play.t = 2000; });

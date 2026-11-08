@@ -14,7 +14,7 @@ const { chromium } = require('playwright');
   await p.waitForSelector('#tactic option', { state: 'attached' });
   await p.selectOption('#tactic', 'primer');
   // --- live ---
-  await p.click('#liveBtn');
+  await p.click('#tabLive'); await p.click('#liveBtn');
   await p.waitForTimeout(1200);
   const lit = await p.evaluate(() => {                        // OLED nije prazan
     const c = document.querySelector('#espPanel canvas'), d = c.getContext('2d').getImageData(0, 0, 128, 64).data;
@@ -36,7 +36,7 @@ const { chromium } = require('playwright');
   await p.selectOption('#tactic', 'primer');
   await p.click('#cam2d');
   await p.click('#addOpp');
-  await p.click('#run');
+  await p.click('#tabSim'); await p.click('#run');
   await p.waitForFunction(() => /^OK/.test(document.getElementById('result').textContent));
   // položaj protivnika na ekranu (projekcija iz 3D prikaza; sto nije baš u sredini kadra)
   const [cx, cy] = await p.evaluate(() => { const v = window.eurosim.view; const g = v.oppGroup.children[0];
