@@ -22,8 +22,12 @@ def reason(r):
 
 
 def version_msg(have, want):
-    """Šta korisnik treba da uradi kad se verzije protokola ne slažu."""
-    return "STM32 v%s, flesuj" % have if have else "STM32 nema verz."
+    """Šta korisnik treba da uradi kad se verzije protokola ne slažu (want = najnovija koju ESP zna)."""
+    if not have:
+        return "STM32 nema verz."
+    if have > want:
+        return "ESP star: STM v%s" % have       # STM32 je noviji: ažurirati ESP (esp_push)
+    return "STM32 v%s, flesuj" % have
 
 
 def secs(ms):

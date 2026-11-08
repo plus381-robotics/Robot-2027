@@ -4,6 +4,7 @@
 import protocol as P
 import state
 import ui
+import tac
 import tekst as T
 from ui import Screen, icon, box, text_right, text_center, fit, big, big_center, action_bar
 from tactic import tracker
@@ -154,9 +155,7 @@ class Provera(Page):
 
     def do_side(self, u):
         if not self.locked(u):
-            sides = ("plava", "zuta")
-            cur = self.app.st["sel_side"]
-            self.app.select(side=sides[(sides.index(cur) + 1) % 2] if cur in sides else sides[0])
+            u.push(self.app.side_menu())        # izbor sa spiska (L30), ne menja se slučajnim klikom
 
     def do_check(self, u):
         items = self.app.check()[1]
@@ -177,7 +176,7 @@ class Provera(Page):
         name, side = a.st["sel_tactic"], a.st["sel_side"]
         if not name:
             return u.toast("izaberi taktiku")
-        u.push(ui.Confirm("Test", ["%s %s" % (name, side or ""), "POKRECE MOTORE", "STOP prekida"],
+        u.push(ui.Confirm("Test", ["%s %s" % (name, side or tac.REF_SIDE), "POKRECE MOTORE", "STOP prekida"],
                           lambda u2: a.start_tactic(name, side)))
 
     def do_cord(self, u):
@@ -284,6 +283,8 @@ class Taktika(Page):
             word = "VOZI"
         elif t.step_name:
             word = "CEKA"
+        elif t.running:
+            word = "RADI"                       # taktika radi između koraka (wait, računanje), L24
         else:
             word = "GOTOVO" if t.last and t.last[2] else "STOP"
         tags(fb, 0, R4 - 4, [word])
@@ -321,9 +322,13 @@ class Robot(Page):
         age = r.status_age()
         fresh = s and age is not None and age < 500           # zastareo podatak se ne prikazuje kao svež
         if fresh:
-            text_right(fb, str(s["x"]), 58, R1)
+            # koordinate NAŠE strane (kao taktika i dnevnik); STATUS je u koordinatama terena (L22)
+            x, th = s["x"], s["theta"] / 100
+            if self.app.side != tac.REF_SIDE:
+                x, th = tac.FIELD_X - x, tac._wrap(180 - th)
+            text_right(fb, str(x), 58, R1)
             text_right(fb, str(s["y"]), ui.W, R1)
-            text_right(fb, "%.1f" % (s["theta"] / 100), 54, R2)
+            text_right(fb, "%.1f" % th, 54, R2)
             icon(fb, ui.ICON_DEG, 55, R2)
             text_right(fb, str(s["v"]), ui.W, R2)
         else:
@@ -331,7 +336,7 @@ class Robot(Page):
                 text_right(fb, "--", x, R1)
                 text_right(fb, "--", x, R2)
         robot_tags(fb, 0, R3 + 2, r, s)
-        fb.text("STATUS", 0, R4 + 2, 1)
+        fb.text("STATUS " + T.SIDE.get(self.app.side, ""), 0, R4 + 2, 1)
         text_right(fb, "-" if age is None or not r.alive else "%dms" % age, ui.W, R4 + 2, 1)
 
 
@@ -366,7 +371,7 @@ class Dnevnik(Page):
     def draw(self, u, fb, r, s):
         a = self.app
         a.errors_seen()                     # pogledano: ! nestaje iz trake
-        rows = [("ne", "t+%ds %s" % (t // 1000, txt)) for t, txt in a.errors[-4:]][::-1]
+        rows = [("ne", ("t+%ds %s" % (t // 1000, txt)) if t is not None else txt) for t, txt in a.errors[-4:]][::-1]
         if len(rows) < 4:
             rows += [(None, l) for l in a.log[-(4 - len(rows)):][::-1]]
         if not rows:

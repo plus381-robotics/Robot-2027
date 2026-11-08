@@ -46,8 +46,10 @@ def test_pocetni_ekran_opcije(app, tmp_path, monkeypatch):
     import json
     assert json.load(open(app.st.path))["sel_side"] == "zuta"     # pamti se posle restarta
     u.input("rot", 1)
-    u.input("ok")                                       # strana: OK menja plava/zuta
-    assert app.st["sel_side"] == "plava"
+    u.input("ok")                                       # strana: spisak (L30), ne menja se jednim klikom
+    assert u.top.title == "Strana" and app.st["sel_side"] == "zuta"
+    u.input("ok")                                       # prva stavka: plava
+    assert app.st["sel_side"] == "plava" and len(u.stack) == 1
     u.input("rot", 2)
     assert home.rows()[home.sel][0] == "naoruzaj"
     assert app.check()[0]

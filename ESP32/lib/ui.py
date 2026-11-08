@@ -335,8 +335,10 @@ class Menu(Screen):
 
 
 class Confirm(Screen):
-    """Opasna akcija (kretanje): izvršava se tek kad se OK drži HOLD_MS."""
+    """Opasna akcija (kretanje): izvršava se tek kad se OK drži HOLD_MS. Sama se zatvara posle
+    TIMEOUT_MS bez držanja i kad se ekran ugasi (da se ne potvrdi naslepo, pregled logike L13)."""
     HOLD_MS = 800
+    TIMEOUT_MS = 10000
     live = True
     wants_hold = True
     def __init__(self, title, lines, fn):
@@ -344,6 +346,7 @@ class Confirm(Screen):
         self.lines = lines if isinstance(lines, (list, tuple)) else [lines]
         self.ms = 0
         self.done = False
+        self.t0 = ticks_ms()
 
     def hold(self, ui, ms):
         self.ms = ms
@@ -462,9 +465,13 @@ class UI:
         pass
 
     def hold(self, ms):
+        if not ms:
+            self._hold_blocked = False
+        elif self.wake():
+            self._hold_blocked = True       # ekran je spavao: ovo držanje ga samo pali, ne potvrđuje (L13)
+        if getattr(self, "_hold_blocked", False):
+            return
         if self.top.wants_hold and not self._alarm:
-            if ms:
-                self.wake()
             self.top.hold(self, ms)
 
     def tick(self):
@@ -472,8 +479,14 @@ class UI:
         if self._toast and ticks_diff(now, self._toast_until) >= 0:
             self._toast = None
             self.dirty = True
+        top = self.top
+        if isinstance(top, Confirm) and not top.ms and ticks_diff(now, top.t0) > Confirm.TIMEOUT_MS:
+            self.pop()                      # potvrda bez odgovora: zatvori (L13)
+            self.dirty = True
         s = self.sleep_s()
         if s and not self.asleep and ticks_diff(now, self.last_input) > s * 1000:
+            while isinstance(self.top, Confirm) and len(self.stack) > 1:
+                self.pop()                  # ugašen ekran ne sme da čuva otvorenu potvrdu
             self.asleep = True
             if self.fb:
                 self.fb.poweroff()

@@ -16,6 +16,11 @@
 > kraja), L12 (attack_phase, deadline + TimeUp, go_home; obnova posle restarta ESP-a: `<taktika>_obnova.py`),
 > L15 (actuator wait=False čeka ACK), L18 (uglovi -180..180, mm/s celi brojevi), L19 (turn_by > 170° u više
 > okreta), L20 (speed 150..1500, 0 = greška), L21 (primer TOTAL). Testovi: `ESP32/tests/host/test_tac_api.py`.
+> L13 (držanje OK na ugašenom ekranu ga samo pali; potvrda se zatvara posle 10 s i pri gašenju), L22 (ROBOT i
+> izveštaj u koordinatama naše strane, teren posebno), L24 ("RADI" između koraka; u meču PROVERA bez otkazivanja),
+> L25 (isto ime i prevedeni razlog u traci i dnevniku, greška van taktike bez vremena, izvor STOP-a), L28 (ko je
+> zastareo), L30 (strana sa spiska, test pokazuje stranu, "WDT mec*", lista mečeva sa imenom i M/T).
+> Testovi: `ESP32/tests/host/test_ekran_logika.py`.
 
 Datum: 2026-11-08. Obim: `ESP32/lib/*.py`, `ESP32/main.py`, `boot.py`, `config.py`, `ESP32/tactics/*.py`,
 `ESP32/tests/goto_test.py`, `tools/*.py`, `protocol/protocol.yaml`, a za drugu stranu veze

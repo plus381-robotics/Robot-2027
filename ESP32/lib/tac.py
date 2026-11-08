@@ -260,7 +260,7 @@ def _cmd_wait(r, name, label, timeout, motion, long, m, resets, seq_box):
             if kind == "timeout" and motion and reason != "SUPERSEDED":
                 _stop_and_wait(r)       # STM32 je komandu možda primio, a izgubljeni su samo ACK-ovi
             tracker.fail(reason or kind)
-            log("%s: %s" % (label, reason or kind))
+            log("%s: %s" % (label, _reason(reason or kind)))
             return False
         # P-2: DONE/FAIL može da se izgubi (CRC). Protokol v3: STATUS nosi seq i ishod poslednje završene
         # komande kretanja, pa se tačan ishod zna iz sledećeg STATUS-a (50 ms).
@@ -296,6 +296,12 @@ def _cmd_wait(r, name, label, timeout, motion, long, m, resets, seq_box):
 
 
 _REASONS = {getattr(P.Reason, k): k for k in dir(P.Reason) if not k.startswith("_")}
+
+
+def _reason(r):
+    """Razlog kao na ekranu ("prepreka", "kraj meca"...), da dnevnik i traka grešaka pišu isto (L25)."""
+    import tekst
+    return tekst.reason(r)
 
 
 def _drive_timeout(dist, speed):

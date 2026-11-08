@@ -85,7 +85,7 @@ class App:
 
     def error(self, text):
         """Greška: ostaje na stranici DNEVNIK, a u traci je ! dok se ne pogleda."""
-        t = ticks_diff(ticks_ms(), self._run["t0"]) if self._run else ticks_ms()
+        t = ticks_diff(ticks_ms(), self._run["t0"]) if self._run else None   # van taktike bez vremena (L25)
         self.errors = (self.errors + [(t, text)])[-30:]
         self.unseen += 1
         self.tlog("GRESKA " + text)
@@ -103,7 +103,7 @@ class App:
             if reason == "MATCH_OVER":
                 continue                        # kraj meča nije greška (L9)
             if kind == "fail" or (kind == "timeout" and reason != "SUPERSEDED"):
-                self.error("%s: %s" % (name, T.reason(reason or kind)))
+                self.error("%s: %s" % (label, T.reason(reason or kind)))       # isto ime kao u dnevniku (L25)
                 self.ui.toast("%s: %s" % (name, T.reason(reason or kind)), 2000)
         # Auto poza samo za razvoj: posle povezivanja, i to samo ako STATUS kaže da ne traje meč
         # i robot ne vozi, i ne radi taktika. Restart ESP-a usred meča ne sme da pregazi odometriju.
@@ -135,15 +135,15 @@ class App:
             self.pages.show(want)
             self.ui.dirty = True
 
-    def stop(self):
-        """Taster STOP: radi uvek, i bez veze i dok je ekran ugašen."""
+    def stop(self, src="taster"):
+        """STOP: taster (radi uvek, i bez veze i dok je ekran ugašen), WiFi (upload STOP) ili simulator."""
         self.robot.send("STOP")
         self.request = None                    # izabrana taktika koja još nije krenula ne kreće
         self.match.cancel()                    # naoružan meč se otkazuje
         self.match.stopped()                   # meč u toku: STOP ga namerno završava (otključava, L8)
         if self.running:
             self.abort = "STOP"
-        self.ui.alarm("STOP", "taster STOP" if not self.running else "taktika prekinuta")
+        self.ui.alarm("STOP", ("%s STOP" % src) if not self.running else "taktika prekinuta (%s)" % src)
 
     def tlog(self, text):
         print("[taktika]", text)
@@ -282,7 +282,8 @@ class App:
             "how": how, "steps_list": h,
             "link": {"crc": r.parser.errors - run["crc"], "retries": r.retries - run["retries"],
                      "noreply": r.noreply - run["noreply"], "ping_max": run["ping_max"]},
-            "pose": [s["x"], s["y"], round(s["theta"] / 100)] if s else None,
+            "pose": self._our_pose(s),             # naša strana, kao dnevnik (L22)
+            "pose_field": [s["x"], s["y"], round(s["theta"] / 100)] if s else None,
             "match": self.match.state in ("MEC", "KRAJ"), "match_end": end,
         }
         self._run = None
@@ -292,6 +293,14 @@ class App:
             self.ui.alarm("PREKID" if how != "STOP" else "STOP", how, lambda: self.show_page("IZVESTAJ"))
         else:
             self.show_page("IZVESTAJ")
+
+    def _our_pose(self, s):
+        if not s:
+            return None
+        x, th = s["x"], s["theta"] / 100
+        if self.side != tac.REF_SIDE:
+            x, th = tac.FIELD_X - x, tac._wrap(180 - th)
+        return [x, s["y"], round(th)]
 
     def save_report(self, rp):
         try:
@@ -364,7 +373,15 @@ class App:
     def reports_menu(self):
         items = []
         for fn in self.reports():
-            items.append(Action(fn[:-5], (lambda fn: lambda u: (u.home(), self.load_report(fn)))(fn)))
+            lbl = fn[:-5]
+            try:                                    # ime taktike i M (meč) / T (test), L30
+                import json
+                with open("%s/%s" % (MEC_DIR, fn)) as f:
+                    rp = json.load(f)
+                lbl = "%s %s %s" % (lbl.lstrip("0"), rp.get("name", "?"), "M" if rp.get("match") else "T")
+            except (OSError, ValueError):
+                pass
+            items.append(Action(lbl, (lambda fn: lambda u: (u.home(), self.load_report(fn)))(fn)))
         return Menu("Mecevi", items or [Info("nema", lambda: "-")])
 
     def set_demo(self, v):
@@ -391,7 +408,8 @@ class App:
                    lambda: st["sleep_s"], lambda v: st.set("sleep_s", v)),
             Toggle("auto poza", lambda: st["start_pose"], lambda v: st.set("start_pose", v)),
             Toggle("demo takt.", lambda: st["demo"], self.set_demo),
-            Toggle("WDT u mecu", lambda: st["wdt_match"], lambda v: st.set("wdt_match", v)),
+            Toggle("WDT mec*", lambda: st["wdt_match"], lambda v: st.set("wdt_match", v)),   # * do restarta (L30)
+            Toggle("test od START", lambda: st["test_start"], lambda v: st.set("test_start", v)),
             Toggle("WiFi off mec", lambda: st["wifi_off_match"], lambda v: st.set("wifi_off_match", v)),
             Info("verzija", lambda: __import__("upload").version()),
             Info("RAM", lambda: "%dk" % (gc.mem_free() // 1024) if hasattr(gc, "mem_free") else "-"),

@@ -458,7 +458,7 @@ class Upload:
         self._ok()
 
     def c_stop(self, args):
-        self.app.stop()
+        self.app.stop("WiFi")
         self._ok()
 
     def c_log(self, args):
