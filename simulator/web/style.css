@@ -174,3 +174,23 @@ button.live-on { background: #e5484d; border-color: #e5484d; color: #fff; }
 #viewMenu { position: absolute; top: 100%; left: 0; margin-top: 4px; background: #1a1f26f2; border: 1px solid var(--line);
   border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; z-index: 20; white-space: nowrap; }
 #viewMenu[hidden] { display: none; }
+#apiDrawer { position: absolute; top: 0; left: 0; bottom: 0; width: min(430px, 100%); z-index: 30; background: #161b22f7;
+  border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+#apiDrawer[hidden] { display: none; }
+#apiDrawer .drawer-head { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+#apiDrawer .drawer-head input { flex: 1; min-width: 0; padding: 4px 6px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; }
+#apiList { overflow: auto; padding: 6px 12px 20px; }
+#apiList h4 { margin: 14px 0 4px; color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
+#apiList .coords { color: var(--dim); font-size: 12px; line-height: 1.4; }
+#apiList details.cmd { border-bottom: 1px solid var(--line); padding: 5px 0; }
+#apiList details.cmd summary { cursor: pointer; line-height: 1.35; }
+#apiList details.cmd summary code { color: #ffd166; font-weight: 600; margin-right: 4px; }
+#apiList .sig code { color: var(--dim); font-size: 12px; }
+#apiList table { border-collapse: collapse; margin: 6px 0; font-size: 12px; }
+#apiList td { padding: 2px 6px 2px 0; vertical-align: top; }
+#apiList .req { color: #ff9f43; font-size: 10px; }
+#apiList pre, .cm-api-info pre { background: #0d1117; padding: 6px 8px; border-radius: 4px; font: 12px/1.4 ui-monospace, Consolas, monospace; overflow: auto; }
+.cm-api-info p { margin: 4px 0; } .cm-api-info code { color: #ffd166; }
+#apiList svg.tbl { display: block; margin: 6px 0; }
+#edCmdBtn.on { color: var(--accent); border-color: var(--accent); }
+#edCmdBtn { white-space: nowrap; }

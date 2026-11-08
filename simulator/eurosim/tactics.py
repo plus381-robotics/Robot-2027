@@ -75,7 +75,11 @@ def tac_api():
         if not line.startswith("#"):
             break
         header.append(line[1:].strip() if line.startswith("# ") or line == "#" else line[1:])
-    return {"funcs": out, "doc": "\n".join(header), "actuators": _actuators(),
+    from . import apidoc
+    for name, f in out.items():
+        f["help"] = apidoc.DOC.get(name)
+    return {"funcs": out, "doc": "\n".join(header), "actuators": _actuators(), "name": apidoc.NAME,
+            "coords": apidoc.COORDS,
             "ref_side": consts.get("REF_SIDE", "zuta"), "field_x": consts.get("FIELD_X", 3000)}
 
 

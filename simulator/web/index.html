@@ -71,6 +71,7 @@
     <div class="ed-bar">
       <select id="edFile" title="Tactic file in ESP32/tactics"></select>
       <button id="edNew" title="New tactic from a template">New</button>
+      <button id="edCmdBtn" title="All Gambit Micro commands explained, with examples (click Insert to put one into the code)">📖 Commands</button>
       <select id="edFileMenu" title="Save as, rename, delete"><option value="">File ▾</option><option value="saveas">Save as… (Ctrl+Shift+S)</option><option value="rename">Rename…</option><option value="delete">Delete</option></select>
       <span id="edState" class="dim small"></span>
       <span class="sep"></span>
@@ -81,14 +82,17 @@
     <div id="edHost"></div>
     <div class="ed-tabs">
       <button data-tab="edProblems" class="on">Problems <span id="edCount" class="dim"></span></button>
-      <button data-tab="edApi">tac API</button>
       <span id="edDraft" class="dim small ed-draft" title="Draft path, drawn on the table while you type (dashed purple). Click a draft point to jump to its line; Alt+click the table to put a point into the code."></span>
     </div>
     <div id="edProblems" class="ed-panel mono"></div>
-    <div id="edApi" class="ed-panel" hidden><input id="apiFilter" placeholder="search the API…"><div id="apiList"></div></div>
   </section>
   <section id="viewwrap">
     <div id="view"></div>
+    <aside id="apiDrawer" hidden>
+      <div class="drawer-head"><b>Gambit Micro</b> <span class="dim">commands</span>
+        <input id="apiFilter" placeholder="search, e.g. drive, turn, time…"><button id="apiClose" title="Close">✕</button></div>
+      <div id="apiList"></div>
+    </aside>
     <div id="viewtools">
       <button id="cam3d" class="on">3D</button><button id="cam2d">Top</button>
       <button id="viewMenuBtn" title="What is drawn on the table">Show ▾</button>

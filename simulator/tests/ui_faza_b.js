@@ -39,6 +39,18 @@ const { chromium } = require('playwright');
     await p.waitForTimeout(300);
     const lastLine = await ev(() => window.eurosim.ed.editor.text().trim().split('\n').pop());
     if (!/^goto\(\d+, \d+\)$/.test(lastLine)) fail.push('Alt+klik: ' + lastLine);
+    // S4: panel Commands (Gambit Micro): pretraga, objašnjenje, Insert ubacuje primer
+    await p.click('#edCmdBtn');
+    await p.waitForSelector('#apiDrawer:not([hidden])');
+    const title = await p.textContent('#apiDrawer .drawer-head b');
+    if (title !== 'Gambit Micro') fail.push('naslov panela: ' + title);
+    await p.fill('#apiFilter', 'goto');
+    const found = await p.$$eval('#apiList details.cmd summary code', l => l.map(x => x.textContent));
+    if (!found.includes('goto')) fail.push('pretraga: ' + found);
+    await p.click('#apiList details.cmd[open] button.ins');
+    const ins = await ev(() => window.eurosim.ed.editor.text().trim().split('\n').pop());
+    if (ins !== 'goto(600, 1000)') fail.push('Insert: ' + ins);
+    await p.click('#apiClose');
     // plava strana: nacrt ogledan
     await p.selectOption('#side', 'plava');
     await p.waitForFunction(() => window.eurosim.view.prevItems.length && window.eurosim.view.prevItems[0].position.x > 2, null, { timeout: 5000 })

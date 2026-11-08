@@ -593,23 +593,74 @@ function edNew() {
   edChanged(ed.editor.text());
 }
 
+// ---- panel Commands: Gambit Micro običnim jezikom (plan S4); opisi iz eurosim/apidoc.py, potpisi iz tac.py ----
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+function tableSvg(ex) {                            // mala slika stola sa osama i tačkom iz primera
+  const m = /\((\d+),\s*(\d+)/.exec(ex || '');
+  const W = 240, H = 160, sx = W / 3000, sy = H / 2000;
+  const pt = m ? [+m[1], +m[2]] : null;
+  return `<svg class="tbl" viewBox="-52 -8 ${W + 62} ${H + 30}" width="${W + 62}" height="${H + 30}">
+    <rect x="0" y="0" width="${W}" height="${H}" fill="#24302b" stroke="#6b7785"/>
+    <rect x="0" y="${H - 1250 * sy}" width="${500 * sx}" height="${500 * sy}" fill="#f7b50055"/>
+    <rect x="${W - 500 * sx}" y="${H - 1250 * sy}" width="${500 * sx}" height="${500 * sy}" fill="#2f7fc155"/>
+    <text x="-4" y="${H + 12}" fill="#c8d0da" font-size="10" text-anchor="end">0,0</text>
+    <text x="${W}" y="${H + 12}" fill="#ff9b9b" font-size="10" text-anchor="end">x 3000 →</text>
+    <text x="-4" y="6" fill="#9bee9b" font-size="10" text-anchor="end">y 2000</text>
+    ${pt ? `<line x1="0" y1="${H - pt[1] * sy}" x2="${pt[0] * sx}" y2="${H - pt[1] * sy}" stroke="#ffd166" stroke-dasharray="3 2"/>
+    <line x1="${pt[0] * sx}" y1="${H}" x2="${pt[0] * sx}" y2="${H - pt[1] * sy}" stroke="#ffd166" stroke-dasharray="3 2"/>
+    <circle cx="${pt[0] * sx}" cy="${H - pt[1] * sy}" r="4" fill="#ffd166"/>
+    <text x="${pt[0] * sx + 6}" y="${H - pt[1] * sy - 5}" fill="#ffd166" font-size="10">x=${pt[0]}, y=${pt[1]}</text>` : ''}
+    <text x="${250 * sx}" y="${H - 1000 * sy + 3}" fill="#f7b500" font-size="9" text-anchor="middle">start</text>
+  </svg>`;
+}
+
 function renderApiHelp() {
-  const f = $('apiFilter').value.toLowerCase();
-  const el = $('apiList');
-  const parts = [];
-  if (!f) parts.push(`<pre class="dim">${ed.api.doc.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])}</pre>`);
+  if (!ed) return;
+  const f = $('apiFilter').value.toLowerCase().trim();
+  const groups = {};
   for (const [name, fn] of Object.entries(ed.api.funcs)) {
-    if (f && !(name + fn.doc).toLowerCase().includes(f)) continue;
-    parts.push(`<div class="fn"><b>${fn.sig}</b><pre>${(fn.doc || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])}</pre></div>`);
+    const h = fn.help || { group: 'Other', say: fn.doc, params: [], ret: '', example: '' };
+    if (f && !(name + ' ' + h.say + ' ' + fn.doc).toLowerCase().includes(f)) continue;
+    (groups[h.group] = groups[h.group] || []).push([name, fn, h]);
   }
-  parts.push(`<div class="fn"><b>actuators</b><pre>${ed.api.actuators.join(', ')} (ESP32/config.py ACTUATORS)</pre></div>`);
-  el.innerHTML = parts.join('');
+  const order = ['Motion', 'Actuators', 'Waiting', 'Match time', 'Where is the robot', 'Other'];
+  const parts = [`<p class="coords">${esc(ed.api.coords || '')}</p>`];
+  for (const g of order.concat(Object.keys(groups).filter(k => !order.includes(k)))) {
+    if (!groups[g]) continue;
+    parts.push(`<h4>${esc(g)}</h4>`);
+    for (const [name, fn, h] of groups[g]) {
+      const params = (h.params || []).map(([p, t]) => {
+        const d = (fn.params.find(x => x[0] === p) || [])[1];
+        const note = d == null || /default|optional/i.test(t) ? '' : d === 'None' ? ' <span class="dim">(optional)</span>' : ` <span class="dim">(default ${esc(d)})</span>`;
+        return `<tr><td><code>${esc(p)}</code>${d == null ? ' <span class="req">required</span>' : ''}</td><td>${esc(t)}${note}</td></tr>`;
+      }).join('');
+      parts.push(`<details class="cmd"${f ? ' open' : ''}><summary><code>${esc(name)}</code> <span>${esc(h.say)}</span></summary>
+        <div class="sig"><code>${esc(fn.sig)}</code></div>
+        ${params ? `<table>${params}</table>` : ''}
+        ${h.ret ? `<p><b>Gives back:</b> ${esc(h.ret)}</p>` : ''}
+        ${h.xy ? tableSvg(h.example) : ''}
+        ${h.example ? `<pre>${esc(h.example)}</pre><button class="ins" data-ex="${esc(h.example.split('\n')[0].split('#')[0].trim())}">Insert into code</button>` : ''}
+      </details>`);
+    }
+  }
+  parts.push(`<h4>Actuator names</h4><p>${ed.api.actuators.map(a => `<code>${esc(a)}</code>`).join(' ') || '–'} <span class="dim">(ESP32/config.py ACTUATORS)</span></p>`);
+  $('apiList').innerHTML = parts.join('');
+  for (const b of $('apiList').querySelectorAll('button.ins')) b.onclick = () => { ed.editor.insertLine(b.dataset.ex); };
+}
+
+function toggleCommands(show) {
+  const d = $('apiDrawer');
+  d.hidden = show === undefined ? !d.hidden : !show;
+  $('edCmdBtn').classList.toggle('on', !d.hidden);
+  if (!d.hidden) { renderApiHelp(); $('apiFilter').focus(); }
 }
 
 async function toggleEditor() {
   if (ed) {
     $('editorPane').hidden = true; $('main').classList.remove('editing'); $('edBtn').classList.remove('on');
-    view.setPreview(null); view.setCursorPoint(null); clearTimeout(autoSimTimer);
+    view.setPreview(null); view.setCursorPoint(null); clearTimeout(autoSimTimer); toggleCommands(false);
     ed.editor.view.destroy(); ed = null;
     fillTacticSelects();
     return;
@@ -965,6 +1016,8 @@ async function main() {
   });
   $('edRun').onclick = () => simulate();
   $('apiFilter').oninput = renderApiHelp;
+  $('edCmdBtn').onclick = () => toggleCommands();
+  $('apiClose').onclick = () => toggleCommands(false);
   for (const b of document.querySelectorAll('.ed-tabs button')) {
     b.onclick = () => {
       for (const o of document.querySelectorAll('.ed-tabs button')) { o.classList.toggle('on', o === b); $(o.dataset.tab).hidden = o !== b; }

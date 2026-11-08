@@ -73,3 +73,17 @@ def test_cuvanje_i_konflikt(tmp_path, monkeypatch):
     assert T.save("nova", "x = 3\n", None).get("conflict")                  # postoji, a editor misli da je nov
     with pytest.raises(ValueError):
         T.path_of("../zlo")
+
+
+def test_gambit_micro_pomoc_za_svaku_komandu():
+    """Plan S4: panel Commands ima objašnjenje običnim jezikom za svaku komandu iz tac.__all__."""
+    from eurosim import apidoc
+    api = T.tac_api()
+    assert api["name"] == "Gambit Micro"
+    missing = [n for n in api["funcs"] if not api["funcs"][n]["help"]]
+    assert not missing, missing
+    for n, h in apidoc.DOC.items():
+        assert n in api["funcs"], "opis za komandu koje nema u tac.py: " + n
+        assert h["say"] and h["group"] and "example" in h
+        if api["funcs"][n]["kind"] == "function":                       # parametri kao u tac.py
+            assert [p for p, _ in h["params"]] == [p for p, _ in api["funcs"][n]["params"]], n

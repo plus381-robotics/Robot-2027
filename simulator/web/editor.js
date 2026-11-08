@@ -1,4 +1,4 @@
-// Tactic editor (CodeMirror 6): Python highlighting, completion and hover help for the tac API (generated
+// Tactic editor (CodeMirror 6): Python highlighting, completion and hover help for Gambit Micro, the tactic API (generated
 // from ESP32/lib/tac.py by the server), live checks (syntax, MicroPython, names, tac arguments...),
 // problems list, and highlighting of the line that is running at the current playback time.
 import {
@@ -41,6 +41,15 @@ const marksField = StateField.define({
   provide: f => EditorView.decorations.from(f),
 });
 
+// Pomoć za komandu: rečenica običnim jezikom i primer (eurosim/apidoc.py), inače docstring iz tac.py.
+function helpHtml(f) {
+  const h = f.help;
+  if (!h) return `<b>${escapeHtml(f.sig)}</b><pre>${escapeHtml(f.doc || '')}</pre>`;
+  const ps = (h.params || []).map(([p, t]) => `<div><code>${escapeHtml(p)}</code>: ${escapeHtml(t)}</div>`).join('');
+  return `<b>${escapeHtml(f.sig)}</b><p>${escapeHtml(h.say)}</p>${ps}` +
+    (h.ret ? `<p><i>Gives back:</i> ${escapeHtml(h.ret)}</p>` : '') + (h.example ? `<pre>${escapeHtml(h.example)}</pre>` : '');
+}
+
 function escapeHtml(s) { return s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]); }
 
 export class TacticEditor {
@@ -74,7 +83,7 @@ export class TacticEditor {
       for (const [name, f] of Object.entries(funcs)) {
         const req = f.params.filter(([, d]) => d === null).map(([p]) => p);
         const info = () => { const el = document.createElement('div'); el.className = 'cm-api-info';
-          el.innerHTML = `<b>${escapeHtml(f.sig)}</b><pre>${escapeHtml(f.doc || '')}</pre>`; return el; };
+          el.innerHTML = helpHtml(f); return el; };
         const g = GROUP_OF[name] || OTHER;
         const section = { name: g.name, rank: g.rank };
         // prvo komande koje počinju otkucanim, među njima najčešće (g -> goto pre go_home)
@@ -105,7 +114,7 @@ export class TacticEditor {
       if (!f) return null;
       return { pos: s, end: e, above: true, create() {
         const dom = document.createElement('div'); dom.className = 'cm-api-info';
-        dom.innerHTML = `<b>${escapeHtml(f.sig)}</b><pre>${escapeHtml(f.doc || '')}</pre>`; return { dom };
+        dom.innerHTML = helpHtml(f); return { dom };
       } };
     });
 
@@ -141,6 +150,16 @@ export class TacticEditor {
   }
 
   text() { return this.view.state.doc.toString(); }
+
+  insertLine(text) {                               // nov red ispod reda sa kursorom (dugme Insert u panelu Commands)
+    const s = this.view.state, line = s.doc.lineAt(s.selection.main.head);
+    const ind = /^\s*/.exec(line.text)[0];
+    const blank = !line.text.trim();
+    const ins = blank ? ind + text : '\n' + ind + text;
+    const at = blank ? line.from : line.to;
+    this.view.dispatch({ changes: { from: at, to: blank ? line.to : at, insert: ins }, selection: { anchor: at + ins.length } });
+    this.view.focus();
+  }
 
   cursorLine() { const s = this.view.state; return s.doc.lineAt(s.selection.main.head).number; }
 
