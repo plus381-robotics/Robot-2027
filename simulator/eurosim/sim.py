@@ -37,7 +37,7 @@ def _git_version():
 class Sim:
     def __init__(self, name, side="zuta", mode="mec", prof=None, tactics_dir=None, start=None,
                  cord_s=1.0, max_s=None, obstacles=(), screen=True, schedule=(), control=None, emit=None,
-                 net=None):
+                 net=None, elements=True):
         """start: (x, y, ugao) stvarna poza na stolu u koordinatama naše strane (None = START iz taktike).
         schedule: [(s, fn(sim))] radnje u zadatom trenutku (npr. STOP, pomeranje protivnika).
         mode "live": interaktivno, u stvarnom vremenu; control() vraća listu komandi (vidi command()),
@@ -73,7 +73,9 @@ class Sim:
         for nm, ms in self.prof.get("actuators", {}).get("ms", {}).items():
             if nm in ids:
                 self.stm.act_ms_by_id[ids[nm]] = ms
-        self.stm.plant.obstacles = [o if isinstance(o, Obstacle) else Obstacle(**o) for o in obstacles]
+        self.elements = [Obstacle(**e) for e in field.elements()] if elements else []     # kamenolomi (pravila 2027)
+        self.opponents = [o if isinstance(o, Obstacle) else Obstacle(**o) for o in obstacles]
+        self.stm.plant.obstacles = self.elements + self.opponents
         self.schedule = sorted(schedule, key=lambda s: s[0])
         self.t0 = self.esp.now()
         self.rec = Recording()
@@ -111,7 +113,8 @@ class Sim:
             "tactic": name, "side": side, "mode": mode, "source": src.read_text(encoding="utf-8") if name and src.exists() else None,
             "start": list(self.start), "start_field": [mx, my, mdeg], "total": meta.get("TOTAL"),
             "profile": self.prof.get("name"), "body": self.prof["body"], "drive": self.prof["drive"],
-            "field": field.describe(), "obstacles": [o.to_dict() for o in self.stm.plant.obstacles],
+            "field": field.describe(), "obstacles": [o.to_dict() for o in self.opponents],
+            "elements": [o.to_dict() for o in self.elements],
             "frame_ms": FRAME_MS, "git": _git_version(),
         }
 
@@ -324,8 +327,9 @@ class Sim:
             self.event("sim", {"text": "STOP (iz simulatora)"})
             a.stop()
         elif k == "obstacles":
-            self.stm.plant.obstacles = [Obstacle(**o) for o in c[1]]
-            self.rec.meta["obstacles"] = [o.to_dict() for o in self.stm.plant.obstacles]
+            self.opponents = [Obstacle(**o) for o in c[1]]
+            self.stm.plant.obstacles = self.elements + self.opponents
+            self.rec.meta["obstacles"] = [o.to_dict() for o in self.opponents]
             self.event("obstacles", self.rec.meta["obstacles"])
         elif k == "place":
             if self.stm.phase == "IDLE":

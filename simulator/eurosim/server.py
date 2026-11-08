@@ -171,6 +171,7 @@ async def run(request):
         return web.json_response({"error": "taktika ima sintaksnu grešku", "diagnostics": diags}, status=422)
     kw = dict(source=source, name=name, side=q.get("side", "zuta"), mode=q.get("mode", "mec"),
               cord_s=float(q.get("cord_s", 1.0)), obstacles=q.get("obstacles") or [],
+              elements=bool(q.get("elements", True)),
               prof=request.app[STATE]["profile"])
     if q.get("max_s"):
         kw["max_s"] = float(q["max_s"])
@@ -233,7 +234,8 @@ async def live(request):
         obstacles = json.loads(q.get("obstacles") or "[]")
     except ValueError:
         obstacles = []
-    kw = dict(name=tactic, side=q.get("side", "zuta"), obstacles=obstacles, prof=request.app[STATE]["profile"])
+    kw = dict(name=tactic, side=q.get("side", "zuta"), obstacles=obstacles, prof=request.app[STATE]["profile"],
+              elements=q.get("elements", "1") != "0")
     if staged:
         kw["name"], kw["source"] = staged
     ctx = mp.get_context("spawn")

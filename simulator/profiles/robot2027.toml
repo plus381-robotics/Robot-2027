@@ -75,3 +75,4 @@ range = 250            # (P) [mm] od ivice robota
 low_z = 40             # (P) visina donjih senzora
 high_z = 320           # (P) visina gornjih senzora
 see_walls = false
+see_elements = true    # (P) vide i kamenje u kamenolomima (330 mm visoko); false = samo protivnika

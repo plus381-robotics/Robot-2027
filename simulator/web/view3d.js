@@ -53,6 +53,20 @@ function tableTexture(field) {
   return t;
 }
 
+function stoneTexture() {
+  // karton sa ArUco oznakom (vrednost 13 iz pravila; ovde samo izgled, ne prava oznaka)
+  const c = document.createElement('canvas'); c.width = 320; c.height = 110;
+  const g = c.getContext('2d');
+  g.fillStyle = '#c79a5b'; g.fillRect(0, 0, 320, 110);
+  g.fillStyle = 'rgba(0,0,0,0.08)'; for (let i = 0; i < 12; i++) g.fillRect(i * 27, 0, 2, 110);
+  g.fillStyle = '#fff'; g.fillRect(122, 18, 76, 76);
+  g.fillStyle = '#000'; g.fillRect(128, 24, 64, 64);
+  g.fillStyle = '#fff';
+  for (const [x, y] of [[1, 1], [3, 1], [2, 2], [1, 3], [4, 3], [3, 4], [2, 4]]) g.fillRect(128 + x * 10.7, 24 + y * 10.7, 10.7, 10.7);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 export class FieldView {
   constructor(el, info) {
     this.el = el;
@@ -91,6 +105,8 @@ export class FieldView {
     this.cmpGroup = new THREE.Group();             // reference run (compare): path + ghost robot
     this.scene.add(this.cmpGroup);
     this.cmp = null;
+    this.elGroup = new THREE.Group();              // elementi igre (kamenolomi)
+    this.scene.add(this.elGroup);
     this.oppGroup = new THREE.Group();             // editable opponents (independent of the run)
     this.scene.add(this.oppGroup);
     this.opponents = []; this.oppSel = -1; this.drag = null;
@@ -206,7 +222,7 @@ export class FieldView {
   _dispose(obj) {
     obj.traverse(o => {
       if (o.geometry) o.geometry.dispose();
-      if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+      for (const m of [].concat(o.material || [])) { if (m.map) m.map.dispose(); m.dispose(); }
     });
     obj.clear();
   }
@@ -357,6 +373,28 @@ export class FieldView {
     this.cmpGhost.visible = t >= 0 && t <= this.cmp.duration + 500;
     this.cmpGhost.position.set(c.x[i] / 1000, c.y[i] / 1000, 0);
     this.cmpGhost.rotation.z = c.th[i] * Math.PI / 180;
+  }
+
+  setElements(list) {
+    this._dispose(this.elGroup);
+    if (!list || !list.length) return;
+    const [L, Wd, H] = this.field.stone || [320, 110, 110];
+    const tex = stoneTexture();
+    const side = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 });
+    const plain = new THREE.MeshStandardMaterial({ color: 0xc79a5b, roughness: 0.9 });
+    const geo = new THREE.BoxGeometry(L / 1000, Wd / 1000, H / 1000 * 0.98);
+    const mats = [plain, plain, side, side, plain, plain];   // +x -x +y -y +z -z: oznaka na velikim stranama
+    for (const e of list) {
+      const g = new THREE.Group();
+      for (let k = 0; k < (e.stones || 3); k++) {
+        const m = new THREE.Mesh(geo, mats);
+        m.position.z = (k + 0.5) * H / 1000;
+        g.add(m);
+      }
+      g.position.set(e.x / 1000, e.y / 1000, 0);
+      g.rotation.z = (e.th || 0) * Math.PI / 180;
+      this.elGroup.add(g);
+    }
   }
 
   setPose(f) {                                     // robot pose straight from a frame (live, between rebuilds)

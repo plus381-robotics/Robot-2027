@@ -94,3 +94,23 @@ def test_esp_moduli_citaju_utf8_i_na_windowsu():
     Sim("primer", mode="test")
     for n in ("runner", "match", "app", "settings"):
         assert sys.modules[n].open is _open_utf8
+
+
+def test_elementi_igre_2027():
+    """Pravila 2027: 10 kamenoloma po 3 kamena (320x110x110), simetrično po x; zone bedema."""
+    from eurosim import field
+    el = field.elements()
+    assert len(el) == 10 and sum(e["stones"] for e in el) == 30
+    xs = sorted((e["x"], e["y"]) for e in el)
+    assert xs == sorted((3000 - x, y) for x, y in xs)                     # plava = ogledalo žute
+    kinds = [z["kind"] for z in field.ZONES]
+    assert kinds.count("kula") == 8 and kinds.count("zid") == 4 and kinds.count("kapija") == 2
+
+
+def test_kamenolom_na_putu_blocked_a_bez_elemenata_stize(tmp_path):
+    d = write(tmp_path, "t", "START = (250, 1000, 0)\nlog('rez %s' % goto(750, 1700, speed=400))\n")
+    r = simulate("t", tactics_dir=d, mode="mec")
+    assert "rez False" in r.logs() and r.steps()[0][3] == "BLOCKED"       # kamenolom (750, 1945)
+    assert len(r.meta["elements"]) == 10 and r.meta["obstacles"] == []
+    r2 = simulate("t", tactics_dir=d, mode="mec", elements=False)
+    assert "rez True" in r2.logs()

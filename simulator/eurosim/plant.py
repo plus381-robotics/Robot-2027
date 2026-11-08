@@ -19,15 +19,24 @@ class Obstacle:
     """Prepreka (npr. protivnik): pravougaonik w x h (mm) oko (x, y), ugao th (stepeni), visina z (mm).
     r > 0: krug poluprečnika r umesto pravougaonika."""
 
-    def __init__(self, x, y, w=300, h=300, th=0.0, z=350, r=0, name="protivnik"):
+    def __init__(self, x, y, w=300, h=300, th=0.0, z=350, r=0, name="protivnik", kind="protivnik", **extra):
         self.x, self.y, self.w, self.h, self.th, self.z, self.r, self.name = x, y, w, h, th, z, r, name
+        self.kind, self.extra = kind, extra
 
     def poly(self):
-        return rect_corners(self.x / 1000, self.y / 1000, math.radians(self.th), self.w / 1000, self.h / 1000)
+        key = (self.x, self.y, self.th, self.w, self.h)
+        if getattr(self, "_pk", None) != key:          # prepreka se retko pomera: oblik se pamti
+            self._pk = key
+            self._poly = rect_corners(self.x / 1000, self.y / 1000, math.radians(self.th), self.w / 1000, self.h / 1000)
+        return self._poly
+
+    def radius(self):
+        """Poluprečnik kruga oko prepreke (m), za brzo odbacivanje dalekih."""
+        return (self.r if self.r else math.hypot(self.w, self.h) / 2) / 1000
 
     def to_dict(self):
-        return {"name": self.name, "x": self.x, "y": self.y, "w": self.w, "h": self.h, "th": self.th,
-                "z": self.z, "r": self.r}
+        return dict(self.extra, name=self.name, kind=self.kind, x=self.x, y=self.y, w=self.w, h=self.h,
+                    th=self.th, z=self.z, r=self.r)
 
 
 def rect_corners(cx, cy, th, length, width, offset=0.0):
@@ -120,6 +129,8 @@ class Plant:
         self.ir_range = ir.get("range", 250) / 1000
         self.ir_z = (ir.get("low_z", 40), ir.get("high_z", 320))
         self.ir_walls = ir.get("see_walls", False)
+        self.ir_elements = ir.get("see_elements", True)
+        self.reach = math.hypot(self.length, self.width) / 2 + abs(self.offset)    # robot u krugu ovog poluprečnika
         # stanje
         self.x = self.y = self.th = 0.0         # stvarna poza (m, rad)
         self.vl = self.vr = 0.0                 # stvarne brzine pogonskih točkova (m/s)
@@ -148,7 +159,11 @@ class Plant:
         W, H = field.W / 1000, field.H / 1000
         if any(px < 0 or px > W or py < 0 or py > H for px, py in poly):
             return True
+        cx, cy = sum(p[0] for p in poly) / 4, sum(p[1] for p in poly) / 4
+        rr = self.reach
         for o in self.obstacles:
+            if math.hypot(o.x / 1000 - cx, o.y / 1000 - cy) > rr + o.radius():
+                continue
             if o.r:
                 if circle_poly_hit(o.x / 1000, o.y / 1000, o.r / 1000, poly):
                     return True
@@ -217,9 +232,15 @@ class Plant:
             return 0
         W, H = field.W / 1000, field.H / 1000
         walls = [(0, 0), (W, 0), (W, H), (0, H)]
+        near = [o for o in self.obstacles
+                if (o.kind == "protivnik" or self.ir_elements)
+                and math.hypot(o.x / 1000 - self.x, o.y / 1000 - self.y) <= self.reach + self.ir_range + o.radius()]
+        if not near and not self.ir_walls:
+            self.ir, self.ir_hits = 0, []
+            return 0
         for name, sx, sy, (dx, dy), z in self.sensors():
             best = None
-            for o in self.obstacles:
+            for o in near:
                 if o.z < z:
                     continue
                 d = ray_dist(sx, sy, dx, dy, circle=(o.x / 1000, o.y / 1000, o.r / 1000), max_d=self.ir_range) \

@@ -138,7 +138,8 @@ class RobotLink:
         self.upload_port, self.telem_port = upload_port, telem_port
         self.rec = TelemRecorder({"tactic": None, "side": None, "mode": "robot", "host": host,
                                   "profile": prof.get("name"), "body": prof["body"], "drive": prof["drive"],
-                                  "field": field.describe(), "obstacles": [], "frame_ms": 100})
+                                  "field": field.describe(), "obstacles": [], "elements": field.elements(),
+                                  "frame_ms": 100})
         self.sent = (0, 0)
         self.transport = None
         self.addr = None

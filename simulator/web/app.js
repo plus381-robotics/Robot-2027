@@ -291,6 +291,7 @@ async function api(path, body) {
 function load(d, label, keepTime = null) {
   run = buildRun(d);
   view.setRun(run);
+  view.setElements(d.meta && d.meta.elements ? d.meta.elements : []);
   view.setVisibility({ odom: $('showOdom').checked, targets: $('showTargets').checked });
   charts.setRun(run);
   renderSteps(); renderLog(); renderResult(); renderMarks();
@@ -309,7 +310,8 @@ function load(d, label, keepTime = null) {
 
 async function simulate(keepTime = null) {
   if (live) return;
-  const body = { tactic: $('tactic').value, side: $('side').value, mode: $('mode').value, obstacles: opponents };
+  const body = { tactic: $('tactic').value, side: $('side').value, mode: $('mode').value, obstacles: opponents,
+    elements: $('showElements').checked };
   localStorage.setItem('eurosim.sel', JSON.stringify(body));
   if (ed) { body.tactic = ed.name; body.source = ed.editor.text(); }
   $('run').disabled = true;
@@ -580,7 +582,8 @@ function liveRebuild() {
 async function startLive() {
   if (live) return;
   setPlaying(false);
-  const q = new URLSearchParams({ tactic: $('tactic').value, side: $('side').value, obstacles: JSON.stringify(opponents) });
+  const q = new URLSearchParams({ tactic: $('tactic').value, side: $('side').value, obstacles: JSON.stringify(opponents),
+    elements: $('showElements').checked ? '1' : '0' });
   if (ed) {                                     // editor text (saved or not) is the tactic in Live too
     try { q.set('stage', (await api('/api/stage', { name: ed.name, source: ed.editor.text() })).stage); }
     catch (e) { msg(e.message, true); return; }
@@ -840,6 +843,11 @@ async function main() {
   $('testBtn').onclick = () => liveSend(['test', curTactic(), $('side').value]);
   document.querySelector('#espPanel .ov-title').onclick = () => $('espPanel').classList.toggle('collapsed');
   $('result').onclick = () => $('result').classList.toggle('mini');
+  view.setElements($('showElements').checked ? info.field.elements : []);
+  $('showElements').onchange = e => {
+    view.setElements(e.target.checked ? info.field.elements : []);
+    if (run && !live) simulate(play.t);
+  };
   $('rulesLook').onchange = e => view.setTableLook(e.target.checked ? 'rules' : 'grid');
   $('edBtn').onclick = () => toggleEditor().catch(e => msg('editor: ' + e.message, true));
   $('edFile').onchange = e => edLoad(e.target.value);
