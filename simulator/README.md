@@ -3,6 +3,21 @@
 Pušta taktike iz `ESP32/tactics/` bez robota, sa **istim ESP kodom** koji radi na robotu
 (`tac.py`, `robot.py`, `runner.py`, `match.py`, `app.py`...) i simuliranim STM32-jem.
 
+## Jedan fajl, bez instalacije (Linux; Windows kasnije)
+
+Na GitHub-u: **Actions → Simulator → poslednji run → Artifacts → eurosim-linux** (ili Releases, kad postoji tag
+`sim-v*`). To je jedan fajl (~23 MB) sa svim unutra (Python, server, interfejs, ESP kod, mpy-cross):
+
+    chmod +x eurosim && ./eurosim          # otvara browser na http://localhost:8270
+
+- Pokrenut **unutar repoa** (ili `EUROSIM_ROOT=/put/do/repoa`): koristi ESP kod, taktike, profile i snimke iz
+  repoa, kao `python simulator/sim.py`.
+- Pokrenut **bilo gde drugde**: ESP kod je iz fajla, a taktike, profili i snimci su u `~/Eurosim/`
+  (prvi put se tamo kopiraju primeri). Gore levo (Eurosim) piše koji je režim.
+- Isti argumenti kao `sim.py`: `./eurosim run primer --side zuta`, `./eurosim robot`, `./eurosim serve --port 8300`.
+- Pravljenje lokalno: `pip install pyinstaller -r simulator/requirements.txt && pyinstaller simulator/eurosim.spec`
+  (rezultat u `dist/`).
+
 ## Web interfejs
 
     pip install -r simulator/requirements.txt      # jednom (aiohttp)
@@ -53,6 +68,36 @@ STM32 i čeka, kao na stolu.
 - **Follow**: prikaz prati robota; isključi ga (ili klikni na klizač/korak) da se vratiš unazad dok
   simulacija radi dalje.
 - **End**: kraj; sesija ostaje kao snimak (reprodukcija, Save run).
+
+### Robot (🤖 Robot): pravi robot uživo
+
+Veza preko postojećeg ESP upload servera (TCP 8267) i telemetrije (UDP 8268), kao `tools/tactic.py` i
+`tools/watch.py`; laptop mora biti na mreži robota. Host je `eurokik.local` ili IP sa ekrana VEZA, lozinka
+iz `ESP32/webrepl_cfg.py` (ili upiši).
+- **Push** šalje taktiku (tekst iz editora ako je otvoren, inače fajl), **Push & Run** je i pokreće odmah
+  (test, bez meča; pita pre pokretanja jer robot kreće), **■ STOP** (i taster Esc).
+- Telemetrija (10 Hz) crta robota, korake (ishod iz dnevnika), dnevnik, brzinu i stanje meča, isto kao
+  simulacija; **Follow** / klizač za vraćanje. **Disconnect**: sesija ostaje kao snimak (Save run).
+- Robot šalje odometriju (ne zna stvarnu pozu) i ne šalje ekran; koraci kraći od 100 ms mogu da promaknu.
+- **Virtual robot**: na ovom računaru pokrene virtuelnog robota (pravi ESP kod sa upload serverom i
+  telemetrijom nad simuliranim STM32) i poveže se na njega. Isto iz terminala: `python simulator/sim.py robot`,
+  pa `python tools/tactic.py primer --host 127.0.0.1 --password eurosim` i `python tools/watch.py --host 127.0.0.1`.
+
+### Poređenje (📌 Pin as reference / compare with…)
+
+Trenutni snimak postaje referenca (ili izaberi sačuvan), pa pokreni drugi (simulacija, Live ili robot):
+referentna putanja i robot-duh (ljubičasto) se crtaju preko, poravnato po početku taktike. Npr. simulacija
+kao referenca, pa ista taktika na robotu.
+
+### Profil robota (⚙ Robot profile)
+
+Sve vrednosti iz `profiles/*.toml` (dimenzije, pogon, odometrija, regulacija, IR, aktuatori) sa komentarima;
+**(P)** = pretpostavka. Save upisuje u fajl (komentari ostaju) i sledeća simulacija ga koristi.
+
+### Sto
+
+Izgled stola je slika iz pravila 2027 (dodatak G.1, slika 8; `web/table2027.jpg`, x nadesno, y nagore);
+"rules table" prebacuje na običnu mrežu.
 
 ### Protivnik
 

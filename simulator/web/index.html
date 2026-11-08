@@ -31,12 +31,41 @@
     <button id="followBtn" class="on" title="Follow the live robot (otherwise you can scrub back)">Follow</button>
     <button id="endBtn" title="End Live; the session stays as a recording you can replay or save">End</button>
   </span>
+  <button id="robotBtn" title="Connect to the real robot (or a virtual one): send and run tactics, live telemetry">🤖 Robot</button>
+  <span id="robotGroup" class="group" hidden>
+    <span id="robotStatus" class="pill">…</span>
+    <button id="rPush" title="Send the tactic (editor text, or the file) to the robot">Push</button>
+    <button id="rRun" title="Send and run the tactic now (test, no match). THE ROBOT MOVES.">Push &amp; Run</button>
+    <button id="rStop" class="danger" title="STOP (Esc)">■ STOP</button>
+    <button id="rFollow" class="on" title="Follow the robot (otherwise you can scrub back)">Follow</button>
+    <button id="rEnd" title="Disconnect; the session stays as a recording">Disconnect</button>
+  </span>
   <span class="sep"></span>
+  <button id="profBtn" title="Robot profile: dimensions, drive, control, IR (simulator/profiles)">⚙ Robot profile</button>
   <button id="save" disabled title="Save this run to simulator/runs/">Save run</button>
   <select id="runs" title="Load a saved run"><option value="">Saved runs…</option></select>
   <span id="msg" class="msg"></span>
 </header>
 
+<div id="robotConnect" class="overlay pop" hidden>
+  <div class="ov-title">Connect to the robot</div>
+  <div class="ov-grid">
+    <label class="wide">host <input id="rHost" value="eurokik.local" placeholder="eurokik.local or IP from the VEZA screen"></label>
+    <label class="wide">password <input id="rPass" type="password" placeholder="empty = from ESP32/webrepl_cfg.py"></label>
+  </div>
+  <div class="row"><button id="rConnect" class="primary">Connect</button>
+    <button id="rVirtual" title="Start a virtual robot on this computer (real ESP code + simulated STM32) and connect to it">Virtual robot</button>
+    <button id="rCancel">Cancel</button></div>
+  <div class="dim small">Uses the ESP upload server (TCP 8267) and telemetry (UDP 8268), like tools/tactic.py and
+    tools/watch.py. The laptop must be on the robot's network.</div>
+</div>
+<div id="profDialog" class="overlay pop" hidden>
+  <div class="ov-title">Robot profile <select id="profFile"></select> <span id="profPath" class="dim small"></span>
+    <button id="profClose">✕</button></div>
+  <div id="profBody"></div>
+  <div class="row"><button id="profSave" class="primary">Save &amp; use</button>
+    <span class="dim small">(P) = assumption, to be measured. Saved into the .toml file (comments are kept); next simulation uses it.</span></div>
+</div>
 <main id="main">
   <section id="editorPane" hidden>
     <div class="ed-bar">
@@ -61,8 +90,15 @@
       <button id="cam3d" class="on">3D</button><button id="cam2d">Top</button>
       <label><input type="checkbox" id="showOdom" checked> odometry</label>
       <label><input type="checkbox" id="showTargets" checked> targets</label>
+      <label title="Table look: drawing from the 2027 rules or a plain grid"><input type="checkbox" id="rulesLook" checked> rules table</label>
       <label><input type="checkbox" id="follow"> follow</label>
       <button id="addOpp" title="Add an opponent (drag it on the table)">+ Opponent</button>
+    </div>
+    <div id="cmpTools" class="overlay">
+      <button id="cmpPin" title="Use the current run as the reference (e.g. simulation), then run or record another one">📌 Pin as reference</button>
+      <select id="cmpRun" title="Compare with a saved run"><option value="">compare with…</option></select>
+      <span id="cmpName" class="dim small"></span>
+      <button id="cmpClear" hidden title="Remove the reference">✕</button>
     </div>
     <div id="oppEdit" class="overlay" hidden>
       <div class="ov-title">Opponent <span id="oppName" class="dim"></span> <button id="oppDel" title="Remove">✕</button></div>

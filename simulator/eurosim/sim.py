@@ -36,17 +36,29 @@ def _git_version():
 
 class Sim:
     def __init__(self, name, side="plava", mode="mec", prof=None, tactics_dir=None, start=None,
-                 cord_s=1.0, max_s=None, obstacles=(), screen=True, schedule=(), control=None, emit=None):
+                 cord_s=1.0, max_s=None, obstacles=(), screen=True, schedule=(), control=None, emit=None,
+                 net=None):
         """start: (x, y, ugao) stvarna poza na stolu u koordinatama naše strane (None = START iz taktike).
         schedule: [(s, fn(sim))] radnje u zadatom trenutku (npr. STOP, pomeranje protivnika).
         mode "live": interaktivno, u stvarnom vremenu; control() vraća listu komandi (vidi command()),
-        emit(dict) dobija nove frame-ove, događaje i sliku ekrana (~20 puta u sekundi)."""
+        emit(dict) dobija nove frame-ove, događaje i sliku ekrana (~20 puta u sekundi).
+        net = {"upload": 8267, "telem": 8268, "password": "eurosim"}: virtuelni robot na mreži, sa pravim
+        upload.py i telem.py (tools/tactic.py, tools/watch.py i Robot panel rade sa njim kao sa robotom);
+        taktike su u njegovom "flešu" (privremeni folder), kao na ESP-u."""
         self.name, self.side, self.mode = name, side, mode
         self.prof = prof or profmod.load()
         self.tactics_dir = pathlib.Path(tactics_dir or paths.TACTICS)
         self.cord_ms = int(cord_s * 1000)
         self.max_ms = int((max_s if max_s is not None else (105 if mode == "mec" else 120)) * 1000)
         self._tmp = tempfile.TemporaryDirectory(prefix="eurosim-")
+        self.flash = None
+        if net:
+            import shutil
+            self.flash = pathlib.Path(self._tmp.name) / "flash"
+            (self.flash / "tactics").mkdir(parents=True)
+            for f in self.tactics_dir.glob("*.py"):
+                shutil.copy(f, self.flash / "tactics")
+            self.tactics_dir = self.flash / "tactics"
         self.out = io.StringIO()                 # print-ovi iz ESP koda
         with contextlib.redirect_stdout(self.out):
             self.esp = Esp(lambda clock: SimSTM(self.prof, clock), self.tactics_dir, self._tmp.name,
@@ -54,6 +66,8 @@ class Sim:
                            inputs=True)
         self.stm = self.esp.stm
         self.app = self.esp.app
+        if net:
+            self._net(net)
         self.tracker = self.esp.tracker
         ids = self.esp.actuator_ids()
         for nm, ms in self.prof.get("actuators", {}).get("ms", {}).items():
@@ -100,6 +114,20 @@ class Sim:
             "field": field.describe(), "obstacles": [o.to_dict() for o in self.stm.plant.obstacles],
             "frame_ms": FRAME_MS, "git": _git_version(),
         }
+
+    def _net(self, net):
+        """Pravi ESP upload server i telemetrija, kao u main.py (bez WiFi-ja: mreža je ovaj računar)."""
+        import types
+        sys.modules["webrepl_cfg"] = types.SimpleNamespace(PASS=net.get("password", "eurosim"))
+        import state
+        import upload
+        import telem
+        state.MODE, state.SSID, state.IP = "STA", "eurosim", "127.0.0.1"
+        upload.ROOT = str(self.flash)
+        self.upload = upload.Upload(self.app, {}, None, port=net.get("upload", upload.PORT))
+        self.telem = telem.Telem(self.app, port=net.get("telem", telem.PORT))
+        self.esp.services.insert(0, self.telem.poll)
+        self.esp.services.insert(0, self.upload.poll)
 
     # ---------------- linije koda (za editor) ----------------
 

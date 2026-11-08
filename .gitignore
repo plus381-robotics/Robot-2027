@@ -35,3 +35,6 @@ Thumbs.db
 # ---- ESP32: lozinke se ne commit-uju ----
 ESP32/secrets.py
 ESP32/webrepl_cfg.py
+
+# ---- Simulator: izvršni fajl (PyInstaller) ----
+/dist/

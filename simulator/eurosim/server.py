@@ -9,6 +9,7 @@ import asyncio
 import json
 import multiprocessing as mp
 import os
+import pathlib
 import uuid
 import pathlib
 import re
@@ -20,8 +21,11 @@ from aiohttp import web
 from . import field, paths, profile as profmod, tactics as tacmod
 from .record import Recording
 
-WEB = paths.SIM / "web"
-RUNS = paths.SIM / "runs"
+RUNS = None                    # None = paths.RUNS (testovi ga menjaju)
+
+
+def _runs_dir():
+    return RUNS or paths.RUNS
 RUN_TIMEOUT_S = 60
 PORT = 8270
 STATE = web.AppKey("state", dict)          # {"profile": Profile, "last": poslednji snimak (dict)}
@@ -145,7 +149,7 @@ async def info(request):
         "tactics": tactics, "field": field.describe(),
         "profile": {"name": prof.get("name"), "body": prof["body"], "drive": prof["drive"],
                     "odometry": prof["odometry"], "ir": prof.get("ir", {})},
-        "sides": ["plava", "zuta"], "runs": _runs(),
+        "sides": ["plava", "zuta"], "runs": _runs(), "where": paths.describe(),
     })
 
 
@@ -182,9 +186,10 @@ async def run(request):
 
 
 def _runs():
-    if not RUNS.exists():
+    d = _runs_dir()
+    if not d.exists():
         return []
-    return sorted((f.name[:-8] for f in RUNS.glob("*.json.gz")), reverse=True)
+    return sorted((f.name[:-8] for f in d.glob("*.json.gz")), reverse=True)
 
 
 async def runs_list(request):
@@ -198,16 +203,16 @@ async def run_save(request):
         return web.json_response({"error": "nema simulacije za čuvanje"}, status=400)
     m = last["meta"]
     name = _safe_name(q.get("name") or "%s_%s_%s" % (time.strftime("%Y%m%d-%H%M%S"), m["tactic"], m["side"]))
-    RUNS.mkdir(exist_ok=True)
+    _runs_dir().mkdir(parents=True, exist_ok=True)
     r = Recording(m)
     r.frames, r.events, r.result = last["frames"], last["events"], last["result"]
-    r.save(RUNS / (name + ".json.gz"))
+    r.save(_runs_dir() / (name + ".json.gz"))
     return web.json_response({"saved": name, "runs": _runs()})
 
 
 async def run_load(request):
     name = _safe_name(request.match_info["name"])
-    f = RUNS / (name + ".json.gz")
+    f = _runs_dir() / (name + ".json.gz")
     if not f.exists():
         return web.json_response({"error": "nema snimka %s" % name}, status=404)
     r = Recording.load(f)
@@ -336,8 +341,143 @@ async def stage(request):
     return web.json_response({"stage": key})
 
 
+# ---------------- pravi robot (F5) ----------------
+
+async def robot_ws(request):
+    """WebSocket /ws/robot?host=..&password=..: telemetrija robota + komande (push, run, stop, stat).
+    Isti oblik podataka kao /ws/live; na kraju {"type": "end", "run": snimak}."""
+    from . import robotlink
+    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=32 * 1024 * 1024)
+    await ws.prepare(request)
+    q = request.query
+    host = q.get("host") or "eurokik.local"
+    pw = q.get("password") or robotlink.default_password()
+    dumps = lambda o: json.dumps(o, separators=(",", ":"))   # noqa: E731
+
+    async def emit(d):
+        if not ws.closed:
+            await ws.send_str(dumps({"type": "data", **d}))
+
+    link = robotlink.RobotLink(host, pw, emit, request.app[STATE]["profile"],
+                               upload_port=int(q.get("port") or robotlink.UPLOAD_PORT),
+                               telem_port=int(q.get("telem") or robotlink.TELEM_PORT))
+    try:
+        await link.start()
+    except OSError as e:
+        await ws.send_str(dumps({"type": "error", "error": "ne mogu da nađem %s: %s (probaj IP adresu sa ekrana "
+                                                        "VEZA)" % (host, e)}))
+        await ws.close()
+        return ws
+    pump = asyncio.create_task(link.run())
+
+    async def reply(c, ok, lines):
+        if not ws.closed:
+            await ws.send_str(dumps({"type": "reply", "cmd": c, "ok": ok, "lines": lines}))
+
+    try:
+        ok, lines = await link.cmd("STAT")
+        await reply("STAT", ok, lines)
+        async for msg in ws:
+            if msg.type != web.WSMsgType.TEXT:
+                continue
+            try:
+                c = json.loads(msg.data)
+            except ValueError:
+                continue
+            k = c[0]
+            if k == "quit":
+                break
+            if k == "push":                       # ["push", ime, tekst ili null = fajl iz ESP32/tactics]
+                name, src = c[1], c[2] if len(c) > 2 else None
+                if not tacmod.NAME_RE.match(name or ""):
+                    await reply(k, False, ["neispravno ime"])
+                    continue
+                if src is None:
+                    src = (paths.TACTICS / (name + ".py")).read_text(encoding="utf-8")
+                data = src.encode("utf-8")
+                ok, lines = await link.cmd("PUT", "/tactics/%s.py" % name, len(data), data=data)
+                await reply(k, ok, lines)
+            elif k == "run":
+                ok, lines = await link.cmd("RUN", c[1], c[2] if len(c) > 2 else "")
+                await reply(k, ok, lines)
+            elif k == "stop":
+                ok, lines = await link.cmd("STOP")
+                await reply(k, ok, lines)
+            elif k == "stat":
+                ok, lines = await link.cmd("STAT")
+                await reply(k, ok, lines)
+    finally:
+        pump.cancel()
+        link.close()
+        res = link.recording()
+        if res["frames"]:
+            request.app[STATE]["last"] = res
+        if not ws.closed:
+            await ws.send_str(dumps({"type": "end", "run": pack(res) if res["frames"] else None}))
+            await ws.close()
+    return ws
+
+
+def _vrobot_worker(kw):
+    import contextlib
+    import io
+    from .sim import Sim
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        Sim(mode="live", **kw).run()
+
+
+async def vrobot(request):
+    """POST /api/vrobot {"action": "start"|"stop"}: virtuelni robot na 127.0.0.1 (kao sim.py robot)."""
+    q = await request.json()
+    st = request.app[STATE]
+    p = st.get("vrobot")
+    if q.get("action") == "stop" or (p is not None and q.get("action") == "start"):
+        if p is not None and p.is_alive():
+            p.kill()
+            p.join(2)
+        st["vrobot"] = None
+        if q.get("action") == "stop":
+            return web.json_response({"running": False})
+    names = {f.stem for f in paths.TACTICS.glob("*.py")}
+    kw = dict(name=q.get("tactic") if q.get("tactic") in names else None, side=q.get("side", "plava"),
+              prof=st["profile"], obstacles=q.get("obstacles") or [],
+              net={"upload": int(q.get("port", 8267)), "telem": int(q.get("telem", 8268)), "password": "eurosim"})
+    p = mp.get_context("spawn").Process(target=_vrobot_worker, args=(kw,), daemon=True)
+    p.start()
+    st["vrobot"] = p
+    await asyncio.sleep(1.0)
+    return web.json_response({"running": p.is_alive(), "host": "127.0.0.1", "password": "eurosim"})
+
+
+# ---------------- profil robota (F4) ----------------
+
+async def profile_get(request):
+    f = request.app[STATE].get("profile_path") or paths.DEFAULT_PROFILE
+    return web.json_response({"file": str(f), "files": sorted(x.name for x in paths.PROFILES.glob("*.toml")),
+                              "sections": profmod.describe(f)})
+
+
+async def profile_set(request):
+    q = await request.json()
+    st = request.app[STATE]
+    f = pathlib.Path(st.get("profile_path") or paths.DEFAULT_PROFILE)
+    if q.get("file"):
+        f2 = paths.PROFILES / pathlib.Path(q["file"]).name
+        if not f2.exists():
+            return web.json_response({"error": "nema profila %s" % q["file"]}, status=404)
+        f = f2
+    try:
+        if q.get("changes"):
+            profmod.update_file(f, q["changes"])
+        prof = profmod.load(f)
+    except (ValueError, KeyError) as e:
+        return web.json_response({"error": str(e)}, status=400)
+    st["profile"], st["profile_path"] = prof, f
+    return web.json_response({"file": str(f), "sections": profmod.describe(f), "name": prof.get("name")})
+
+
 async def index(request):
-    return web.FileResponse(WEB / "index.html")
+    return web.FileResponse(paths.WEB / "index.html")
 
 
 def make_app(prof=None):
@@ -355,7 +495,11 @@ def make_app(prof=None):
     app.router.add_post("/api/tactic/save", tactic_save)
     app.router.add_post("/api/check", check)
     app.router.add_post("/api/stage", stage)
-    app.router.add_static("/", WEB, show_index=False)
+    app.router.add_get("/ws/robot", robot_ws)
+    app.router.add_post("/api/vrobot", vrobot)
+    app.router.add_get("/api/profile", profile_get)
+    app.router.add_post("/api/profile", profile_set)
+    app.router.add_static("/", paths.WEB, show_index=False)
     return app
 
 

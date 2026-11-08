@@ -147,3 +147,22 @@ button.live-on { background: #e5484d; border-color: #e5484d; color: #fff; }
 #espPanel.collapsed .ov-title { margin: 0; }
 #result { cursor: pointer; }
 #result.mini > :not(b) { display: none; }
+
+/* ---------- F4/F5: robot, profile, compare ---------- */
+.pill { padding: 2px 8px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--line); font-size: 12px; }
+.pill.ok { border-color: var(--ok); color: var(--ok); } .pill.bad { border-color: var(--fail); color: var(--fail); }
+.overlay.pop { position: fixed; top: 46px; z-index: 50; box-shadow: 0 8px 30px #000a; }
+#robotConnect { left: 50%; transform: translateX(-50%); width: 430px; }
+#robotConnect input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
+.overlay .row { display: flex; gap: 8px; align-items: center; margin: 8px 0 4px; flex-wrap: wrap; }
+#profDialog { right: 12px; width: 560px; max-height: calc(100vh - 70px); display: flex; flex-direction: column; }
+#profDialog[hidden] { display: none; }
+#profBody { overflow-y: auto; flex: 1; }
+#profBody h4 { margin: 10px 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--accent); }
+#profBody .pr { display: grid; grid-template-columns: 150px 110px 1fr; gap: 8px; align-items: center; padding: 2px 0; }
+#profBody .pr input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 2px 5px; }
+#profBody .pr input.changed { border-color: var(--warn); }
+#profBody .pr .c { color: var(--dim); font-size: 11px; }
+#profBody .pr .c.p { color: var(--warn); }
+#cmpTools { top: 44px; left: 8px; display: flex; gap: 6px; align-items: center; padding: 4px 7px; }
+#cmpTools select { max-width: 200px; }

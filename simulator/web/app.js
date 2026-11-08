@@ -12,6 +12,7 @@ const FIELD_X = 3000, REF_SIDE = 'plava';
 
 let info, view, charts, esp, run = null;
 let opponents = [], oppSel = -1;
+let ref = null;                       // reference run for comparing (pinned or loaded)
 let ed = null;                        // {editor, api, name, sha, saved} when the editor is open
 let live = null;                       // {ws, raw: {meta, frames, events}, follow, dirty, last}
 const play = { t: 0, playing: false, speed: 1, last: 0 };
@@ -87,7 +88,7 @@ function stateCells(c, i) {
     ['flow', c.mec[i] || '–'], ['STM32', c.link[i] ? 'link ok' : 'no link', c.link[i] ? 'good' : 'bad'],
     ['x / y', `${f0(c.x[i])} / ${f0(c.y[i])}`], ['angle', f1(c.th[i]) + '°'],
     ['odom x/y', `${f0(c.ox[i])} / ${f0(c.oy[i])}`], ['odom ∠', f1(c.oth[i]) + '°'],
-    ['odom err', f1(dx) + ' mm', dx > 10 ? 'warn' : ''], ['STM phase', `${c.phase[i]} ${c.reg[i]}/${c.ms[i]}`],
+    ['odom err', f1(dx) + ' mm', dx > 10 ? 'warn' : ''], ['STM phase', c.reg[i] === '' || c.reg[i] == null ? (c.phase[i] || '–') : `${c.phase[i]} ${c.reg[i]}/${c.ms[i]}`],
     ['v', f2(c.v[i]) + ' m/s'], ['v ref', f2(c.v_ref[i])],
     ['ω', f2(c.w[i]) + ' r/s'], ['ω ref', f2(c.w_ref[i])],
     ['wheel L', f2(c.vl[i])], ['wheel R', f2(c.vr[i])],
@@ -182,6 +183,17 @@ function updateLog(t) {
 
 function renderResult() {
   const r = run.result, el = $('result');
+  if (r.robot) {                                // snimak sa robota (telemetrija): nema stvarne poze ni ishoda
+    const c = run.cols, n = c.t.length - 1;
+    const done = run.steps.filter(s => s.ok === true).length, bad = run.steps.filter(s => s.ok === false);
+    el.className = bad.length ? 'fail' : 'ok';
+    el.style.display = 'block';
+    el.innerHTML = `<b>ROBOT</b> <span class="dim">${run.meta.host} · ${run.meta.tactic || 'no tactic'} · ${SIDE_NAME[run.meta.side] || ''}</span>
+      <div class="dim">${secs(run.duration)} s of telemetry · steps OK ${done}/${run.steps.length}${n >= 0 ? ` · last pose ${f0(c.x[n])}, ${f0(c.y[n])}, ${f1(c.th[n])}°` : ''}</div>
+      ${bad.map(s => `<div>step ${s.idx} “${s.name}”: ${REASON[s.reason] || s.reason}</div>`).join('')}
+      <div class="dim small">pose = robot odometry · 10 Hz telemetry: very short steps may be missed</div>`;
+    return;
+  }
   const fail = r.fail ? `<div>failed at step ${r.fail[0]} “${r.fail[1]}”: ${REASON[r.fail[2]] || r.fail[2]}</div>` : '';
   const warn = [];
   if (r.start_in_zone === false) warn.push('robot does not start inside its own start zone');
@@ -227,6 +239,7 @@ function show() {
   updateSteps(play.t);
   updateLog(play.t);
   charts.setTime(play.t);
+  if (ref) view.setCompareTime(play.t - alignOf(run) + alignOf(ref));
   $('slider').value = i;
   $('time').textContent = `${secs(play.t)} / ${secs(run.duration)} s`;
 }
@@ -312,6 +325,7 @@ async function simulate(keepTime = null) {
 function fillRuns(list) {
   const s = $('runs');
   s.innerHTML = '<option value="">Saved runs…</option>' + list.map(n => `<option>${n}</option>`).join('');
+  $('cmpRun').innerHTML = '<option value="">compare with…</option>' + list.map(n => `<option>${n}</option>`).join('');
 }
 
 // ---------------- opponents ----------------
@@ -529,6 +543,7 @@ function setFollow(on) {
   if (!live) return;
   live.follow = on;
   $('followBtn').classList.toggle('on', on);
+  $('rFollow').classList.toggle('on', on);
   $('play').textContent = on ? '⏸' : '▶';
 }
 
@@ -609,9 +624,127 @@ function stopLiveUi() {
   try { live.ws.close(); } catch (e) { /* ignore */ }
   live = null;
   $('liveGroup').hidden = true;
+  $('robotGroup').hidden = true;
+  $('robotBtn').classList.remove('live-on');
+  $('liveBtn').disabled = false; $('robotBtn').disabled = false;
   $('liveBtn').classList.remove('live-on'); $('liveBtn').textContent = '● Live';
   $('run').disabled = false;
   esp.setEnabled(false);
+}
+
+// ---------------- robot (F5) ----------------
+
+function liveData(m) {                          // shared by Live and Robot: append, follow
+  const L = live; if (!L) return null;
+  if (m.meta) L.raw.meta = m.meta;
+  if (m.frames.length) { L.raw.frames.push(...m.frames); L.dirty = true; }
+  if (m.events.length) { L.raw.events.push(...m.events); L.dirty = true; }
+  const f = m.frames[m.frames.length - 1];
+  if (L.follow && f) view.setPose(f);
+  return f;
+}
+
+function startRobot(host, password, label) {
+  if (live) return;
+  setPlaying(false);
+  $('robotConnect').hidden = true;
+  const q = new URLSearchParams({ host, password });
+  const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/robot?${q}`);
+  live = { kind: 'robot', ws, raw: { meta: null, frames: [], events: [] }, follow: true, dirty: false, host };
+  $('robotGroup').hidden = false;
+  $('robotBtn').classList.add('live-on');
+  $('liveBtn').disabled = true; $('robotBtn').disabled = true;
+  $('run').disabled = true; $('result').style.display = 'none';
+  $('robotStatus').textContent = 'connecting…'; $('robotStatus').className = 'pill';
+  esp.setEnabled(false); esp.setScreen(null);
+  esp.hint.textContent = 'the robot does not stream its screen';
+  setFollow(true);
+  msg(`robot ${label || host}: connecting…`);
+  ws.onmessage = ev => {
+    const m = JSON.parse(ev.data);
+    if (m.type === 'data') {
+      const f = liveData(m);
+      const st = $('robotStatus');
+      if (m.age == null) { st.textContent = 'no telemetry'; st.className = 'pill bad'; }
+      else if (m.age > 1500) { st.textContent = `no data ${secs(m.age)} s`; st.className = 'pill bad'; }
+      else { st.textContent = `● ${host}` + (m.mec && m.mec !== 'NEMA' ? ` · ${m.mec}` : '') + (m.running ? ` · ${m.running}` : ''); st.className = 'pill ok'; }
+      if (f && live.follow) $('time').textContent = `${secs(f.t)} s · robot`;
+    } else if (m.type === 'reply') {
+      const text = `${m.cmd}: ${m.ok ? 'OK' : 'ERR'} ${(m.lines || []).slice(-2).join(' · ')}`;
+      msg(text, !m.ok);
+      if (m.cmd === 'STAT' && m.ok) msg(`robot ${host}: connected · ` + (m.lines || []).slice(0, 3).join(' · '));
+    } else if (m.type === 'end') {
+      stopLiveUi();
+      if (m.run) load(m.run, 'robot session ended: replay it, save it or compare it with a simulation', 1e12);
+      else msg('robot disconnected (no telemetry received)');
+    } else if (m.type === 'error') {
+      msg('robot: ' + m.error.split('\n')[0], true);
+    }
+  };
+  ws.onclose = () => { if (live && live.kind === 'robot') { stopLiveUi(); msg('robot connection closed', true); } };
+}
+
+function robotTactic() {
+  const name = curTactic();
+  return [name, ed && ed.name === name ? ed.editor.text() : null];
+}
+
+// ---------------- compare ----------------
+
+function alignOf(r) {                           // time of the first tactic start (0 if none)
+  const e = r && r.events && r.events.find(x => x[1] === 'tactic');
+  return e ? e[0] : 0;
+}
+
+function setRef(r, name) {
+  ref = r;
+  view.setCompare(r);
+  $('cmpName').textContent = r ? `reference: ${name}` : '';
+  $('cmpClear').hidden = !r;
+  if (run) show();
+}
+
+// ---------------- profile (F4) ----------------
+
+async function openProfile(file) {
+  const d = file ? await api('/api/profile', { file }) : await api('/api/profile');
+  const info2 = file ? await api('/api/profile') : d;
+  $('profFile').innerHTML = (info2.files || []).map(f => `<option>${f}</option>`).join('');
+  $('profFile').value = d.file.split(/[\\/]/).pop();
+  $('profPath').textContent = d.file;
+  const body = $('profBody');
+  body.innerHTML = '';
+  for (const sec of d.sections) {
+    const h = document.createElement('h4'); h.textContent = sec.name || 'general'; body.appendChild(h);
+    for (const it of sec.items) {
+      const row = document.createElement('div'); row.className = 'pr';
+      const key = (sec.name ? sec.name + '.' : '') + it.key;
+      const isBool = typeof it.value === 'boolean';
+      row.innerHTML = `<span>${it.key}</span><input data-key="${key}" ${isBool ? 'type="checkbox"' : ''}>` +
+        `<span class="c ${/\(P\)/.test(it.comment) ? 'p' : ''}"></span>`;
+      const inp = row.querySelector('input');
+      if (isBool) inp.checked = it.value; else inp.value = it.value;
+      inp.dataset.orig = isBool ? String(it.value) : String(it.value);
+      inp.oninput = inp.onchange = () => inp.classList.toggle('changed', (isBool ? String(inp.checked) : inp.value) !== inp.dataset.orig);
+      row.querySelector('.c').textContent = it.comment;
+      row.querySelector('.c').title = it.comment;
+      body.appendChild(row);
+    }
+  }
+  $('profDialog').hidden = false;
+}
+
+async function saveProfile() {
+  const changes = {};
+  for (const inp of document.querySelectorAll('#profBody input.changed')) {
+    changes[inp.dataset.key] = inp.type === 'checkbox' ? inp.checked : (isNaN(+inp.value) ? inp.value : +inp.value);
+  }
+  try {
+    const d = await api('/api/profile', { file: $('profFile').value, changes });
+    info = await api('/api/info');
+    msg(`profile saved (${Object.keys(changes).length} change(s)): ${d.file} · press Simulate to use it`);
+    $('profDialog').hidden = true;
+  } catch (e) { msg(e.message, true); }
 }
 
 // ---------------- start ----------------
@@ -661,11 +794,47 @@ async function main() {
   $('oppDel').onclick = () => { opponents.splice(oppSel, 1); oppSel = -1; refreshOpponents(); opponentsChanged(true); };
   for (const id of ['oppX', 'oppY', 'oppW', 'oppH', 'oppTh', 'oppZ', 'oppRound']) $(id).onchange = editOpponent;
   $('liveBtn').onclick = () => (live ? liveSend(['quit']) : startLive());
+  $('robotBtn').onclick = () => { $('robotConnect').hidden = !$('robotConnect').hidden; };
+  $('rCancel').onclick = () => { $('robotConnect').hidden = true; };
+  $('rConnect').onclick = () => {
+    localStorage.setItem('eurosim.host', $('rHost').value);
+    startRobot($('rHost').value.trim(), $('rPass').value);
+  };
+  $('rHost').value = localStorage.getItem('eurosim.host') || 'eurokik.local';
+  $('rVirtual').onclick = async () => {
+    msg('starting a virtual robot (real ESP code, simulated STM32) on 127.0.0.1…');
+    try {
+      const d = await api('/api/vrobot', { action: 'start', tactic: curTactic(), side: $('side').value, obstacles: opponents });
+      startRobot(d.host, d.password, 'virtual (127.0.0.1)');
+    } catch (e) { msg(e.message, true); }
+  };
+  $('rPush').onclick = () => { const [n, src] = robotTactic(); liveSend(['push', n, src]); msg(`sending ${n}…`); };
+  $('rRun').onclick = () => {
+    const [n, src] = robotTactic();
+    if (live && live.host !== '127.0.0.1' &&
+        !confirm(`Run "${n}" on ${live.host} now (${SIDE_NAME[$('side').value]})?\n\nTHE ROBOT WILL MOVE. Free space, hand on the motor switch.`)) return;
+    liveSend(['push', n, src]); liveSend(['run', n, $('side').value]); msg(`running ${n} on the robot…`);
+  };
+  $('rStop').onclick = () => liveSend(['stop']);
+  $('rFollow').onclick = () => setFollow(!live.follow);
+  $('rEnd').onclick = () => liveSend(['quit']);
+  $('profBtn').onclick = () => ($('profDialog').hidden ? openProfile().catch(e => msg(e.message, true)) : ($('profDialog').hidden = true));
+  $('profClose').onclick = () => { $('profDialog').hidden = true; };
+  $('profSave').onclick = saveProfile;
+  $('profFile').onchange = e => openProfile(e.target.value).catch(er => msg(er.message, true));
+  $('cmpPin').onclick = () => { if (run) setRef(run, `${run.meta.tactic || '?'} (${run.meta.mode})`); };
+  $('cmpClear').onclick = () => setRef(null);
+  $('cmpRun').onchange = async e => {
+    const n = e.target.value; e.target.value = '';
+    if (!n) return;
+    try { setRef(buildRun(await api('/api/runs/' + encodeURIComponent(n))), n); } catch (er) { msg(er.message, true); }
+  };
   $('endBtn').onclick = () => liveSend(['quit']);
   $('armBtn').onclick = () => liveSend(['arm', curTactic(), $('side').value]);
   $('testBtn').onclick = () => liveSend(['test', curTactic(), $('side').value]);
   document.querySelector('#espPanel .ov-title').onclick = () => $('espPanel').classList.toggle('collapsed');
   $('result').onclick = () => $('result').classList.toggle('mini');
+  $('rulesLook').onchange = e => view.setTableLook(e.target.checked ? 'rules' : 'grid');
   $('edBtn').onclick = () => toggleEditor().catch(e => msg('editor: ' + e.message, true));
   $('edFile').onchange = e => edLoad(e.target.value);
   $('tactic').addEventListener('change', e => { if (ed) edLoad(e.target.value); });
@@ -721,9 +890,12 @@ async function main() {
     else if (e.key === 'Home') seek(0);
     else if (e.key === 'End') run && seek(run.duration);
     else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) simulate();
+    else if (e.key === 'Escape' && live && live.kind === 'robot') liveSend(['stop']);
   });
   requestAnimationFrame(tick);
-  msg('choose a tactic and press Simulate');
+  const w = info.where || {};
+  msg(w.mode === 'standalone' ? `standalone: tactics, profiles and runs in ${w.home}` : `repo ${w.root}: tactics in ESP32/tactics`);
+  document.querySelector('.brand').title = JSON.stringify(w, null, 1);
 }
 
 window.eurosim = { get ed() { return ed; }, get run() { return run; }, play, edMarks };   // za testove i konzolu

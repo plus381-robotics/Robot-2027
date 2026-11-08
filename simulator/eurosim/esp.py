@@ -24,8 +24,20 @@ def _esp_module_names():
     return names
 
 
+def micropython_shims():
+    """Funkcije koje postoje samo u MicroPython-u, a ESP kod ih zove (npr. upload STAT -> gc.mem_free).
+    Samo u procesu simulacije; vrednosti su izmišljene (simulator nema ESP memoriju)."""
+    import gc
+    if not hasattr(gc, "mem_free"):
+        gc.mem_free = lambda: 100 * 1024
+        gc.mem_alloc = lambda: 60 * 1024
+    if not hasattr(gc, "threshold"):
+        gc.threshold = lambda *a: -1
+
+
 def fresh_import():
     """Izbaci ESP module iz sys.modules i stavi ESP putanje na početak sys.path (kao conftest.py)."""
+    micropython_shims()
     for n in _esp_module_names():
         sys.modules.pop(n, None)
     for d in reversed(_esp_dirs()):

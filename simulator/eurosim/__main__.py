@@ -64,6 +64,23 @@ def cmd_list(a):
     return 0
 
 
+def cmd_robot(a):
+    """Virtuelni robot: pravi ESP kod (i upload server + telemetrija) nad simulacijom, u stvarnom vremenu."""
+    from .sim import Sim
+    prof = profmod.load(a.profile)
+    sim = Sim(a.tactic, side=a.side, mode="live", prof=prof,
+              net={"upload": a.port, "telem": a.telem, "password": a.password},
+              obstacles=[_opp(o) for o in a.opp or []])
+    print("virtuelni robot: 127.0.0.1, upload %d, telemetrija %d, lozinka %r" % (a.port, a.telem, a.password))
+    print("  python tools/tactic.py primer --host 127.0.0.1 --password %s" % a.password)
+    print("  python tools/watch.py --host 127.0.0.1        (Ctrl+C za kraj)")
+    try:
+        sim.run()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
 def cmd_serve(a):
     from .server import serve
     serve(port=a.port, host=a.host, open_browser=not a.no_browser, prof=profmod.load(a.profile))
@@ -88,6 +105,15 @@ def main(argv=None):
     li = sub.add_parser("list", help="taktike")
     li.add_argument("--dir")
     li.set_defaults(fn=cmd_list)
+    rb = sub.add_parser("robot", help="virtuelni robot na mreži (za tools/ i Robot panel bez hardvera)")
+    rb.add_argument("--port", type=int, default=8267)
+    rb.add_argument("--telem", type=int, default=8268)
+    rb.add_argument("--password", default="eurosim")
+    rb.add_argument("--tactic", default="primer", help="robot se postavi na START ove taktike")
+    rb.add_argument("--side", choices=("plava", "zuta"), default="plava")
+    rb.add_argument("--opp", action="append")
+    rb.add_argument("--profile")
+    rb.set_defaults(fn=cmd_robot)
     sv = sub.add_parser("serve", help="web interfejs")
     sv.add_argument("--port", type=int, default=8270)
     sv.add_argument("--host", default="127.0.0.1", help="0.0.0.0 = dostupno i sa drugih računara")

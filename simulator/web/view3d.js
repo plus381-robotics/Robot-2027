@@ -88,6 +88,9 @@ export class FieldView {
     this.ghost = this._ghost();
     this.scene.add(this.ghost);
     this.robot.visible = this.ghost.visible = false;
+    this.cmpGroup = new THREE.Group();             // reference run (compare): path + ghost robot
+    this.scene.add(this.cmpGroup);
+    this.cmp = null;
     this.oppGroup = new THREE.Group();             // editable opponents (independent of the run)
     this.scene.add(this.oppGroup);
     this.opponents = []; this.oppSel = -1; this.drag = null;
@@ -113,8 +116,16 @@ export class FieldView {
   }
 
   _buildTable(W, H) {
+    this.gridTex = tableTexture(this.field);
     const top = new THREE.Mesh(new THREE.PlaneGeometry(W, H),
-      new THREE.MeshStandardMaterial({ map: tableTexture(this.field), roughness: 0.95 }));
+      new THREE.MeshStandardMaterial({ map: this.gridTex, roughness: 0.95 }));
+    // izgled stola iz pravila 2027 (dodatak G.1, slika 8), ako postoji; inače mreža
+    new THREE.TextureLoader().load(this.field.image || 'table2027.jpg', tex => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+      this.rulesTex = tex;
+      if (this.useRules !== false) this.setTableLook('rules');
+    }, undefined, () => { this.rulesTex = null; });
     top.position.set(W / 2, H / 2, 0);
     this.table = top;
     this.scene.add(top);
@@ -135,6 +146,13 @@ export class FieldView {
     ax(new THREE.Vector3(1, 0, 0), 0xff5555); ax(new THREE.Vector3(0, 1, 0), 0x55dd55);
     const lx = textSprite('x', '#ff7777', 0.05, 'rgba(0,0,0,0)'); lx.position.set(0.29, 0, 0.02); this.scene.add(lx);
     const ly = textSprite('y', '#77ee77', 0.05, 'rgba(0,0,0,0)'); ly.position.set(0, 0.29, 0.02); this.scene.add(ly);
+  }
+
+  setTableLook(look) {                             // 'rules' (slika iz pravila) ili 'grid'
+    this.useRules = look === 'rules';
+    const m = this.table.material;
+    m.map = this.useRules && this.rulesTex ? this.rulesTex : this.gridTex;
+    m.needsUpdate = true;
   }
 
   _robot(color) {
@@ -313,6 +331,32 @@ export class FieldView {
     this.drag = null;
     this.controls.enabled = true;
     if (d.moved && this.onOppMove) this.onOppMove(d.i, true);
+  }
+
+  setCompare(ref) {
+    this._dispose(this.cmpGroup);
+    this.cmp = ref;
+    if (!ref || !ref.cols.t.length) return;
+    const c = ref.cols, pts = [];
+    for (let i = 0; i < c.t.length; i++) pts.push(c.x[i] / 1000, c.y[i] / 1000, 0.009);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    this.cmpGroup.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xc77dff })));
+    const b = this.profile.body;
+    const box = new THREE.BoxGeometry(b.length / 1000, b.width / 1000, b.height / 1000);
+    const ghost = new THREE.LineSegments(new THREE.EdgesGeometry(box), new THREE.LineBasicMaterial({ color: 0xc77dff }));
+    ghost.position.set((b.axle_offset || 0) / 1000, 0, b.height / 2000);
+    this.cmpGhost = new THREE.Group();
+    this.cmpGhost.add(ghost);
+    this.cmpGroup.add(this.cmpGhost);
+  }
+
+  setCompareTime(t) {
+    if (!this.cmp || !this.cmpGhost) return;
+    const c = this.cmp.cols, i = this.cmp.frameAt(t);
+    this.cmpGhost.visible = t >= 0 && t <= this.cmp.duration + 500;
+    this.cmpGhost.position.set(c.x[i] / 1000, c.y[i] / 1000, 0);
+    this.cmpGhost.rotation.z = c.th[i] * Math.PI / 180;
   }
 
   setPose(f) {                                     // robot pose straight from a frame (live, between rebuilds)
