@@ -198,6 +198,16 @@ simulator iz njih podesi profil (`simulator/profiles/robot2027.toml`). Na kraju:
   profil ostane star, test pada i kaže tačno koji broj.
 - Kasnije isto za Nucleo regulaciju.
 
+### Firmver preveden za računar (umesto K-sync i ručnog prepisivanja; kad pogon dođe na red)
+
+- Fajlovi regulacije (`control.c`, `signal.c`, kasnije Leina regulacija na Nucleo-u) prevedu se za računar
+  kao mala biblioteka (gcc, `-shared`); simulator je poziva svake 1 ms (ctypes) umesto Python prepisa
+  (`eurosim/control.py`). Izmena u C kodu odmah važi i u simulaciji.
+- Treba: zamene za STM32 HAL (vreme, PWM; slične onima za `gcc -fsyntax-only`), reset globalnih promenljivih
+  na početku svake simulacije, C kompajler (Linux ima; za Windows CI pravi gotovu biblioteku ili je `start`
+  prevodi).
+- Fizika robota (motor, ubrzanje, proklizavanje) i dalje iz profila, pa fit (K1) kad robot vozi.
+
 ### Redosled za kalibraciju
 
 K-sync (sada) -> K0 + K1 kad robot vozi (2-3 meseca). Odometrija: ručno izmereni brojevi u profil
