@@ -39,6 +39,9 @@ def test_protivnik_ispred_blocked_i_taktika_dobija_false(tmp_path):
     assert "rez False" in r.logs()
     assert r.steps()[0][2] is False and r.steps()[0][3] == "BLOCKED"
     assert r.result["pose"][0] < 900 - 150 - 82                 # stao pre protivnika
+    hits = [f["irh"] for f in r.frames if f.get("irh")]           # plan S6: udaljenosti po senzoru za prikaz zraka
+    assert hits and len(hits[0]) == 8 and all(0 <= h <= 250 for h in hits[0][:4] if h >= 0)
+    assert all(h == -1 for h in hits[0][4:])                       # zadnji senzori ne vide protivnika ispred
 
 
 def test_zid_blocked(tmp_path):

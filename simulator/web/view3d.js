@@ -5,6 +5,28 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/loaders/GLTFLoader.js';
 
 const SIDE_COLOR = { plava: 0x2f7fc1, zuta: 0xf7b500 };
+// boje putanje po koraku (svaki korak svoja, pa se vidi gde se jedan završava a drugi počinje)
+const STEP_COLORS = [0x4cc9f0, 0xf72585, 0xb5e48c, 0xffd166, 0x9d4edd, 0xff8c42, 0x06d6a0, 0xef476f];
+
+// Traka (ribbon) duž putanje, širine w (m), jer WebGL ne crta debele linije. Boja po temenu.
+// Vraća geometriju sa 6 temena po segmentu, pa drawRange(0, 6 * i) crta do frejma i.
+function ribbon(pts, cols, w, z) {
+  const pos = [], col = [];
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+    let dx = x1 - x0, dy = y1 - y0;
+    const L = Math.hypot(dx, dy) || 1;
+    const nx = -dy / L * w / 2, ny = dx / L * w / 2;
+    const a = [x0 + nx, y0 + ny, z], b = [x0 - nx, y0 - ny, z], c = [x1 + nx, y1 + ny, z], d = [x1 - nx, y1 - ny, z];
+    pos.push(...a, ...b, ...c, ...b, ...d, ...c);
+    const k = cols[i];
+    for (let j = 0; j < 6; j++) col.push(k.r, k.g, k.b);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return g;
+}
 
 function textSprite(text, color = '#fff', size = 0.06, bg = 'rgba(0,0,0,0.55)') {
   const c = document.createElement('canvas');
@@ -201,6 +223,7 @@ export class FieldView {
     arrow.position.z = Hh + 0.002;
     g.add(arrow);
     g.userData.body = body; g.userData.plate = plate;
+    g.add(this._irRays());
     const file = this.profile.model && this.profile.model.file;
     if (file) {                                    // CAD model (simulator/tools/cad_to_glb.py): umesto ploče i točkova
       new GLTFLoader().load(file, gltf => {
@@ -212,6 +235,52 @@ export class FieldView {
       }, undefined, err => console.warn('model robota:', file, err));
     }
     return g;
+  }
+
+  // IR senzori (isti raspored kao plant.sensors(): napred/nazad x levo/desno x dole/gore): zrak do dometa,
+  // crven do pogotka. Deo robota, pa ga prati.
+  _irRays() {
+    const b = this.profile.body, ir = this.profile.ir || {};
+    const L = b.length / 1000, hw = b.width / 2000 - 0.01, off = (b.axle_offset || 0) / 1000;
+    const range = (ir.range || 250) / 1000, zs = [(ir.low_z || 40) / 1000, (ir.high_z || 320) / 1000];
+    const grp = new THREE.Group();
+    this.irRays = [];
+    for (const d of [1, -1]) for (const s of [hw, -hw]) for (const z of zs) {
+      const geo = new THREE.BufferGeometry();
+      const x0 = d * L / 2 + off;
+      geo.setAttribute('position', new THREE.Float32BufferAttribute([x0, s, z, x0 + d * range, s, z], 3));
+      const m = new THREE.LineBasicMaterial({ color: 0xaab4c0, transparent: true, opacity: 0.35, depthTest: false });
+      const line = new THREE.Line(geo, m);
+      line.renderOrder = 4;
+      const dot = new THREE.Mesh(new THREE.CircleGeometry(0.012, 12), new THREE.MeshBasicMaterial({ color: 0xff4d4d, depthTest: false }));
+      dot.position.set(x0, s, z); dot.visible = false; dot.renderOrder = 4;
+      grp.add(line, dot);
+      this.irRays.push({ line, dot, x0, d, s, z, range });
+    }
+    this.irGroup = grp;
+    return grp;
+  }
+
+  setIr(hits) {                                    // hits: [mm po senzoru, -1 = ništa] ili null
+    if (!this.irRays) return;
+    this.irRays.forEach((r, k) => {
+      const h = hits && hits[k] >= 0 ? hits[k] / 1000 : null;
+      const len = h == null ? r.range : h;
+      const a = r.line.geometry.attributes.position;
+      a.setX(1, r.x0 + r.d * len); a.needsUpdate = true;
+      r.line.material.color.setHex(h == null ? 0xaab4c0 : 0xff4d4d);
+      r.line.material.opacity = h == null ? 0.35 : 1;
+      r.dot.visible = h != null;
+      if (h != null) r.dot.position.set(r.x0 + r.d * h, r.s, r.z);
+    });
+  }
+
+  setShowIr(on) { if (this.irGroup) this.irGroup.visible = on; }
+
+  setMarkerScale(k) {                              // veličina tačaka i natpisa koraka (0.7 / 1 / 1.5)
+    this.markerScale = k;
+    if (this.stepMarks) for (const g of this.stepMarks.children) g.scale.setScalar(k);
+    if (this.targets) for (const g of this.targets.children) g.scale.setScalar(k);
   }
 
   _ghost() {
@@ -261,8 +330,20 @@ export class FieldView {
       g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
       const l = new THREE.Line(g, mat); this.dyn.add(l); return l;
     };
-    this.pathAll = mk(pts, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.18 }));
-    this.pathDone = mk(pts, new THREE.LineBasicMaterial({ color: 0xffffff }));
+    // putanja: traka 14 mm, boja po koraku; cela bleda, pređeni deo puna
+    const xy = [], cols = [];
+    let si = -1;
+    const stepAtT = run.steps.map(s => s.t);
+    for (let i = 0; i < n; i++) {
+      xy.push([c.x[i] / 1000, c.y[i] / 1000]);
+      while (si + 1 < stepAtT.length && stepAtT[si + 1] <= c.t[i]) si++;
+      cols.push(new THREE.Color(si < 0 ? 0xffffff : STEP_COLORS[si % STEP_COLORS.length]));
+    }
+    const rg = ribbon(xy, cols, 0.014, 0.004);
+    this.pathAll = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
+    this.pathDone = new THREE.Mesh(rg.clone(), new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+    this.pathDone.position.z = 0.0005;
+    this.dyn.add(this.pathAll, this.pathDone);
     const og = new THREE.BufferGeometry();
     og.setAttribute('position', new THREE.Float32BufferAttribute(opts, 3));
     this.odomPath = new THREE.LineSegments(og, new THREE.LineBasicMaterial({ color: 0xff9f43, transparent: true, opacity: 0.8 }));
@@ -270,25 +351,49 @@ export class FieldView {
     // steps: markers where each step started, colored by result
     this.stepMarks = new THREE.Group(); this.dyn.add(this.stepMarks);
     this.targets = new THREE.Group(); this.dyn.add(this.targets);
+    // Tačke koraka (gde je korak počeo) i ciljevi GOTO: veliki, iznad svega (depthTest false), sa brojem i imenom.
+    // Grupa je u tački, pa setMarkerScale menja veličinu oko nje.
+    const over = o => { o.renderOrder = 6; if (o.material) o.material.depthTest = false; return o; };
     for (const s of run.steps) {
       const i = run.frameAt(s.t);
-      const m = new THREE.Mesh(new THREE.CircleGeometry(0.018, 20), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-      m.position.set(c.x[i] / 1000, c.y[i] / 1000, 0.008);
-      const lbl = textSprite(String(s.idx), '#fff', 0.045);
-      lbl.position.set(c.x[i] / 1000, c.y[i] / 1000, 0.06);
-      const grp = new THREE.Group(); grp.add(m, lbl); grp.userData = { step: s, dot: m };
+      const sc = STEP_COLORS[(s.idx - 1 + STEP_COLORS.length) % STEP_COLORS.length];
+      const rim = over(new THREE.Mesh(new THREE.CircleGeometry(0.042, 28), new THREE.MeshBasicMaterial({ color: sc })));
+      const m = over(new THREE.Mesh(new THREE.CircleGeometry(0.032, 28), new THREE.MeshBasicMaterial({ color: 0xffffff })));
+      const num = textSprite(String(s.idx), '#000', 0.05, 'rgba(0,0,0,0)');
+      num.position.set(0, 0, 0.012);
+      const name = (s.name || '').length > 22 ? s.name.slice(0, 21) + '…' : (s.name || '');
+      const lbl = textSprite(`${s.idx} ${name}`, '#fff', 0.045);
+      lbl.position.set(0, -0.075, 0.03);
+      const grp = new THREE.Group(); grp.add(rim, m, num, lbl);
+      grp.position.set(c.x[i] / 1000, c.y[i] / 1000, 0.008);
+      grp.userData = { step: s, dot: m };
       this.stepMarks.add(grp);
-      if (s.target) {                                    // GOTO target (field coordinates)
-        const [tx, ty] = s.target;
-        const ring = new THREE.Mesh(new THREE.RingGeometry(0.022, 0.03, 28),
-          new THREE.MeshBasicMaterial({ color: 0x4aa3ff, side: THREE.DoubleSide }));
-        ring.position.set(tx / 1000, ty / 1000, 0.007);
-        const t = textSprite(`${s.idx}: ${Math.round(tx)}, ${Math.round(ty)}`, '#9cd0ff', 0.04);
-        t.position.set(tx / 1000, ty / 1000 + 0.05, 0.05);
-        const tg = new THREE.Group(); tg.add(ring, t); tg.userData = { step: s, ring };
+      if (s.target) {                                    // GOTO target (field coordinates), [x, y, ugao|null]
+        const [tx, ty, tth] = s.target;
+        const ring = over(new THREE.Mesh(new THREE.RingGeometry(0.036, 0.05, 32),
+          new THREE.MeshBasicMaterial({ color: 0x4aa3ff, side: THREE.DoubleSide })));
+        const cross = over(new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position',
+          new THREE.Float32BufferAttribute([-0.03, 0, 0, 0.03, 0, 0, 0, -0.03, 0, 0, 0.03, 0], 3)),
+          new THREE.LineBasicMaterial({ color: 0xffffff })));
+        const tg = new THREE.Group(); tg.add(ring, cross);
+        if (tth != null) {                               // završni ugao: strelica
+          const sh = new THREE.Shape();
+          sh.moveTo(0.11, 0); sh.lineTo(0.06, 0.025); sh.lineTo(0.06, -0.025);
+          const head = over(new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color: 0x9cd0ff })));
+          const shaft = over(new THREE.Mesh(new THREE.PlaneGeometry(0.03, 0.008), new THREE.MeshBasicMaterial({ color: 0x9cd0ff })));
+          shaft.position.x = 0.065;
+          const arr = new THREE.Group(); arr.add(head, shaft); arr.rotation.z = tth * Math.PI / 180;
+          tg.add(arr);
+        }
+        const t = textSprite(`${s.idx}: ${Math.round(tx)}, ${Math.round(ty)}`, '#9cd0ff', 0.045);
+        t.position.set(0, 0.085, 0.03);
+        tg.add(t);
+        tg.position.set(tx / 1000, ty / 1000, 0.007);
+        tg.userData = { step: s, ring };
         this.targets.add(tg);
       }
     }
+    if (this.markerScale) this.setMarkerScale(this.markerScale);
     this.setFrame(this.frame && this.frame < n ? this.frame : 0);
   }
 
@@ -414,6 +519,7 @@ export class FieldView {
     this.robot.rotation.z = f.th * Math.PI / 180;
     this.ghost.position.set(f.ox / 1000, f.oy / 1000, 0);
     this.ghost.rotation.z = f.oth * Math.PI / 180;
+    this.setIr(f.irh || null);
   }
 
   setVisibility({ odom, targets }) {
@@ -434,7 +540,8 @@ export class FieldView {
     this.ghost.rotation.z = c.oth[i] * Math.PI / 180;
     const diff = Math.hypot(c.x[i] - c.ox[i], c.y[i] - c.oy[i]) > 1 || Math.abs(c.th[i] - c.oth[i]) > 0.3;
     this.ghost.visible = this.showOdom !== false && diff;
-    this.pathDone.geometry.setDrawRange(0, i + 1);
+    this.pathDone.geometry.setDrawRange(0, 6 * i);
+    this.setIr(c.irh ? c.irh[i] : null);
     let k = 0, lo = 0, hi = this.odomSeg.length;          // segments ending at or before frame i
     while (lo < hi) { const m = (lo + hi) >> 1; if (this.odomSeg[m] <= i) lo = m + 1; else hi = m; }
     k = lo;
@@ -449,7 +556,7 @@ export class FieldView {
       const s = g.userData.step;
       const active = s.t <= t && (s.end == null || s.end > t);
       g.userData.ring.material.color.setHex(active ? 0xffb547 : (s.t > t ? 0x4aa3ff : (s.ok ? 0x3ecf8e : 0xff5c5c)));
-      g.userData.ring.scale.setScalar(active ? 1.4 : 1);
+      g.userData.ring.scale.setScalar(active ? 1.3 : 1);
     }
   }
 

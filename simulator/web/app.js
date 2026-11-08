@@ -49,7 +49,7 @@ function buildRun(d) {
     if (kind !== 'rx' || x.name !== 'GOTO') continue;
     let s = null;
     for (const c of steps) if (c.t <= t + 1) s = c;
-    if (s && !s.target) s.target = [x.f.x, x.f.y];
+    if (s && !s.target) s.target = [x.f.x, x.f.y, x.f.flags & 2 ? null : x.f.theta / 100];   // 2 = NO_THETA
   }
   const log = [];
   for (const [t, kind, x] of d.events) {
@@ -939,6 +939,9 @@ async function main() {
   const vis = () => view.setVisibility({ odom: $('showOdom').checked, targets: $('showTargets').checked });
   $('showOdom').onchange = () => { vis(); if (run) show(); };
   $('showTargets').onchange = vis;
+  $('showIr').onchange = e => view.setShowIr(e.target.checked);
+  $('markSize').onchange = e => { view.setMarkerScale(+e.target.value); try { localStorage.setItem('eurosim.mark', e.target.value); } catch (er) { /* ignore */ } };
+  try { const k = localStorage.getItem('eurosim.mark'); if (k) { $('markSize').value = k; view.setMarkerScale(+k); } } catch (er) { /* ignore */ }
   $('follow').onchange = e => { view.follow = e.target.checked; };
   $('cam3d').onclick = () => { view.setCamera('3d'); $('cam3d').classList.add('on'); $('cam2d').classList.remove('on'); };
   $('cam2d').onclick = () => { view.setCamera('top'); $('cam2d').classList.add('on'); $('cam3d').classList.remove('on'); };
@@ -972,5 +975,5 @@ async function main() {
   document.querySelector('.brand').title = JSON.stringify(w, null, 1);
 }
 
-window.eurosim = { get ed() { return ed; }, get run() { return run; }, play, edMarks };   // za testove i konzolu
+window.eurosim = { get ed() { return ed; }, get run() { return run; }, get view() { return view; }, play, edMarks };   // za testove i konzolu
 main().catch(e => msg('cannot start: ' + e.message, true));

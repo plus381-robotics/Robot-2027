@@ -402,7 +402,12 @@ class SimSTM:
 
     def snapshot(self):
         pl, c = self.plant, self.ctl
-        return {
+        irh = None                              # IR: udaljenost pogotka po senzoru (mm), -1 = ništa; samo kad ima pogodaka
+        if pl.ir_hits:
+            names = [s[0] for s in pl.sensors()]
+            d = dict(pl.ir_hits)
+            irh = [int(d[n] * 1000) if n in d else -1 for n in names]
+        return {"irh": irh,
             "x": pl.x * 1000, "y": pl.y * 1000, "th": math.degrees(pl.th),
             "ox": pl.ox * 1000, "oy": pl.oy * 1000, "oth": math.degrees(pl.oth),
             "v": pl.v, "w": pl.w, "vl": pl.vl, "vr": pl.vr,
