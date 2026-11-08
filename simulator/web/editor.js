@@ -4,7 +4,31 @@
 import {
   EditorView, basicSetup, EditorState, StateField, StateEffect, keymap, Decoration, hoverTooltip,
   python, autocompletion, snippetCompletion, setDiagnostics, lintGutter, indentUnit, oneDark,
+  acceptCompletion, completionStatus, nextSnippetField, hasNextSnippetField, indentMore, indentLess, Prec,
 } from './vendor/codemirror.bundle.js';
+
+// Grupe u listi predloga (Ctrl+Space pokaže sve, po grupama).
+const GROUPS = [
+  ['Motion', ['goto', 'move', 'turn_to', 'turn_by', 'rotate', 'go_home', 'pose']],
+  ['Actuators', ['actuator', 'done', 'wait_done']],
+  ['Waiting', ['wait', 'wait_until', 'step']],
+  ['Match time', ['remaining', 'match_time', 'in_match', 'attack_phase', 'deadline', 'TimeUp']],
+  ['Where is the robot', ['here', 'status', 'side']],
+];
+const GROUP_OF = {};
+GROUPS.forEach(([g, names], i) => names.forEach(n => { GROUP_OF[n] = { name: g, rank: i }; }));
+const OTHER = { name: 'Other', rank: GROUPS.length };
+const COMMON = ['goto', 'move', 'turn_to', 'actuator', 'wait', 'log'];
+// Ime polja u snippetu: sa jedinicom, da se odmah vidi šta se upisuje.
+const FIELD = { x: 'x_mm', y: 'y_mm', deg: 'deg', dist: 'mm', s: 'seconds', value: 'value', name: 'name',
+  cond: 'condition', timeout: 'seconds', h: 'handle' };
+
+// Tab: prihvati predlog kad je lista otvorena; inače sledeće polje snippeta; inače uvlačenje. Shift+Tab: nazad.
+const tabKey = Prec.highest(keymap.of([{ key: 'Tab', run: v => {
+  if (completionStatus(v.state) === 'active') return acceptCompletion(v);
+  if (hasNextSnippetField(v.state)) return nextSnippetField(v);
+  return indentMore(v);
+}, shift: indentLess }]));
 
 const setMarks = StateEffect.define();
 const marksField = StateField.define({
@@ -46,15 +70,25 @@ export class TacticEditor {
           if (d !== null) opts.push({ label: p + '=', type: 'property', detail: `default ${d}`, boost: 10 });
         }
       }
+      const typed = before.slice(before.length - (w.to - w.from));
       for (const [name, f] of Object.entries(funcs)) {
         const req = f.params.filter(([, d]) => d === null).map(([p]) => p);
         const info = () => { const el = document.createElement('div'); el.className = 'cm-api-info';
           el.innerHTML = `<b>${escapeHtml(f.sig)}</b><pre>${escapeHtml(f.doc || '')}</pre>`; return el; };
+        const g = GROUP_OF[name] || OTHER;
+        const section = { name: g.name, rank: g.rank };
+        // prvo komande koje počinju otkucanim, među njima najčešće (g -> goto pre go_home)
+        const boost = (typed && name.startsWith(typed) ? 20 : 5) + (COMMON.includes(name) ? 3 : 0);
         if (f.kind === 'function') {
-          opts.push(snippetCompletion(`${name}(${req.map(p => '${' + p + '}').join(', ')})`,
-            { label: name, type: 'function', detail: f.sig.slice(name.length), info, boost: 5 }));
+          const field = p => '${' + (FIELD[p] || p) + '}';
+          opts.push(snippetCompletion(`${name}(${req.map(field).join(', ')})`,
+            { label: name, type: 'function', detail: f.sig.slice(name.length), info, boost, section }));
+          if (name === 'goto') {
+            opts.push(snippetCompletion('goto(${x_mm}, ${y_mm}, deg=${deg})',
+              { label: 'goto', type: 'function', detail: '(x, y, deg): and face deg at the end', info, boost: boost - 1, section }));
+          }
         } else {
-          opts.push({ label: name, type: 'class', info });
+          opts.push({ label: name, type: 'class', info, section, boost });
         }
       }
       for (const k of ['START', 'TOTAL']) opts.push({ label: k, type: 'variable', detail: k === 'START' ? '= (x, y, angle)' : '= steps' });
@@ -87,7 +121,7 @@ export class TacticEditor {
       state: EditorState.create({
         doc: '',
         extensions: [
-          basicSetup, python(), oneDark, indentUnit.of('    '), EditorState.tabSize.of(4), lintGutter(),
+          tabKey, basicSetup, python(), oneDark, indentUnit.of('    '), EditorState.tabSize.of(4), lintGutter(),
           autocompletion({ override: [completion], icons: true }), hover, marksField, changed,
           keymap.of([
             { key: 'Mod-s', preventDefault: true, run: () => { self.opts.onSave(); return true; } },
