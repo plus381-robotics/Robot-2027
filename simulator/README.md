@@ -5,8 +5,9 @@ Pušta taktike iz `ESP32/tactics/` bez robota, sa **istim ESP kodom** koji radi 
 
 ## Jedan fajl, bez instalacije (Linux; Windows kasnije)
 
-Na GitHub-u: **Actions → Simulator → poslednji run → Artifacts → eurosim-linux** (ili Releases, kad postoji tag
-`sim-v*`). To je jedan fajl (~23 MB) sa svim unutra (Python, server, interfejs, ESP kod, mpy-cross):
+Na GitHub-u: **Releases** (poslednja verzija: `eurosim-…-linux` i `eurosim-…-windows.exe`). Release se pravi
+sam na svaki push na `main` (`sim-v0.2.<n>`) i za svaki tag `sim-v*`; fajl sa druge grane je u
+**Actions → Simulator → run → Artifacts**. To je jedan fajl (~23 MB) sa svim unutra (Python, server, interfejs, ESP kod, mpy-cross):
 
     chmod +x eurosim && ./eurosim          # otvara browser na http://localhost:8270
 

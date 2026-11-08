@@ -1,6 +1,8 @@
-# Simulator taktika: testovi i izvršni fajl (jedan fajl, bez instalacije).
-#  - svaki push/PR koji dira simulator ili ESP kod: testovi + fajl kao "artifact" (Actions -> run -> Artifacts)
-#  - tag sim-v* (npr. sim-v0.1): i GitHub Release sa fajlom (stalan link za skidanje)
+# Simulator taktika: testovi, izvršni fajl (jedan fajl, bez instalacije) i GitHub Release.
+#  - push na bilo koju granu / PR (simulator ili ESP kod): testovi + Linux fajl kao "artifact"
+#  - push na main ili tag sim-v* (npr. sim-v0.1.0): testovi + Linux i Windows fajl + GitHub Release
+#    (main: verzija sim-v0.2.<broj runa>, tag: ime taga). Releases uvek ima poslednji fajl za oba sistema.
+#  - ručno (Actions -> Simulator -> Run workflow): i Windows fajl, bez Release-a
 name: Simulator
 
 on:
@@ -8,7 +10,7 @@ on:
     paths: ["simulator/**", "ESP32/lib/**", "ESP32/sim/**", "ESP32/tactics/**", "ESP32/config.py",
             "tools/espnet.py", ".github/workflows/simulator.yml"]
     branches: ["**"]                  # bez ovoga "tags" isključi push na grane
-    tags: ["sim-v*"]
+    tags: ["sim-v*"]                  # (za tagove se "paths" ne gleda)
   pull_request:
     paths: ["simulator/**", "ESP32/lib/**", "ESP32/sim/**", "ESP32/tactics/**", "ESP32/config.py",
             "tools/espnet.py", ".github/workflows/simulator.yml"]
@@ -27,13 +29,11 @@ jobs:
         run: python -m pytest -q simulator/tests
       - name: taktike iz ESP32/tactics se izvršavaju
         run: |
-          python simulator/sim.py run primer --side plava
-          python simulator/sim.py run primer --side zuta --test
+          python simulator/sim.py run primer --side zuta
+          python simulator/sim.py run primer --side plava --test
 
-  build:
+  build-linux:
     needs: test
-    permissions:
-      contents: write                 # za GitHub Release
     runs-on: ubuntu-22.04             # stariji glibc: fajl radi i na starijim distribucijama
     steps:
       - uses: actions/checkout@v4
@@ -45,24 +45,16 @@ jobs:
       - name: provera fajla (van repoa)
         run: |
           mkdir -p ../probe && cp dist/eurosim ../probe/ && cd ../probe
-          EUROSIM_HOME=$PWD/home ./eurosim run primer --side zuta
+          EUROSIM_HOME=$PWD/home ./eurosim run primer --side plava
       - uses: actions/upload-artifact@v4
         with:
           name: eurosim-linux
           path: dist/eurosim
-      - name: GitHub Release (samo za tag sim-v*)
-        if: startsWith(github.ref, 'refs/tags/sim-v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/eurosim
 
-  # Windows nije prioritet: samo ručno (Actions -> Simulator -> Run workflow) ili za tag sim-v*,
-  # da ne pravi crvene runove na svaki push.
+  # Windows: za Release (main, tag) i ručno; ne na svaki push, da ne pravi crvene runove.
   build-windows:
     needs: test
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/sim-v')
-    permissions:
-      contents: write
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/sim-v')))
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,13 +67,41 @@ jobs:
         shell: bash
         run: |
           mkdir -p ../probe && cp dist/eurosim.exe ../probe/ && cd ../probe
-          EUROSIM_HOME=$PWD/home ./eurosim.exe run primer --side zuta
+          EUROSIM_HOME=$PWD/home ./eurosim.exe run primer --side plava
       - uses: actions/upload-artifact@v4
         with:
           name: eurosim-windows
           path: dist/eurosim.exe
-      - name: GitHub Release (samo za tag sim-v*)
-        if: startsWith(github.ref, 'refs/tags/sim-v')
-        uses: softprops/action-gh-release@v2
+
+  release:
+    needs: [build-linux, build-windows]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/sim-v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
         with:
-          files: dist/eurosim.exe
+          path: art
+      - name: imena fajlova i verzija
+        id: v
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then TAG="${GITHUB_REF#refs/tags/}"; else TAG="sim-v0.2.${GITHUB_RUN_NUMBER}"; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          mkdir out
+          cp art/eurosim-linux/eurosim "out/eurosim-$TAG-linux"
+          cp art/eurosim-windows/eurosim.exe "out/eurosim-$TAG-windows.exe"
+          chmod +x out/*-linux
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.v.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Eurosim ${{ steps.v.outputs.tag }}
+          make_latest: true
+          body: |
+            Simulator taktika (Robot-2027), jedan fajl bez instalacije.
+            - Linux: `chmod +x eurosim-*-linux && ./eurosim-*-linux` (otvara browser)
+            - Windows: dvoklik na `eurosim-*-windows.exe`
+            Unutar repoa koristi taktike iz repoa, van njega `~/Eurosim`. Uputstvo: simulator/README.md.
+            Commit: ${{ github.sha }}
+          files: out/*
