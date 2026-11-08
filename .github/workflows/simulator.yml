@@ -34,18 +34,36 @@ jobs:
     needs: test
     permissions:
       contents: write                 # za GitHub Release
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-22.04          # stariji glibc: fajl radi i na starijim distribucijama
-            name: eurosim-linux
-            file: dist/eurosim
-          - os: windows-latest        # Windows nije prioritet; greška ovde ne ruši ostalo
-            name: eurosim-windows
-            file: dist/eurosim.exe
-    runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ startsWith(matrix.os, 'windows') }}
+    runs-on: ubuntu-22.04             # stariji glibc: fajl radi i na starijim distribucijama
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyinstaller==6.11.1 -r simulator/requirements.txt
+      - run: pyinstaller --noconfirm simulator/eurosim.spec
+      - name: provera fajla (van repoa)
+        run: |
+          mkdir -p ../probe && cp dist/eurosim ../probe/ && cd ../probe
+          EUROSIM_HOME=$PWD/home ./eurosim run primer --side zuta
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eurosim-linux
+          path: dist/eurosim
+      - name: GitHub Release (samo za tag sim-v*)
+        if: startsWith(github.ref, 'refs/tags/sim-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/eurosim
+
+  # Windows nije prioritet: samo ručno (Actions -> Simulator -> Run workflow) ili za tag sim-v*,
+  # da ne pravi crvene runove na svaki push.
+  build-windows:
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/sim-v')
+    permissions:
+      contents: write
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -56,14 +74,14 @@ jobs:
       - name: provera fajla (van repoa)
         shell: bash
         run: |
-          mkdir -p ../probe && cp ${{ matrix.file }} ../probe/ && cd ../probe
-          EUROSIM_HOME=$PWD/home ./$(basename ${{ matrix.file }}) run primer --side zuta
+          mkdir -p ../probe && cp dist/eurosim.exe ../probe/ && cd ../probe
+          EUROSIM_HOME=$PWD/home ./eurosim.exe run primer --side zuta
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.file }}
+          name: eurosim-windows
+          path: dist/eurosim.exe
       - name: GitHub Release (samo za tag sim-v*)
         if: startsWith(github.ref, 'refs/tags/sim-v')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ matrix.file }}
+          files: dist/eurosim.exe
