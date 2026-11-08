@@ -195,12 +195,22 @@ def deadline(s):
 
 
 def _robot():
+    """Robot spreman za komandu. Van meča čeka najviše 2 s; u meču čeka povratak veze (labav konektor) do
+    kraja meča, pa taktika nastavlja od sledećeg koraka umesto da se prekine (L17)."""
     t0 = ticks_ms()
     m = getattr(app, "match", None)
+    said = False
     while not app.robot.ok or (m is not None and m.restoring()):
         _pump()                         # i dok se posle restarta STM32 vraća poza (match.py)
-        if ticks_diff(ticks_ms(), t0) > 2000:
-            raise Abort("STM32 se ne javlja")
+        waited = ticks_diff(ticks_ms(), t0)
+        if waited > 2000:
+            if not in_match():
+                raise Abort("STM32 se ne javlja")
+            if not said:
+                said = True
+                log("nema veze sa STM32: cekam")
+    if said:
+        log("veza sa STM32 je tu: nastavljam")
     return app.robot
 
 
@@ -238,8 +248,17 @@ def _cmd_wait(r, name, label, timeout, motion, long, m, resets, seq_box):
     acked = moving_seen = False
     quiet = 0                          # STATUS-a zaredom bez MOVING posle MOVING
     last_n = r.status_n
+    lost = None                         # od kada nema veze sa STM32 (L17)
     while ticks_diff(ticks_ms(), t0) < timeout * 1000:
         _pump()
+        if not r.alive:
+            lost = lost or ticks_ms()
+            if ticks_diff(ticks_ms(), lost) > 300:
+                tracker.fail("VEZA")    # STM32 staje posle 500 ms bez PING-a; ishod se ne pogađa po STATUS-u
+                log("%s: nema veze sa STM32" % label)
+                return False
+        else:
+            lost = None
         if m is not None and m.stm_resets != resets:
             tracker.fail("RESTART")         # STM32 restartovan: komanda je izgubljena, poza vraćena
             log("%s: STM32 restart, komanda prekinuta" % label)

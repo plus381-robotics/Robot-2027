@@ -21,6 +21,12 @@
 > L25 (isto ime i prevedeni razlog u traci i dnevniku, greška van taktike bez vremena, izvor STOP-a), L28 (ko je
 > zastareo), L30 (strana sa spiska, test pokazuje stranu, "WDT mec*", lista mečeva sa imenom i M/T).
 > Testovi: `ESP32/tests/host/test_ekran_logika.py`.
+> L16 (tools/tactic.py uvek šalje stranu, podrazumevano žuta), L17 (pad veze usred komande: False "VEZA" posle
+> 300 ms; u meču sledeća komanda čeka povratak veze i taktika nastavlja), L23 (PROVERA proverava imena aktuatora;
+> README: BlackPill bez aktuatora, vrednosti se ne ogledaju), L26 (README, primer, provera, rescue, config,
+> protocol.yaml usklađeni sa kodom), L27 (auto poza pri svakom povezivanju STM32, ogledana po strani), L29
+> (tools/tactic.py: pad mreže -> STOP i jasna poruka; LOG javlja preskočene redove).
+> Testovi: `ESP32/tests/host/test_veza_alati.py`. **Svih 30 nalaza je obrađeno.**
 
 Datum: 2026-11-08. Obim: `ESP32/lib/*.py`, `ESP32/main.py`, `boot.py`, `config.py`, `ESP32/tactics/*.py`,
 `ESP32/tests/goto_test.py`, `tools/*.py`, `protocol/protocol.yaml`, a za drugu stranu veze

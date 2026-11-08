@@ -105,14 +105,19 @@ class App:
             if kind == "fail" or (kind == "timeout" and reason != "SUPERSEDED"):
                 self.error("%s: %s" % (label, T.reason(reason or kind)))       # isto ime kao u dnevniku (L25)
                 self.ui.toast("%s: %s" % (name, T.reason(reason or kind)), 2000)
-        # Auto poza samo za razvoj: posle povezivanja, i to samo ako STATUS kaže da ne traje meč
-        # i robot ne vozi, i ne radi taktika. Restart ESP-a usred meča ne sme da pregazi odometriju.
-        if r.ok and not self._pose_sent and r.status is not None:
+        # Auto poza samo za razvoj: svaki put kad se STM32 poveže (i posle njegovog restarta ili flešovanja,
+        # L27), ogledana po izabranoj strani (PROBLEMI 5), i to samo ako STATUS kaže da ne traje meč, robot ne
+        # vozi i ne radi taktika. Restart ESP-a usred meča ne sme da pregazi odometriju.
+        if not r.ok:
+            self._pose_sent = False
+        elif not self._pose_sent and r.status is not None:
             self._pose_sent = True
             quiet = not (r.status["state"] & (P.State.MATCH_RUNNING | P.State.MATCH_OVER | P.State.MOVING))
-            if self.st["start_pose"] and quiet and not (self.running or self.request):
+            if self.st["start_pose"] and quiet and not (self.running or self.request or self.match.armed):
                 x, y, th = cfg.START_POSE
-                r.send("SET_POSE", x=x, y=y, theta=th * 100)
+                if self.side != tac.REF_SIDE:
+                    x, th = tac.FIELD_X - x, tac._wrap(180 - th)
+                r.send("SET_POSE", x=int(x), y=int(y), theta=tac._cdeg(th))
         if self._alive and not r.alive and self.match.state == "MEC":
             self.ui.alarm("VEZA", "STM32 ne odgovara")
         self._alive = r.alive
@@ -202,6 +207,8 @@ class App:
         ok, why = True, ""
         if meta.get("greska"):
             ok, why = False, meta["greska"]
+        elif self._bad_actuator(name):
+            ok, why = False, "akt. " + self._bad_actuator(name)
         else:
             try:
                 import runner
@@ -293,6 +300,31 @@ class App:
             self.ui.alarm("PREKID" if how != "STOP" else "STOP", how, lambda: self.show_page("IZVESTAJ"))
         else:
             self.show_page("IZVESTAJ")
+
+    def _bad_actuator(self, name):
+        """Prvo ime iz actuator("ime", ...) u tekstu taktike koje nije u config.ACTUATORS (L23), ili None."""
+        try:
+            with open("%s/%s.py" % (tactic.TACTICS_DIR, name)) as f:
+                text = f.read()
+        except OSError:
+            return None
+        known = getattr(cfg, "ACTUATORS", {})
+        mirror = getattr(cfg, "ACTUATOR_MIRROR", {})
+        i = 0
+        while True:
+            i = text.find("actuator(", i)
+            if i < 0:
+                return None
+            i += 9
+            j = i
+            while j < len(text) and text[j] in " \t":
+                j += 1
+            if j < len(text) and text[j] in "\"'":
+                q = text[j]
+                k = text.find(q, j + 1)
+                nm = text[j + 1:k] if k > 0 else ""
+                if nm not in known and nm not in mirror:
+                    return nm
 
     def _our_pose(self, s):
         if not s:

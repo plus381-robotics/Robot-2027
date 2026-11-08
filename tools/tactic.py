@@ -3,7 +3,7 @@
 
     python tools/tactic.py primer            # ESP32/tactics/primer.py
     python tools/tactic.py primer --no-push  # pokreni ono što je već na ESP-u
-    python tools/tactic.py primer --side plava # druga strana (koordinate se ogledaju)
+    python tools/tactic.py primer --side plava # druga strana (koordinate se ogledaju); podrazumevano zuta
     python tools/tactic.py --stop            # samo STOP
 """
 import argparse
@@ -20,7 +20,8 @@ def main():
     ap.add_argument("--password")
     ap.add_argument("--no-push", action="store_true")
     ap.add_argument("--stop", action="store_true")
-    ap.add_argument("--side", choices=("plava", "zuta"))
+    ap.add_argument("--side", choices=("zuta", "plava"), default="zuta",
+                    help="strana (podrazumevano zuta, REF_SIDE); uvek se šalje, ne zavisi od izbora na robotu")
     a = ap.parse_args()
     pw = password(a.password)
     if a.stop or not a.name:
@@ -31,13 +32,23 @@ def main():
         if not request(a.host, pw, "PUT /tactics/%s.py %d" % (a.name, f.stat().st_size), f.read_bytes()):
             sys.exit(1)
     pos = int(query(a.host, pw, "LOG 0")[-1].split()[1])      # ne ispisuj stare redove
-    if not request(a.host, pw, "RUN %s %s" % (a.name, a.side or "")):
+    print("strana: %s" % a.side)
+    if not request(a.host, pw, "RUN %s %s" % (a.name, a.side)):
         sys.exit(1)
     try:
         running = True
         while running:
             time.sleep(0.3)
-            lines = query(a.host, pw, "LOG %d" % pos)
+            try:
+                lines = query(a.host, pw, "LOG %d" % pos)
+            except SystemExit as e:                  # mreža pukla: probaj STOP i jasno reci šta se zna
+                print("\nveza pukla (%s): saljem STOP..." % e)
+                try:
+                    ok = request(a.host, pw, "STOP", timeout=5)
+                except SystemExit:
+                    ok = False
+                print("STOP potvrden" if ok else "ROBOT NIJE POTVRDJENO ZAUSTAVLJEN: taster STOP na robotu!")
+                sys.exit(1)
             *text, last = lines
             for l in text:
                 print(l)

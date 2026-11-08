@@ -468,6 +468,8 @@ class Upload:
             return self._ok("0 0")
         a = self.app
         first = a.log_n - len(a.log)             # redni broj najstarijeg sačuvanog reda
+        if int(args[1]) < first:                 # prsten (40 redova) je pregazio redove koje klijent nije pročitao
+            self._say("... preskoceno %d redova" % (first - int(args[1])))
         for i, line in enumerate(a.log):
             if first + i >= int(args[1]):
                 self._say(line)

@@ -92,7 +92,10 @@ posle pada veze (npr. jedan STATUS kad se ESP vrati). Za simulator nije prepreka
 
 ---
 
-## 5. [ESP] Auto SET_POSE ne zna za stranu — niska (samo razvoj)
+## 5. [ESP] Auto SET_POSE ne zna za stranu — niska (samo razvoj) — ✅ REŠENO
+
+**Rešeno:** auto poza se ogleda po izabranoj strani i šalje pri svakom povezivanju STM32 (docs/esp-pregled-logike.md L27).
+
 
 **Problem.** `app.update` posle povezivanja šalje `config.START_POSE` (250, 1000, 0) bez ogledanja,
 nezavisno od izabrane strane. Ako robot stoji na drugoj strani, odometrija je pogrešna dok taktika ne
@@ -104,7 +107,10 @@ sa `tac.current_side = self.side`. U meču nije bitno (START poza se šalje na �
 
 ---
 
-## 6. [ESP] PING pauza pri pokretanju taktike (~590 ms) — srednja (već zapisano u plan-esp.md)
+## 6. [ESP] PING pauza pri pokretanju taktike (~590 ms) — srednja (već zapisano u plan-esp.md) — delimično rešeno
+
+**Delimično:** taktika se sada prevodi pri naoružavanju (`match.arm`), ne na činč; za "test odmah" i dalje pri pokretanju. Izmeriti na robotu.
+
 
 **Problem.** Prevođenje taktike (`runner._compiled`) na WROOM-32 traje toliko da PING pauza pređe 500 ms,
 pa STM32 proglasi pad veze i stane baš na startu.

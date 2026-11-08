@@ -1,6 +1,6 @@
 # Primer taktike. POKREĆE MOTORE.
 #   python tools/tactic.py primer [--side plava]  (odmah, kao test; Ctrl+C = STOP)
-#   na robotu: dugi klik -> Taktike -> primer -> "zuta: mec" (čeka činč) ili "zuta: test"
+#   na robotu: PROVERA -> taktika primer -> strana -> "naoruzaj" (čeka činč) ili "test odmah"
 # Taster STOP na robotu uvek prekida taktiku.
 # Piše se za žutu stranu; na plavoj se koordinate same ogledaju. Vidi ESP32/lib/tac.py.
 from tac import *

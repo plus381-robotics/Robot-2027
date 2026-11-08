@@ -1,5 +1,5 @@
 # Rescue režim: main.py je pao (ili se lib/ ne može uvesti). Na ekranu je greška, a WiFi i upload
-# (samo PUT, RESET, LOG) rade dalje, pa se kod popravlja bez kabla: tools/esp_push.py.
+# (PUT, STAGE, COMMIT, DEL, LIST, RESET, LOG: upload.RESCUE_OK) rade dalje, pa se kod popravlja bez kabla: tools/esp_push.py.
 # STM32 sam staje posle 500 ms bez PING-a. Ne uvozi ništa od aplikacije (app, ui, robot).
 import sys
 

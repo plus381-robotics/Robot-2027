@@ -2,7 +2,7 @@
 BOARD = "wroom32"
 HOSTNAME = "eurokik"            # dostupan kao eurokik.local
 
-# UART2 ka Nucleu
+# UART2 ka STM32 (BlackPill sada, Nucleo na novom robotu)
 UART_ID, UART_TX, UART_RX = 2, 17, 16
 UART_BAUD = 115200              # na 921600 tek kad sve radi
 

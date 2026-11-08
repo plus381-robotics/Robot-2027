@@ -27,8 +27,8 @@ i svakih 50 ms šalje STATUS. Komanda se ponavlja do 3 puta ako ACK ne stigne za
 | Šta | ESP pin | Napomena |
 |---|---|---|
 | enkoder A / B | 32 / 33 | ako se okreće naopako: Podešavanja → obrni smer |
-| taster enkodera | 14 | dugi klik = podešavanja / nazad |
-| taster NAZAD | 25 | podešavanja / nazad, dugi = početni ekran |
+| taster enkodera | 14 | klik = OK |
+| taster NAZAD | 25 | nazad; dugi (≥ 0,6 s) = meni (zaključan dok je robot naoružan ili meč traje) |
 | taster OK | 26 | |
 | taster STOP | 27 | šalje STOP odmah, i kad je ekran ugašen |
 
@@ -43,8 +43,10 @@ Okret enkodera menja stranicu; crta ispod naslova pokazuje na kojoj si.
 - **ROBOT**: x, y (mm), ugao (°), v (mm/s), stanje (`VOZI`, `BLOK`, `MEC`...) i starost STATUS-a.
 - **VEZA**: STM32 i verzija, okvira/s, CRC greške, ponavljanja, komande bez odgovora, IP.
 - Gore desno: preostalo vreme meča (inverzno poslednjih 10 s), WiFi i veza sa STM32 (trepće `x` kad nema).
-- Dugi klik enkodera ili NAZAD: podešavanja ekrana (kontrast, okretanje 180°, smer enkodera,
-  gašenje, auto SET_POSE, **demo taktika** = lažni koraci samo za prikaz, ništa se ne šalje robotu).
+- Dugi NAZAD: meni (Podešavanja: kontrast, okretanje 180°, smer enkodera, gašenje, auto SET_POSE,
+  "test od START", "WDT mec*" (važi do restarta), **demo taktika** = lažni koraci samo za prikaz).
+- ROBOT, izveštaj i dnevnik su u koordinatama **naše strane** (kao taktika); telemetrija (tools/watch.py)
+  u koordinatama terena.
 - Greške sa STM32 (FAIL, komanda bez odgovora) iskaču u traci na dnu.
 
 Taktike javljaju korake preko `lib/tactic.py`:
@@ -126,12 +128,19 @@ Pokretanje odmah, kao test (sa laptopa preko WiFi-ja; šalje fajl, pokreće, isp
     python tools/tactic.py primer [--side plava]  # Ctrl+C = STOP
     python tools/tactic.py --stop
 
-Na robotu: dugi klik -> Taktike -> ime ->
-- `plava: mec` / `zuta: mec`: robot je NAORUZAN i na ekranu piše CEKA CINC. Kad STM32 javi početak
-  meča (činč), ESP pošalje START pozu i pokrene taktiku. Bez činča (BlackPill): Taktike -> simul. cinc.
-- `plava: test` / `zuta: test`: odmah (drži OK).
-Taster STOP uvek prekida taktiku i otkazuje naoružan meč. Od NAORUZAN radi watchdog (ESP se sam
+Na robotu, početni ekran PROVERA (okret enkodera bira red, OK izvršava):
+- **taktika** (spisak) -> **strana** (spisak, sa x startne poze) -> **provera** (šta ne valja: STM32, STATUS,
+  taktika, START, aktuatori, stari meč na STM32...).
+- **naoruzaj**: NAORUZAN, čeka **nov** činč (STM32 koji je ostao u starom meču se resetuje preko NRST ili se
+  naoružavanje odbija). Na činč: START poza (do 3 pokušaja), pa taktika; meč traje 100 s po satu ESP-a.
+  Bez činča (BlackPill): **simul. cinc** (drži OK). **otkazi**: drži OK (NAZAD više ne otkazuje).
+- **test odmah**: drži OK; START poza kao u meču (podešavanje "test od START"), vreme teče od starta taktike.
+- Posle kraja taktike pre 100 s meč i dalje traje: meni, test i upload ostaju zaključani do kraja.
+Taster STOP uvek prekida taktiku i završava meč (otključava). Od NAORUZAN radi watchdog (ESP se sam
 restartuje ako se zaglavi; isključuje se tek restartom), a opciono se gasi WiFi ("WiFi off mec").
+
+Aktuatori: imena u `config.ACTUATORS`, levo/desno se menja na drugoj strani (`ACTUATOR_MIRROR`); **vrednost**
+(npr. ugao ruke) se ne ogleda. BlackPill nema aktuatore: svaki `actuator()` tamo dobije "odbijeno".
 
 ## Provera na laptopu
     python -m pytest ESP32/tests/host     # host testovi (lažni STM32 i ekran iz ESP32/sim/)

@@ -1,5 +1,5 @@
-# Jedini izvor istine za komunikaciju ESP32 <-> Nucleo (i ESP32 -> laptop).
-# dir: e2n = ESP32 -> Nucleo, n2e = Nucleo -> ESP32, e2h = ESP32 -> laptop (host).
+# Jedini izvor istine za komunikaciju ESP32 <-> STM32 (BlackPill i Nucleo; i ESP32 -> laptop).
+# dir: e2n = ESP32 -> STM32, n2e = STM32 -> ESP32, e2h = ESP32 -> laptop (host). ("n" = Nucleo, istorijski)
 # Posle svake izmene:  python protocol/gen.py   i podigni `version`  (treba: pip install pyyaml).
 #
 # Okvir:  COBS( type:u8 | seq:u8 | payload | crc16:u16 ) 0x00
