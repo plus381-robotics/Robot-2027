@@ -380,6 +380,7 @@ class Sim:
         while not self.quit:
             self.esp.step()
         self._collect(self.t())
+        self._emit(final=True)                   # poslednji podaci uvek stignu (ne čeka zidni sat)
         self._finish()
 
     def _finish(self):
