@@ -407,6 +407,9 @@ class Sim:
             self.stm.plant.obstacles = self.elements + self.opponents
             self.rec.meta["elements"] = [o.to_dict() for o in self.elements]
             self.event("elements", self.rec.meta["elements"])
+        elif k == "ir_mask":                    # UI (Live): klik na senzor, kao IR_MASK sa ESP-a
+            self.stm.ir_mask = int(c[1]) & 0xFF
+            self.event("sim", {"text": "IR maska iz simulatora: %s" % format(self.stm.ir_mask, "08b")})
         elif k == "place":
             if self.stm.phase == "IDLE":
                 self.stm.plant.place(c[1], c[2], c[3])

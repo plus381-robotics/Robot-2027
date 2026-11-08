@@ -83,10 +83,6 @@ function stateCells(c, i) {
   const dx = Math.hypot(c.x[i] - c.ox[i], c.y[i] - c.oy[i]);
   const match = c.match[i];
   const rem = match == null ? '–' : Math.max(0, (100000 - match) / 1000).toFixed(1) + ' s';
-  const IRN = (info.profile.ir_sensors || []).map(s => s.name);       // bit k = senzor k (F1..F4, B1..B4)
-  const irm = c.irm && c.irm[i] != null ? c.irm[i] : 0xFF;
-  const ir = c.ir[i] ? IRN.filter((n, k) => c.ir[i] & (1 << k)).map(n => (irm & (1 << IRN.indexOf(n)) ? n : n + '(off)')).join(' ') : '–';
-  const irOff = IRN.filter((n, k) => !(irm & (1 << k)));
   const act = c.act && c.act[i] ? Object.entries(c.act[i]).map(([k, v]) => `${k}=${v}`).join(' ') : '–';
   return [
     ['time', secs(t) + ' s'], ['match left', rem],
@@ -97,15 +93,57 @@ function stateCells(c, i) {
     ['v', f2(c.v[i]) + ' m/s'], ['v ref', f2(c.v_ref[i])],
     ['ω', f2(c.w[i]) + ' r/s'], ['ω ref', f2(c.w_ref[i])],
     ['wheel L', f2(c.vl[i])], ['wheel R', f2(c.vr[i])],
-    ['IR', ir + (irOff.length ? ` · off: ${irOff.join(' ')}` : ''), c.ir[i] & irm ? 'warn' : ''], ['stuck', c.stuck[i] ? 'YES' : 'no', c.stuck[i] ? 'bad' : ''],
-    ['actuators', act],
+    ['stuck', c.stuck[i] ? 'YES' : 'no', c.stuck[i] ? 'bad' : ''], ['actuators', act],   // IR: slika ispod (#irPanel)
   ];
 }
 
 // ---------------- panels ----------------
 
+// ---- IR senzori odozgo (plan U2): lepeza na stvarnom mestu svakog senzora, napred gore ----
+
+const IR_MIRROR = { F1: 'F4', F2: 'F3', F3: 'F2', F4: 'F1', B1: 'B4', B2: 'B3', B3: 'B2', B4: 'B1' };
+let irState = { raw: 0, mask: 0xFF };
+
+function buildIrSvg() {
+  const sens = info.profile.ir_sensors || [], b = info.profile.body;
+  const L = b.length, Wd = b.width, R = 70;                    // mm; lepeza 70 mm na slici (domet nije u razmeri)
+  const pad = R + 28, w = Wd + 40, h = L + 2 * pad;
+  const P = (x, y) => [w / 2 - y, h / 2 - x];                  // robot: x napred = gore, y levo = levo
+  const parts = [`<rect x="${(w - Wd) / 2}" y="${pad}" width="${Wd}" height="${L}" rx="10" class="ir-body"/>`,
+    `<path d="M ${w / 2} ${pad + 14} l -14 22 l 28 0 z" class="ir-arrow"/>`];
+  sens.forEach((s, k) => {
+    const [cx, cy] = P(s.x, s.y), dir = s.d > 0 ? -1 : 1, a = 0.42;     // ±24°
+    const x1 = cx + R * Math.sin(-a), y1 = cy + dir * R * Math.cos(a), x2 = cx + R * Math.sin(a);
+    parts.push(`<g class="ir-s" data-k="${k}"><path d="M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 0 ${dir > 0 ? 0 : 1} ${x2} ${y1} Z"/>` +
+      `<circle cx="${cx}" cy="${cy}" r="7"/><text x="${cx}" y="${cy + dir * (R + 16)}">${s.name}</text></g>`);
+  });
+  const svg = $('irSvg');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.innerHTML = parts.join('');
+  for (const g of svg.querySelectorAll('.ir-s')) g.onclick = () => {
+    if (!live || live.kind) return;                            // samo Live simulacija
+    const bit = 1 << +g.dataset.k;
+    liveSend(['ir_mask', irState.mask ^ bit]);
+  };
+}
+
+function renderIr(raw, mask) {
+  irState = { raw, mask };
+  const sens = info.profile.ir_sensors || [], blue = (run && run.meta && run.meta.side) === 'plava';
+  const name = s => (blue ? IR_MIRROR[s.name] || s.name : s.name);   // imena kao u taktici (žuta)
+  $('irSvg').querySelectorAll('.ir-s').forEach(g => {
+    const k = +g.dataset.k, on = !!(mask & (1 << k)), sees = !!(raw & (1 << k));
+    g.setAttribute('class', 'ir-s ' + (on ? (sees ? 'hit' : 'on') : (sees ? 'off hit' : 'off')) + (live && !live.kind ? ' click' : ''));
+    g.querySelector('text').textContent = name(sens[k]);
+  });
+  const off = sens.filter((s, k) => !(mask & (1 << k))).map(name), sees = sens.filter((s, k) => raw & (1 << k)).map(name);
+  $('irText').innerHTML = `sees: <b>${sees.join(' ') || '–'}</b> · off: <b>${off.join(' ') || '–'}</b>` +
+    (blue ? ' <span class="dim">(blue: names as in the tactic, left/right swapped)</span>' : '');
+}
+
 function renderState(i) {
   const c = run.cols;
+  renderIr(c.ir[i] || 0, c.irm && c.irm[i] != null ? c.irm[i] : 0xFF);
   $('stgrid').innerHTML = stateCells(c, i).map(([k, v, cls]) =>
     `<span class="k">${k}</span><span class="v ${cls || ''}">${v}</span>`).join('');
   const t = c.t[i];
@@ -1143,6 +1181,7 @@ async function main() {
   };
   repoRefresh();
   view = new FieldView($('view'), info);
+  buildIrSvg(); renderIr(0, 0xFF);
   charts = new Charts($('charts'), t => seek(t));
   view.onHover = p => {
     if (!p) { $('cursor').textContent = ''; return; }

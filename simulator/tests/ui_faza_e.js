@@ -30,6 +30,12 @@ const { chromium } = require('playwright');
     const e2 = await ev(() => ({ names: window.eurosim.view.irRays.map(r => r.name).join(' '),
       off: (window.eurosim.run.cols.irm || []).some(m => m === 15) }));
     if (e2.names !== 'F1 F2 F3 F4 B1 B2 B3 B4' || !e2.off) fail.push('E2: ' + JSON.stringify(e2));
+    // U2: slika IR senzora u STATE pokazuje isključene (kamenolomi: ir_off("B") posle uzimanja)
+    const tOff = await ev(() => { const c = window.eurosim.run.cols; return c.t[c.irm.findIndex(m => m === 15)] + 200; });
+    await ev(t => { window.eurosim.play.playing = false; window.eurosim.play.t = t; }, tOff);
+    await p.click('#nextFrame');
+    const u2 = await ev(() => [document.getElementById('irText').textContent, document.querySelectorAll('#irSvg .ir-s.off').length]);
+    if (!/off: B1 B2 B3 B4/.test(u2[0]) || u2[1] !== 4) fail.push('U2: ' + JSON.stringify(u2));
 
     // E3: klik na kamenolom (projekcija iz 3D prikaza), jedan kamen manje, simulacija sa izmenjenim stolom
     const xy = await ev(() => { const v = window.eurosim.view, g = v.elGroup.children[0];

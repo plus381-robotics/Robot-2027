@@ -260,3 +260,16 @@ body.has-banner { grid-template-rows: auto auto 1fr auto; }
 i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
 #elEdit { right: 12px; top: 120px; min-width: 280px; }
 #elEdit .row { display: flex; gap: 6px; align-items: center; margin: 6px 0; }
+#irPanel { display: flex; gap: 10px; align-items: center; margin: 6px 0; }
+#irSvg { width: 170px; height: auto; flex: none; }
+#irText { color: var(--dim); line-height: 1.4; }
+#irText b { color: var(--text); font-weight: 600; }
+.ir-body { fill: #2a313a; stroke: #6b7785; stroke-width: 3; }
+.ir-arrow { fill: #c8d0da; }
+.ir-s path { fill: #3ecf8e33; stroke: #3ecf8e; stroke-width: 2.5; }
+.ir-s circle { fill: #3ecf8e; }
+.ir-s text { fill: #c8d0da; font: 600 22px system-ui, sans-serif; text-anchor: middle; dominant-baseline: middle; }
+.ir-s.hit path { fill: #ff4d4d66; stroke: #ff4d4d; } .ir-s.hit circle { fill: #ff4d4d; }
+.ir-s.off path { fill: none; stroke: #6b7785; stroke-dasharray: 5 4; } .ir-s.off circle { fill: #6b7785; }
+.ir-s.off.hit circle { fill: #ff4d4d; }
+.ir-s.click { cursor: pointer; } .ir-s.click:hover path { stroke-width: 4; }
