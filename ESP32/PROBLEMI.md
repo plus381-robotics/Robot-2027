@@ -40,7 +40,12 @@ sve koordinate, a ne samo ime.
 
 ---
 
-## 2. [STM] DONE stiže dok se robot još kreće — srednja (uočeno u simulaciji, proveriti na robotu)
+## 2. [STM] DONE stiže dok se robot još kreće — srednja (uočeno u simulaciji, proveriti na robotu) — ✅ REŠENO na ESP-u (v4)
+
+**Rešeno (protokol v4):** STATUS ima i ugaonu brzinu `w`; posle DONE `tac` čeka STATUS sa |v| ≤ 20 mm/s i
+|w| ≤ 50 mrad/s (najviše 150 ms). U simulatoru `here()` posle vožnje/okreta = konačna poza (ranije ~9 mm i ~2°
+razlike; test `test_v4_here_posle_koraka_je_konacna_poza`). Regulacija na STM32 nije menjana.
+
 
 **Problem.** `control.c` proglašava kraj vožnje kad je `distance_proj < 5 mm` i `|v| < 2 * V_MIN` (0,3 m/s),
 a kraj okreta kad je ugao u toleranciji i `|w| < 2 * W_MIN` (1,26 rad/s). Odmah tada `comm_port.c` šalje
@@ -79,7 +84,11 @@ videti u simulatoru menjanjem `V_MIN_ACC` u profilu.
 
 ---
 
-## 4. [STM][PROT] Bitovi BLOCKED i LINK_LOST u STATUS-u se nikad ne postavljaju — niska
+## 4. [STM][PROT] Bitovi BLOCKED i LINK_LOST u STATUS-u se nikad ne postavljaju — niska — ✅ REŠENO (v4)
+
+**Rešeno:** `LINK_LOST` izbačen (pad veze se vidi kao ishod kretanja `LINK` u STATUS-u), `BLOCKED` označen
+kao rezervisan do IR senzora.
+
 
 **Problem.** `protocol.yaml` ima `State.BLOCKED` (2) i `State.LINK_LOST` (16), ESP ih prikazuje
 (`tekst.TAGS`: "BLOK", "VEZA!"), ali ih STM32 nikad ne postavlja: `comm_port_fill_status` puni samo

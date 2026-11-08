@@ -12,6 +12,12 @@
  * Zato glavna petlja ne sme da blokira duže od COMM_HEARTBEAT_MS dok je ESP povezan,
  * inače Nucleo pogrešno zaključi da je veza pukla.
  *
+ * Činč (protokol v4): comm_poll() pokreće meč (match_started, timer.c broji match_time) kad se izvuče
+ * činč koji je posle pokretanja bio u robotu (chinch.c, debounce 200 ms). To radi i bez ESP-a. Ako je
+ * činč izvučen već pri pokretanju (restart Nucleo-a u meču), meč ne kreće sam: ESP šalje RESUME
+ * (poza + meč od elapsed_ms). Ostalo iz v4: RESET (softverski restart posle ACK), uptime_ms i w u
+ * STATUS-u, razlog restarta u PONG-u, pad veze prekida kretanje sa REASON_LINK.
+ *
  * Povezivanje u projekat:
  *  - main.c, USER CODE 2:  comm_init();          (posle MX_USART1_UART_Init)
  *  - main.c, petlja:       comm_poll();
@@ -31,6 +37,7 @@ void comm_tick_1ms(void);    /* 1 kHz prekid: provera heartbeat-a */
 
 uint8_t comm_esp_connected(void);   /* 1 = ESP se javio i veza je živa */
 uint8_t comm_motion_allowed(void);  /* 0 = veza sa ESP-om je pukla, motori treba da stoje */
+uint8_t comm_stop_reason(void);    /* za comm_hook_stop: REASON_LINK posle pada veze, inače STOPPED */
 
 /* Kad se završi kretanje koje je pokrenuo ESP (GOTO/ROTATE/MOVE):
  * reason 0 = uspešno (DONE), inače REASON_* iz protocol.h (FAIL). */

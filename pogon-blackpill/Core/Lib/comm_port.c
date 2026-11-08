@@ -73,6 +73,7 @@ void comm_port_fill_status(msg_status_t *s) {
 	s->y = clamp16(get_y() * 1000.0);
 	s->theta = clamp16(phi * 18000.0 / M_PI);
 	s->v = clamp16(get_v() * 1000.0);
+	s->w = clamp16(get_w() * 1000.0);  /* rad/s -> mrad/s (v4) */
 	if (match_over) {
 		s->state |= STATE_MATCH_OVER;
 		s->match_ms = MATCH_MS;
@@ -94,6 +95,15 @@ void comm_port_match_start(void) {
 		match_start_ms = HAL_GetTick();
 		match_running = 1;
 	}
+}
+
+uint8_t comm_port_resume(int16_t x_mm, int16_t y_mm, int16_t theta_cdeg, uint32_t elapsed_ms) {
+	uint8_t r = comm_port_set_pose(x_mm, y_mm, theta_cdeg);
+	if (r)
+		return r;
+	match_start_ms = HAL_GetTick() - elapsed_ms;   /* sat meča nastavlja od elapsed_ms */
+	match_running = 1;                             /* kraj (100 s) proverava comm_port_update() */
+	return 0;
 }
 
 /* ---------------- hook-ovi iz comm.h ---------------- */
@@ -175,7 +185,7 @@ void comm_port_boot_check(void) {
 
 void comm_hook_stop(void) {
 	req_pending = 0;
-	stop_reason = REASON_STOPPED;
+	stop_reason = comm_stop_reason();  /* STOPPED, ili LINK kad je pukla veza (v4) */
 	stop_request = 1;
 }
 

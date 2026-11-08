@@ -18,8 +18,9 @@ ENC_STEPS = 4
 
 # STM32 NRST (open-drain) i BOOT0 za flešovanje kad softverski ulazak u bootloader ne radi.
 # None = nije povezano (vidi dijagram povezivanja: 18 = NRST, 19 = BOOT0).
-# Sa NRST-om ESP sam resetuje STM32: pri naoružavanju ako je ostao u starom meču, i u meču ako se ne
-# javlja (posle reseta mu vrati pozu, vidi lib/match.py). Bez NRST-a: samo softverska zaštita.
+# STM32 sa protokolom v4 ESP restartuje komandom RESET (pri naoružavanju, ako je ostao u starom meču);
+# NRST je potreban samo kad se STM32 zaglavi i ne prima komande (u meču: reset pa obnova poze, lib/match.py)
+# i kao rezerva ako RESET ne uspe. Stari STM32 (v1-v3) bez NRST-a: naoružavanje se odbija.
 # ESP32-S3 (plan, docs/faza4-esp32s3-lidar.md): NRST 15, BOOT0 16.
 STM_NRST, STM_BOOT0 = None, None
 

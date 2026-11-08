@@ -14,7 +14,7 @@
 /* Milisekunde od starta. Poziva se i iz 1 kHz prekida (comm_tick_1ms). */
 uint32_t comm_port_time_ms(void);
 
-/* Popuni x, y, theta, v, match_ms i bitove MATCH_* u state (jedinice iz protocol.yaml:
+/* Popuni x, y, theta, v, w (mrad/s), match_ms i bitove MATCH_* u state (jedinice iz protocol.yaml:
  * mm, cdeg -18000..18000, mm/s, ms). comm.c posle sam dodaje STATE_MOVING. */
 void comm_port_fill_status(msg_status_t *s);
 
@@ -23,5 +23,9 @@ uint8_t comm_port_set_pose(int16_t x_mm, int16_t y_mm, int16_t theta_cdeg);
 
 /* MATCH_START: kreni da brojiš 100 s. */
 void comm_port_match_start(void);
+
+/* RESUME (v4): poza kao SET_POSE i meč koji traje već elapsed_ms (obnova posle restarta).
+ * Vraća 0 ili REASON_*. */
+uint8_t comm_port_resume(int16_t x_mm, int16_t y_mm, int16_t theta_cdeg, uint32_t elapsed_ms);
 
 #endif /* INC_COMM_PORT_H_ */

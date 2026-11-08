@@ -21,9 +21,12 @@ class Plan:
         return out
 
 
-def live(plan, tmp_path, src=DUGO, nrst=True, end_ms=None):
+def live(plan, tmp_path, src=DUGO, nrst=True, end_ms=None, version=None):
     (tmp_path / "t.py").write_text(src)
-    prof = profile.load(**({} if nrst else {"link.nrst": []}))
+    over = {} if nrst else {"link.nrst": []}
+    if version:
+        over["link.protocol_version"] = version                # stari firmver (bez RESET/RESUME/uptime)
+    prof = profile.load(**over)
     s = Sim("t", mode="live", tactics_dir=tmp_path, prof=prof)
     last = max(t for t, _ in plan)
     s.control = Plan(s, plan + [(end_ms or last + 3000, ("quit",))])
@@ -36,10 +39,22 @@ def moved(r, t0, t1):
     return max(math.hypot(a["x"] - f[0]["x"], a["y"] - f[0]["y"]) for a in f)
 
 
+def test_v4_ponovno_naoruzavanje_posle_meca_reset_komandom_i_ceka_nov_cinc(tmp_path):
+    s, r = live([(300, ("arm", "t", "zuta")), (1000, ("cord",)), (3000, ("stop",)),
+                 (4000, ("arm", "t", "zuta")),            # STM32 i dalje broji stari meč
+                 (9000, ("cord",))], tmp_path, nrst=False, end_ms=12000)
+    logs = r.logs()
+    assert any("reset STM32 (komanda RESET)" in l for l in logs)
+    assert any("STM32 resetovan" in l for l in logs) and any("restartovan (softver)" in l for l in logs)
+    assert moved(r, 4200, 8900) < 3
+    assert moved(r, 9000, 12000) > 100
+    assert any(e[2]["text"].startswith("STM32 restart (komanda RESET)") for e in r.of("sim"))
+
+
 def test_ponovno_naoruzavanje_posle_meca_resetuje_stm_preko_nrst_i_ceka_nov_cinc(tmp_path):
     s, r = live([(300, ("arm", "t", "zuta")), (1000, ("cord",)), (3000, ("stop",)),
                  (4000, ("arm", "t", "zuta")),            # STM32 i dalje broji stari meč
-                 (9000, ("cord",))], tmp_path, end_ms=12000)
+                 (9000, ("cord",))], tmp_path, end_ms=12000, version=2)
     logs = r.logs()
     assert any("reset STM32 (NRST)" in l for l in logs)
     assert any("STM32 resetovan" in l for l in logs)
@@ -50,15 +65,20 @@ def test_ponovno_naoruzavanje_posle_meca_resetuje_stm_preko_nrst_i_ceka_nov_cinc
 
 def test_bez_nrst_naoruzavanje_starog_meca_se_odbija(tmp_path):
     s, r = live([(300, ("arm", "t", "zuta")), (1000, ("cord",)), (3000, ("stop",)),
-                 (4000, ("arm", "t", "zuta"))], tmp_path, nrst=False, end_ms=8000)
+                 (4000, ("arm", "t", "zuta"))], tmp_path, nrst=False, end_ms=8000, version=2)
     assert any("STM32 vec u mecu: restartuj STM32" in l for l in r.logs())
     assert moved(r, 4100, 8000) < 3
     assert not s.app.match.armed                                # odbijeno (stanje ostaje KRAJ od prvog meča)
 
 
 def test_restart_stm32_u_mecu_vraca_pozu_i_taktika_nastavlja(tmp_path):
+    for version in (2, 4):
+        _restart_stm32_u_mecu(tmp_path, version)
+
+
+def _restart_stm32_u_mecu(tmp_path, version):
     s, r = live([(300, ("arm", "t", "zuta")), (1000, ("cord",)), (3500, ("stm_reset",))], tmp_path,
-                end_ms=12000)
+                end_ms=12000, version=version)
     logs = r.logs()
     assert any("STM32 restart u mecu" in l for l in logs) and any("STM32 obnovljen" in l for l in logs)
     assert any(x[3] == "RESTART" for x in r.steps())          # prekinuti korak vraća False
@@ -79,9 +99,17 @@ def test_zaglavljen_stm32_u_mecu_nrst_pa_obnova(tmp_path):
     assert math.hypot(f["x"] - f["ox"], f["y"] - f["oy"]) < 300 * 1.7
 
 
-def test_esp_sat_zaustavlja_posle_100s_i_kad_stm32_broji_ispocetka(tmp_path):
+def test_v4_resume_stm32_nastavlja_sat_meca_i_sam_staje_na_100s(tmp_path):
     s, r = live([(300, ("arm", "t", "zuta")), (1000, ("cord",)), (50000, ("stm_reset",))], tmp_path,
                 end_ms=110000)
+    assert any("RESUME" in e[2]["text"] for e in r.of("sim"))
+    assert s.stm.match_over                                     # STM32 posle obnove zna pravi kraj meča
+    assert moved(r, 1000 + 100500, 110000) < 3
+
+
+def test_esp_sat_zaustavlja_posle_100s_i_kad_stm32_broji_ispocetka(tmp_path):
+    s, r = live([(300, ("arm", "t", "zuta")), (1000, ("cord",)), (50000, ("stm_reset",))], tmp_path,
+                end_ms=110000, version=2)
     assert any("kraj meca" in l.lower() for l in r.logs())
     cord = 1000
     assert moved(r, cord + 100500, 110000) < 3                 # posle 100 s od činča robot stoji
@@ -97,3 +125,23 @@ def test_restart_esp_u_mecu_robot_stoji_i_javlja(tmp_path):
     r = s.run()
     assert any("MEC U TOKU posle restarta ESP-a" in l for l in r.logs())
     assert moved(r, 0, 4000) < 3
+
+
+def _here_posle_koraka(tmp_path, version):
+    src = ("from tac import *\nSTART = (250, 1000, 0)\n"
+           "goto(800, 1000, speed=600)\nlog('h1 %d %d' % here()[:2])\nturn_to(90)\nlog('h2 %d' % here()[2])\n"
+           "wait(1)\nlog('k %d %d %d' % here())\n")
+    (tmp_path / "t.py").write_text(src)
+    s = Sim("t", mode="test", tactics_dir=tmp_path, prof=profile.load(**{"link.protocol_version": version}))
+    r = s.run()
+    vals = {l.split()[0]: [int(v) for v in l.split()[1:]] for l in r.logs() if l[:2] in ("h1", "h2", "k ")}
+    return vals
+
+
+def test_v4_here_posle_koraka_je_konacna_poza(tmp_path):
+    """PROBLEMI 2: DONE stiže dok robot još klizi. v4: tac sačeka STATUS sa v i w ~0 (najviše 150 ms)."""
+    v4 = _here_posle_koraka(tmp_path, 4)
+    v2 = _here_posle_koraka(tmp_path, 2)
+    assert abs(v4["h1"][0] - v4["k"][0]) <= 2                      # x posle vožnje = konačni (v2: ~9 mm manje)
+    assert abs(v4["h2"][0] - v4["k"][2]) <= 1                      # ugao posle okreta = konačni (v2: ~2° manje)
+    assert abs(v2["h2"][0] - v2["k"][2]) >= abs(v4["h2"][0] - v4["k"][2])

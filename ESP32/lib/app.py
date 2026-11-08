@@ -28,6 +28,7 @@ class App:
     def __init__(self, robot, settings, fb):
         self.robot, self.st, self.fb = robot, settings, fb
         self._pose_sent = False
+        self._cause_logged = 0
         self._seen_start = None
         self.events = []                   # događaji iz poslednjeg robot.poll() (za tac.py)
         self.abort = None                  # razlog prekida taktike (STOP)
@@ -108,10 +109,15 @@ class App:
         # Auto poza samo za razvoj: svaki put kad se STM32 poveže (i posle njegovog restarta ili flešovanja,
         # L27), ogledana po izabranoj strani (PROBLEMI 5), i to samo ako STATUS kaže da ne traje meč, robot ne
         # vozi i ne radi taktika. Restart ESP-a usred meča ne sme da pregazi odometriju.
+        if r.boot_n and r.cause_n == r.boot_n and self._cause_logged != r.boot_n:
+            self._cause_logged = r.boot_n      # v4: restart STM32 bez prekida veze (watchdog, NRST, RESET)
+            self.tlog("STM32 restartovan (%s)" % (r.cause() or "razlog nepoznat"))
         if not r.ok:
             self._pose_sent = False
         elif not self._pose_sent and r.status is not None:
             self._pose_sent = True
+            if r.reset_cause and r.reset_cause & (P.ResetCause.IWDG | P.ResetCause.WWDG | P.ResetCause.LOW_POWER):
+                self.tlog("STM32 povezan posle restarta: %s" % r.cause())     # v4: neočekivan restart
             quiet = not (r.status["state"] & (P.State.MATCH_RUNNING | P.State.MATCH_OVER | P.State.MOVING))
             if self.st["start_pose"] and quiet and not (self.running or self.request or self.match.armed):
                 x, y, th = cfg.START_POSE
@@ -242,8 +248,8 @@ class App:
             items.append(("upoz", "greske", "%d novih" % self.unseen))
         s = r.status if r.alive else None
         if s and s["state"] & (P.State.MATCH_RUNNING | P.State.MATCH_OVER) and not self.match.armed:
-            # stari meč na STM32 (pregled logike L1, L7): NRST ga resetuje pri naoružavanju, inače ručno
-            items.append(("upoz", "STM32 mec", "reset pri naoruz.") if self.match.hw
+            # stari meč na STM32 (pregled logike L1, L7): RESET (v4) ili NRST ga resetuje pri naoružavanju, inače ručno
+            items.append(("upoz", "STM32 mec", "reset pri naoruz.") if self.match.hw or r.can("reset")
                          else ("ne", "STM32 mec", "restartuj STM32"))
         if self.match.state == "RESET":
             items.append(("ceka", "STM32", "reset..."))

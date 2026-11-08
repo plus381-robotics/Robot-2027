@@ -33,6 +33,7 @@ def test_posle_kraja_taktike_mec_ostaje_zakljucan_do_100s(app, stm):
 
 
 def test_stari_mec_bez_nrst_odbija_naoruzavanje(app, stm):
+    stm.version = 3                                              # stari STM32: nema komande RESET
     odigraj_mec(app, stm)
     app.stop()                                                   # STOP: meč namerno prekinut
     assert stm.state & P.State.MATCH_RUNNING                    # STM32 i dalje broji (BlackPill ne briše)
@@ -45,8 +46,24 @@ def test_stari_mec_bez_nrst_odbija_naoruzavanje(app, stm):
     assert ("ne", "STM32 mec", "restartuj STM32") in items
 
 
+def test_stari_mec_v4_reset_komandom_pa_nov_cinc(app, stm):
+    """Protokol v4: STM32 u starom meču se restartuje komandom RESET (bez NRST pina), pa se čeka nov činč."""
+    odigraj_mec(app, stm)
+    app.stop()
+    assert stm.state & P.State.MATCH_RUNNING
+    n = len(stm.sent)
+    assert app.match.arm("m", "zuta")
+    assert [x for x, _ in stm.sent[n:]] == ["RESET"]
+    run(app, 500)
+    assert app.match.state == "NAORUZAN" and not app.errors
+    assert any("komanda RESET" in l for l in app.log) and any("restartovan (softver)" in l for l in app.log)
+    assert not (stm.state & P.State.MATCH_RUNNING)              # STM32 krenuo ispočetka
+    assert app.request is None                                  # robot čeka nov činč
+
+
 def test_cinc_mora_biti_nov(app, stm):
     """Naoruzan bez STATUS-a, pa prvi STATUS već u meču: to nije nov činč (ranije: taktika krene odmah)."""
+    stm.version = 3
     write(app, "m", "from tac import *\nSTART = (250, 1000, 0)\nmove(100)\n")
     stm.state |= P.State.MATCH_RUNNING
     stm.match0 = 0
@@ -58,7 +75,7 @@ def test_cinc_mora_biti_nov(app, stm):
     assert any("restartuj STM32" in t for _, t in app.errors)
 
 
-def test_restart_stm32_u_mecu_vraca_pozu(app, stm):
+def _restart_u_mecu(app, stm, restart):
     from runner import run_tactic
     write(app, "m", "from tac import *\nSTART = (250, 1000, 0)\nlog('rez %s' % move(300))\nmove(100)\n")
     stm.motion_ms = 2000
@@ -71,16 +88,8 @@ def test_restart_stm32_u_mecu_vraca_pozu(app, stm):
     name, app.request = app.request, None
     stm.pose = [600, 900, 4500]                                 # FakeSTM ne vozi: poza "tokom vožnje"
     import compat
-
-    def restart():                                              # STM32 se restartuje: meč i komanda nestaju
-        stm.state = 0
-        stm.match0 = None
-        stm.motion = None
-        stm.pose = [0, 0, 0]
-        stm.last_seq = None
     t_restart = compat.ticks_ms() + 400
     orig = app.loop.services[0][1]
-
     done = []
 
     def svc():
@@ -91,11 +100,35 @@ def test_restart_stm32_u_mecu_vraca_pozu(app, stm):
     app.loop.services[0] = ("robot", svc)
     run_tactic(app, name)
     assert "rez False" in app.log                               # prekinut korak: RESTART
+    assert app.match.stm_resets == 1
+
+
+def test_restart_stm32_u_mecu_vraca_pozu(app, stm):
+    """Stari STM32 (v3): restart se vidi po STATUS-u bez meča; obnova SET_POSE pa MATCH_START."""
+    stm.version = 3
+
+    def restart():                                              # STM32 se restartuje: meč i komanda nestaju
+        stm.state = 0
+        stm.match0 = None
+        stm.motion = None
+        stm.pose = [0, 0, 0]
+        stm.last_seq = None
+    _restart_u_mecu(app, stm, restart)
     poses = [d for n, d in stm.sent if n == "SET_POSE"]
     x, y, th = poses[-1]["x"], poses[-1]["y"], poses[-1]["theta"]
     assert th == 4500 and 600 <= x <= 610 and 900 <= y <= 910     # poslednja poza + 25 ms vožnje (v = 300)
     assert [n for n, _ in stm.sent].count("MATCH_START") >= 2   # simulirani činč + obnova
-    assert app.match.stm_resets == 1
+
+
+def test_restart_stm32_u_mecu_v4_resume(app, stm):
+    """v4: restart se vidi po uptime-u; obnova jednom porukom RESUME, STM32 nastavlja sat meča."""
+    _restart_u_mecu(app, stm, lambda: stm.reboot())
+    res = [d for n, d in stm.sent if n == "RESUME"]
+    assert len(res) == 1
+    assert res[0]["theta"] == 4500 and 600 <= res[0]["x"] <= 610 and 900 <= res[0]["y"] <= 910
+    assert 300 <= res[0]["elapsed_ms"] <= 1000                    # meč traje od činča, ne od obnove
+    assert [n for n, _ in stm.sent].count("MATCH_START") == 1   # samo simulirani činč
+    assert any("restartovan (watchdog)" in l for l in app.log)
 
 
 def test_start_dva_broja_i_slicna_imena(app, stm):

@@ -7,14 +7,16 @@
 # Dok je robot naoružan i u meču: machine.WDT (ESP se restartuje ako se zaglavi; posle restarta
 # nema auto poze jer STATUS pokazuje meč) i, ako je podešeno, ugašen WiFi.
 #
-# Zaštita (pregled logike L1, L2, L7):
+# Zaštita (pregled logike L1, L2, L7; protokol v4):
 #  - meč kreće samo na NOV činč: posle naoružavanja mora se videti STATUS bez meča, pa tek onda
 #    MATCH_RUNNING. Ako je STM32 ostao u starom meču (gotov meč, STOP, restart ESP-a), naoružavanje ga
-#    resetuje preko NRST (config.STM_NRST), a bez NRST-a se odbija ("restartuj STM32").
+#    restartuje: komandom RESET (v4), a ako ne odgovori, preko NRST (config.STM_NRST). Bez oba se odbija
+#    ("restartuj STM32").
 #  - ESP ima svoj sat meča (od činča) i sam prekida taktiku posle 100 s, i kad STM32 ne zna za meč.
-#  - STM32 restartovan u meču (STATUS bez bitova meča pre 100 s): ESP vrati poslednju pozu (SET_POSE),
-#    pa MATCH_START; komanda koja je bila u toku vraća False ("RESTART"). Nema odgovora duže od
-#    HANG_MS: reset preko NRST (ako postoji).
+#  - STM32 restartovan u meču: v4 to vidi po uptime-u u STATUS-u (manji nego pre), stariji STM32 po STATUS-u
+#    bez bitova meča pre 100 s. ESP vrati poslednju pozu i meč: v4 jednom porukom RESUME (STM32 nastavi svoj
+#    sat od pravog trenutka), stariji SET_POSE pa MATCH_START. Komanda koja je bila u toku vraća False
+#    ("RESTART"). Nema odgovora duže od HANG_MS: reset preko NRST (ako postoji).
 #  - ESP restartovan u meču: ništa ne pokreće (robot stoji), samo jasno javi.
 from compat import ticks_ms, ticks_diff, ticks_add
 import protocol as P
@@ -110,6 +112,8 @@ class Match:
         self._restore = None           # obnova posle restarta: ("pose"|"start", seq, vreme)
         self._retry = False            # obnova nije potvrđena: sledeći pokušaj nije nov restart
         self._settle = -1              # status_n posle obnove: stari STATUS (bez meča) se ne računa
+        self._boot_ref = 0             # v4: robot.boot_n kad je meč krenuo / obnovljen
+        self._reset_cmd = False        # RESET komandom (posle neuspeha: NRST)
         self._pose_try = 0             # pokušaji START poze na činč (L14)
         self._was_running = None       # prethodni bit MATCH_RUNNING (činč bez naoružavanja, L4)
         self._idle_seen = False        # posle naoružavanja viđen STATUS bez meča (čeka se NOV činč)
@@ -158,7 +162,7 @@ class Match:
         self.tactic, self.side, self.start = name, side, meta.get("START")
         self.t_cord, self._pose_try = None, 0
         if self._stale(s):
-            if not self._hw_reset("STM32 u starom mecu"):
+            if not self._reset("STM32 u starom mecu"):
                 self.app.error("STM32 vec u mecu: restartuj STM32")
                 return False
         else:
@@ -175,7 +179,7 @@ class Match:
 
     def stopped(self):
         """Taster STOP (ili STOP preko WiFi-ja) usred meča: meč je namerno prekinut, zaključavanje prestaje.
-        Ponovno naoružavanje tada ide preko zaštite starog meča (NRST ili "restartuj STM32")."""
+        Ponovno naoružavanje tada ide preko zaštite starog meča (RESET, NRST ili "restartuj STM32")."""
         if self.state in (POSE, MATCH, DONE) and self.t_cord is not None:
             self.state, self.t_cord = IDLE, None
             self.app.tlog("mec prekinut (STOP)")
@@ -189,6 +193,7 @@ class Match:
         if ob and ob in a.tactics() and side:
             self.tactic, self.side, self.start = ob, side, None
             self.t_cord = ticks_add(ticks_ms(), -s["match_ms"])     # meč je počeo pre match_ms
+            self._boot_ref = a.robot.boot_n
             a.tlog("MEC U TOKU posle restarta ESP-a: pokrecem %s" % ob)
             if a.st["wdt_match"] and self.wdt is None:
                 try:
@@ -201,8 +206,21 @@ class Match:
             a.tlog("MEC U TOKU posle restarta ESP-a: robot stoji (nema %s.py)" % (ob or "taktike"))
             a.ui.alarm("MEC U TOKU", "ESP restart: robot stoji")
 
+    def _reset(self, why):
+        """Restart STM32 i čekanje da se javi bez meča: komanda RESET (v4), inače NRST impuls.
+        False = ni jedno ni drugo nije moguće."""
+        r = self.app.robot
+        if r.ok and r.can("reset"):
+            r.send("RESET")
+            self._reset_cmd = True
+            self.state, self._t = RESET, ticks_ms()
+            self.app.tlog("%s: reset STM32 (komanda RESET)" % why)
+            return True
+        return self._hw_reset(why)
+
     def _hw_reset(self, why):
         """NRST impuls (ako postoji) i čekanje da se STM32 javi bez meča. False = nema NRST-a."""
+        self._reset_cmd = False
         if not self.hw:
             return False
         self.hw.pulse()
@@ -243,17 +261,19 @@ class Match:
                 self.state, self._idle_seen = ARMED, True
                 a.tlog("STM32 resetovan: NAORUZAN, ceka cinc")
             elif ticks_diff(ticks_ms(), self._t) > RESET_WAIT_MS:
-                self.state = IDLE
-                a.error("STM32 se ne javlja posle reseta")
+                if not (self._reset_cmd and self._hw_reset("RESET komanda bez uspeha")):
+                    self.state = IDLE
+                    a.error("STM32 se ne javlja posle reseta")
         elif self.state == ARMED and s and not self._stale(s):
             self._idle_seen = True
         elif self.state == ARMED and s and s["state"] & P.State.MATCH_RUNNING and not self._idle_seen:
             # od naoružavanja nije bilo STATUS-a bez meča: ovo nije nov činč nego stari meč
-            if not self._hw_reset("STM32 u starom mecu"):
+            if not self._reset("STM32 u starom mecu"):
                 self.state = IDLE
                 a.error("STM32 vec u mecu: restartuj STM32")
         elif self.state == ARMED and s and s["state"] & P.State.MATCH_RUNNING:
-            self.t_cord = ticks_ms()
+            self.t_cord = ticks_add(ticks_ms(), -min(s["match_ms"], 1000))   # STM32 broji od izvlačenja
+            self._boot_ref = r.boot_n
             a.tlog("CINC: start")
             if self.start:
                 self._send_pose(r)
@@ -292,7 +312,7 @@ class Match:
             self._last_pose = (s["x"], s["y"], s["theta"], s["v"])
         if self._restore:
             self._restoring(r, a)
-        elif s and not self._stale(s) and el < MATCH_MS - 500 and r.status_n > self._settle:
+        elif s and el < MATCH_MS - 500 and self._restarted(r, s):
             if not self._retry:
                 self.stm_resets += 1
                 a.tlog("STM32 restart u mecu (%.1f s): vracam pozu" % (el / 1000))
@@ -303,17 +323,39 @@ class Match:
             a.tlog("STM32 se ne javlja u mecu: reset (NRST)")
             self.hw.pulse()
 
+    def _restarted(self, r, s):
+        """STM32 restartovan u meču. v4: uptime u STATUS-u se smanjio (siguran znak). Stariji STM32: STATUS bez
+        bitova meča (posle obnove se čeka nov STATUS, _settle)."""
+        if r.can("uptime") and s.get("uptime_ms") is not None:
+            return r.boot_n != self._boot_ref
+        return not self._stale(s) and r.status_n > self._settle
+
     def _restore_pose(self, r):
-        if self._last_pose:
-            # poslednji STATUS je star 0..50 ms kad STM32 stane: pomeri ga za pola perioda (25 ms) brzinom
-            import math
-            x, y, th, v = self._last_pose
-            d = v * 0.025
-            a = math.radians(th / 100)
-            x, y = int(x + d * math.cos(a)), int(y + d * math.sin(a))
+        if r.can("resume"):
+            # v4: poza i meč jednom porukom; STM32 nastavlja sat meča od pravog trenutka (i sam staje na 100 s)
+            x, y, th = self._pose_now()
+            self._restore = ("resume", r.send("RESUME", x=x, y=y, theta=th, elapsed_ms=max(0, self.elapsed())),
+                             ticks_ms())
+        elif self._last_pose:
+            x, y, th = self._pose_now()
             self._restore = ("pose", r.send("SET_POSE", x=x, y=y, theta=th), ticks_ms())
         else:
             self._restore = ("start", r.send("MATCH_START"), ticks_ms())
+
+    def _pose_now(self):
+        """Poslednja poza iz STATUS-a pre restarta (teren, mm/cdeg), ili START poza ako je nema."""
+        if not self._last_pose:
+            if self.start:
+                tac.current_side = self.side
+                x, y = tac.mirror_xy(self.start[0], self.start[1])
+                return int(x), int(y), int(tac.mirror_deg(self.start[2]) * 100)
+            return 0, 0, 0
+        import math
+        # poslednji STATUS je star 0..50 ms kad STM32 stane: pomeri ga za pola perioda (25 ms) brzinom
+        x, y, th, v = self._last_pose
+        d = v * 0.025
+        a = math.radians(th / 100)
+        return int(x + d * math.cos(a)), int(y + d * math.sin(a)), th
 
     def _restoring(self, r, a):
         kind, seq, t = self._restore
@@ -323,6 +365,7 @@ class Match:
             else:
                 self._restore, self._retry = None, False
                 self._settle = r.status_n       # čekaj nov STATUS (već u meču) pre nove provere
+                self._boot_ref = r.boot_n
                 a.tlog("STM32 obnovljen: poza i mec, nastavljam")
         elif ticks_diff(ticks_ms(), t) > 1000:
             self._restore, self._retry = None, True     # sledeći STATUS bez meča: novi pokušaj

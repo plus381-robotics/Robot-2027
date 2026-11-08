@@ -20,8 +20,12 @@ LONG = MOTION + ("ACTUATOR",)            # posle ACK čekaju DONE/FAIL (aktuator
 RESULTS = 32                             # koliko poslednjih ishoda se pamti (za tac.done())
 
 REASONS = {getattr(P.Reason, k): k for k in dir(P.Reason) if not k.startswith("_")}
-COMPAT = (1, 2, 3)                       # verzije protokola sa kojima ESP sme da radi
-FEATURES = {"bootloader": 2, "result": 3}    # mogućnost -> najmanja verzija (result: ishod u STATUS-u)
+COMPAT = (1, 2, 3, 4)                    # verzije protokola sa kojima ESP sme da radi
+# mogućnost -> najmanja verzija. result: ishod kretanja u STATUS-u. v4: komanda RESET, RESUME (poza + meč
+# jednom porukom), uptime u STATUS-u (siguran znak restarta), razlog LINK, ugaona brzina w.
+FEATURES = {"bootloader": 2, "result": 3, "reset": 4, "resume": 4, "uptime": 4, "link_reason": 4, "w": 4}
+CAUSES = (("PIN", "NRST"), ("POWER", "napajanje"), ("SOFT", "softver"), ("IWDG", "watchdog"),
+          ("WWDG", "WWDG"), ("LOW_POWER", "low power"))
 
 
 class Robot:
@@ -32,6 +36,10 @@ class Robot:
         self.status = None             # poslednji STATUS (dict) ili None
         self.status_t = None           # kad je stigao
         self.status_n = 0              # koliko STATUS-a je stiglo (za praćenje kraja kretanja)
+        self.boot_n = 0                # koliko restarta STM32 je viđeno (v4: uptime u STATUS-u se smanjio)
+        self.reset_cause = None        # v4: razlog poslednjeg pokretanja STM32 (bitovi ResetCause)
+        self.cause_n = 0               # boot_n za koji važi reset_cause (PONG stigao posle restarta)
+        self._uptime = None
         self.last_rx = None
         self.fps = 0                   # ispravnih okvira u poslednjoj sekundi
         self._fps_n = 0
@@ -61,6 +69,13 @@ class Robot:
     @property
     def ok(self):
         return self.alive and self.version in COMPAT
+
+    def cause(self):
+        """Razlog poslednjeg pokretanja STM32 kao tekst ("watchdog", "NRST"...), ili None (stari STM32)."""
+        c = self.reset_cause
+        if not c:
+            return None
+        return "+".join(t for k, t in CAUSES if c & getattr(P.ResetCause, k))
 
     def can(self, feature):
         """Da li STM32 (po verziji protokola) podržava mogućnost, npr. "bootloader"."""
@@ -131,7 +146,14 @@ class Robot:
         name, d = P.decode(t, payload)
         if name == "PONG":
             self.version = d["version"]
+            self.reset_cause = d.get("reset_cause")
+            self.cause_n = self.boot_n
         elif name == "STATUS":
+            up = d.get("uptime_ms")
+            if up is not None:
+                if self._uptime is not None and up < self._uptime:
+                    self.boot_n += 1           # STM32 je krenuo ispočetka (NRST, watchdog, napajanje, RESET)
+                self._uptime = up
             self.status, self.status_t = d, now
             self.status_n += 1
         elif name == "LOG":

@@ -123,6 +123,12 @@ ogledaju (x -> 3000 - x, ugao -> 180 - ugao).
 Ako se ESP restartuje usred meča, a postoji `<taktika>_obnova.py` (npr. samo `go_home()`), ESP posle
 restarta pokreće nju sa preostalim vremenom; bez nje robot stoji do kraja.
 
+Ako se STM32 restartuje usred meča (watchdog, napajanje), ESP to vidi (v4: po `uptime_ms` u STATUS-u) i
+jednom porukom RESUME mu vrati poslednju pozu i meč (STM32 nastavlja svoj sat od pravog trenutka); korak koji
+je bio u toku vraća `False` ("RESTART"), taktika ide dalje. Kratak pad veze u meču: korak čeka povratak veze
+i vraća pravi ishod (`True` ako je robot stigao, `False` "VEZA" ako je STM32 stao). Posle svakog kretanja
+tac sačeka da robot stvarno stane (najviše 150 ms), pa `here()` vraća konačnu pozu.
+
 Pokretanje odmah, kao test (sa laptopa preko WiFi-ja; šalje fajl, pokreće, ispisuje dnevnik):
 
     python tools/tactic.py primer [--side plava]  # Ctrl+C = STOP
@@ -131,8 +137,8 @@ Pokretanje odmah, kao test (sa laptopa preko WiFi-ja; šalje fajl, pokreće, isp
 Na robotu, početni ekran PROVERA (okret enkodera bira red, OK izvršava):
 - **taktika** (spisak) -> **strana** (spisak, sa x startne poze) -> **provera** (šta ne valja: STM32, STATUS,
   taktika, START, aktuatori, stari meč na STM32...).
-- **naoruzaj**: NAORUZAN, čeka **nov** činč (STM32 koji je ostao u starom meču se resetuje preko NRST ili se
-  naoružavanje odbija). Na činč: START poza (do 3 pokušaja), pa taktika; meč traje 100 s po satu ESP-a.
+- **naoruzaj**: NAORUZAN, čeka **nov** činč (STM32 koji je ostao u starom meču se restartuje komandom RESET,
+  pa preko NRST-a ako ga ima; stari STM32 bez NRST-a: naoružavanje se odbija). Na činč: START poza (do 3 pokušaja), pa taktika; meč traje 100 s po satu ESP-a.
   Bez činča (BlackPill): **simul. cinc** (drži OK). **otkazi**: drži OK (NAZAD više ne otkazuje).
 - **test odmah**: drži OK; START poza kao u meču (podešavanje "test od START"), vreme teče od starta taktike.
 - Posle kraja taktike pre 100 s meč i dalje traje: meni, test i upload ostaju zaključani do kraja.

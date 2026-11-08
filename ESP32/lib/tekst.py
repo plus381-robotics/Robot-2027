@@ -4,7 +4,7 @@ import protocol as P
 # razlozi FAIL-a sa STM32 i iz ESP-a
 REASON = {"INVALID": "odbijeno", "BLOCKED": "prepreka", "TIMEOUT": "isteklo", "PREEMPTED": "prekinuto",
           "MATCH_OVER": "kraj meca", "STOPPED": "stop", "NOREPLY": "nema odgovora",
-          "SUPERSEDED": "zamenjeno", "STOP": "STOP"}
+          "SUPERSEDED": "zamenjeno", "STOP": "STOP", "LINK": "veza", "VEZA": "veza"}
 
 # kratka imena komandi u porukama
 SHORT = {"SET_POSE": "POZA", "ROTATE": "OKRET", "MOVE": "PRAVO", "MATCH_START": "START",
@@ -12,7 +12,7 @@ SHORT = {"SET_POSE": "POZA", "ROTATE": "OKRET", "MOVE": "PRAVO", "MATCH_START": 
 
 # bitovi STATUS.state -> etiketa
 TAGS = ((P.State.MOVING, "VOZI"), (P.State.BLOCKED, "BLOK"), (P.State.MATCH_RUNNING, "MEC"),
-        (P.State.MATCH_OVER, "KRAJ"), (P.State.LINK_LOST, "VEZA!"))
+        (P.State.MATCH_OVER, "KRAJ"))
 
 SIDE = {"plava": "P", "zuta": "Z"}       # strana uz ime taktike u naslovu: "x100 P"
 

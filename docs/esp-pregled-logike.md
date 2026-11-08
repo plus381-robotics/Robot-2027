@@ -27,6 +27,14 @@
 > protocol.yaml usklađeni sa kodom), L27 (auto poza pri svakom povezivanju STM32, ogledana po strani), L29
 > (tools/tactic.py: pad mreže -> STOP i jasna poruka; LOG javlja preskočene redove).
 > Testovi: `ESP32/tests/host/test_veza_alati.py`. **Svih 30 nalaza je obrađeno.**
+>
+> **Protokol v4 (posle pregleda, bolja rešenja za L1, L2, L17 i PROBLEMI 2/4):** komanda `RESET` (stari meč
+> se čisti bez NRST pina; NRST ostaje za zaglavljen STM32), `uptime_ms` u STATUS-u (restart STM32 se vidi
+> sigurno, ne po bitovima meča), `RESUME` (poza + meč od `elapsed_ms` jednom porukom; STM32 sam staje na
+> 100 s), `reset_cause` u PONG-u (u dnevniku: watchdog, NRST, napajanje, softver), `Reason.LINK` (posle pada
+> veze ESP čeka povratak i čita pravi ishod umesto da posle 300 ms proglasi neuspeh), `w` u STATUS-u (posle
+> DONE čeka se da robot stane). Izbačene nekorišćene poruke (DEBUG_STREAMS, LIDAR_SCAN, CONTROL_DEBUG,
+> TACTIC_EVENT) i bit LINK_LOST. Nucleo sam kreće meč na izvlačenje činča. Stari STM32 (v1-v3) radi kao ranije.
 
 Datum: 2026-11-08. Obim: `ESP32/lib/*.py`, `ESP32/main.py`, `boot.py`, `config.py`, `ESP32/tactics/*.py`,
 `ESP32/tests/goto_test.py`, `tools/*.py`, `protocol/protocol.yaml`, a za drugu stranu veze

@@ -7,9 +7,60 @@ def write(app, name, src):
     (app.tactics_dir / (name + ".py")).write_text("from tac import *\n" + src)
 
 
-def test_pad_veze_usred_komande_odmah_false(app, stm):
-    """L17: veza pukne tokom vožnje: korak posle ~300 ms vraća False "VEZA" (ne čeka timeout, ne pogađa)."""
+def _prekid(app, stm, od_ms, do_ms):
+    """Veza ESP <-> STM32 ne radi od od_ms do do_ms (od starta taktike)."""
+    t0 = compat.ticks_ms()
+    orig = app.loop.services[0][1]
+
+    def svc():
+        stm.on = not (od_ms <= compat.ticks_ms() - t0 < do_ms)
+        orig()
+    app.loop.services[0] = ("robot", svc)
+
+
+def test_v4_pad_veze_ka_espu_kretanje_se_zavrsi(app, stm):
+    """v4: ne stiže ništa od STM32 0,7 s (PING-ovi do njega stižu, pa ne staje): ESP ne proglasi neuspeh,
+    nego posle povratka veze pročita pravi ishod (OK) iz STATUS-a."""
     from runner import run_tactic
+    write(app, "t", "log('rez %s' % move(500, timeout=8))\n")
+    stm.motion_ms = 1000
+    stm.drop_done = 1                                    # DONE se izgubi u prekidu; ishod stiže u STATUS-u
+    run(app, 300)
+    t0 = compat.ticks_ms()
+    read = stm.read
+    stm.read = lambda n=None: None if 400 <= compat.ticks_ms() - t0 < 1100 else read(n)
+    run_tactic(app, "t")
+    assert "rez True" in app.log and any("veza se vratila" in l for l in app.log)
+
+
+def test_v4_dug_pad_veze_stm_stane_ishod_veza(app, stm):
+    """v4: veza pukne na 1 s: STM32 stane (FAIL LINK); kad se veza vrati, ishod je False "VEZA"."""
+    from runner import run_tactic
+    write(app, "t", "log('rez %s' % move(500, timeout=8))\n")
+    stm.motion_ms = 5000
+    run(app, 300)
+    _prekid(app, stm, 400, 1400)
+    run_tactic(app, "t")
+    assert "rez False" in app.log
+    assert app.report["steps_list"][-1][3] == "VEZA"
+
+
+def test_v4_veza_ne_dolazi_van_meca_2s(app, stm):
+    from runner import run_tactic
+    write(app, "t", "log('rez %s' % move(500, timeout=8))\n")
+    stm.motion_ms = 5000
+    run(app, 300)
+    _prekid(app, stm, 400, 10 ** 9)
+    t0 = compat.ticks_ms()
+    run_tactic(app, "t")
+    assert "rez False" in app.log and any("nema veze sa STM32" in l for l in app.log)
+    assert 2000 < compat.ticks_ms() - t0 < 3500
+
+
+def test_pad_veze_usred_komande_odmah_false(app, stm):
+    """L17, stari STM32 (v3): veza pukne tokom vožnje: korak posle ~300 ms vraća False "VEZA"."""
+    from runner import run_tactic
+    stm.version = 3
     write(app, "t", "log('rez %s' % move(500, timeout=8))\n")
     stm.motion_ms = 5000
     run(app, 300)

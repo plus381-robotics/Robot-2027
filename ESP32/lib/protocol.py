@@ -2,7 +2,7 @@
 # Radi i u MicroPythonu i u CPythonu.
 import struct
 
-VERSION = 3
+VERSION = 4
 
 class Reason:
     INVALID = 1
@@ -11,6 +11,7 @@ class Reason:
     PREEMPTED = 4
     MATCH_OVER = 5
     STOPPED = 6
+    LINK = 7
 
 class GotoFlags:
     REVERSE = 1
@@ -21,11 +22,14 @@ class State:
     BLOCKED = 2
     MATCH_RUNNING = 4
     MATCH_OVER = 8
-    LINK_LOST = 16
 
-class Debug:
-    LIDAR = 1
-    CONTROL = 2
+class ResetCause:
+    PIN = 1
+    POWER = 2
+    SOFT = 4
+    IWDG = 8
+    WWDG = 16
+    LOW_POWER = 32
 
 PING = 0x01
 SET_POSE = 0x10
@@ -35,17 +39,15 @@ MOVE = 0x13
 STOP = 0x1F
 ACTUATOR = 0x20
 MATCH_START = 0x30
-DEBUG_STREAMS = 0x31
+RESUME = 0x32
 ENTER_BOOTLOADER = 0x40
+RESET = 0x41
 PONG = 0x81
 ACK = 0x90
 DONE = 0x91
 FAIL = 0x92
 STATUS = 0xA0
-LIDAR_SCAN = 0xB0
-CONTROL_DEBUG = 0xB1
 LOG = 0xF0
-TACTIC_EVENT = 0x70
 
 # min = veličina bez polja koja postoje tek od novije verzije (starija poruka je kraća)
 _MSGS = {
@@ -57,17 +59,15 @@ _MSGS = {
     0x1F: ('STOP', '<', (), None, 0),
     0x20: ('ACTUATOR', '<Bh', ('id', 'value'), None, 3),
     0x30: ('MATCH_START', '<', (), None, 0),
-    0x31: ('DEBUG_STREAMS', '<B', ('mask',), None, 1),
+    0x32: ('RESUME', '<hhhI', ('x', 'y', 'theta', 'elapsed_ms'), None, 10),
     0x40: ('ENTER_BOOTLOADER', '<', (), None, 0),
-    0x81: ('PONG', '<B', ('version',), None, 1),
+    0x41: ('RESET', '<', (), None, 0),
+    0x81: ('PONG', '<BB', ('version', 'reset_cause'), None, 1),
     0x90: ('ACK', '<', (), None, 0),
     0x91: ('DONE', '<', (), None, 0),
     0x92: ('FAIL', '<B', ('reason',), None, 1),
-    0xA0: ('STATUS', '<hhhhBIBB', ('x', 'y', 'theta', 'v', 'state', 'match_ms', 'last_seq', 'last_result'), None, 13),
-    0xB0: ('LIDAR_SCAN', '<', (), 'points', 0),
-    0xB1: ('CONTROL_DEBUG', '<hhhhhh', ('v_ref', 'v_meas', 'w_ref', 'w_meas', 'pwm_l', 'pwm_r'), None, 12),
+    0xA0: ('STATUS', '<hhhhBIBBIh', ('x', 'y', 'theta', 'v', 'state', 'match_ms', 'last_seq', 'last_result', 'uptime_ms', 'w'), None, 13),
     0xF0: ('LOG', '<', (), 'text', 0),
-    0x70: ('TACTIC_EVENT', '<', (), 'text', 0),
 }
 NAMES = {v[0]: k for k, v in _MSGS.items()}
 

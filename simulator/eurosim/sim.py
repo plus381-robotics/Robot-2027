@@ -21,6 +21,7 @@ from .esp import Esp
 from .plant import Obstacle
 from .record import Recording, FRAME_MS
 from .stm import SimSTM
+from . import stm as stmmod
 
 SETTLE_MS = 500              # posle kraja taktike još ovoliko (robot se smiri)
 WARMUP_MS = 300              # veza, PONG, auto SET_POSE pre pokretanja
@@ -365,7 +366,7 @@ class Sim:
             self.paused = bool(c[1])
             self._anchor = None
         elif k == "stm_reset":                  # simulacija: STM32 se sam restartuje (watchdog, pad napona)
-            self.stm.hard_reset("restart (watchdog / napajanje)")
+            self.stm.hard_reset("restart (watchdog / napajanje)", stmmod.P.ResetCause.IWDG)
         elif k == "stm_hang":                   # simulacija: STM32 se zaglavi (ne odgovara dok ga NRST ne resetuje)
             self.stm.on = False
             self.event("sim", {"text": "STM32 zaglavljen"})

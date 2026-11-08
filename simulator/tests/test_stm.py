@@ -48,7 +48,7 @@ class Bench:
 def test_ping_pong_verzija_i_status_20hz():
     b = Bench()
     b.send("PING", 0)
-    assert ("PONG", {"version": 2}) in [(nm, f) for _, nm, _, f in b.rx]
+    assert ("PONG", {"version": 4, "reset_cause": P.ResetCause.POWER}) in [(nm, f) for _, nm, _, f in b.rx]
     b.run(1000)
     assert 19 <= len(b.statuses()) <= 21
 
@@ -115,7 +115,7 @@ def test_pad_veze_zaustavlja_i_nema_statusa():
     b.run(200)
     n = len(b.statuses())
     b.run(800, ping=False)
-    assert b.replies(1)[-1] == ("FAIL", {"reason": P.Reason.STOPPED})
+    assert b.replies(1)[-1] == ("FAIL", {"reason": P.Reason.LINK})       # v4: pad veze, ne STOP
     assert len(b.statuses()) - n <= 11                    # do 500 ms još šalje, posle ne
     b.send("PING", 0)                                     # ESP se vratio: seq ispočetka
     b.send("MOVE", 1, dist=100, max_speed=300)

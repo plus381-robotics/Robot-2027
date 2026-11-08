@@ -12,6 +12,9 @@
 #    ROTATE timeout 5 s, statusi regulacije -1 DONE / -3 -4 BLOCKED / -5 TIMEOUT, SET_POSE samo
 #    kad robot stoji, meč 100 s pa MATCH_OVER
 #  - aktuatori (novi robot: AX i pumpe): ACK pa DONE posle zadatog vremena, nikad FAIL
+#  - protokol v4: RESET (restart 30 ms posle ACK), RESUME (poza + meč od elapsed_ms), uptime_ms i w u
+#    STATUS-u, reset_cause u PONG-u, pad veze prekida kretanje sa LINK. Profil [link] protocol_version < 4:
+#    PONG/STATUS su kraći (kao stari firmver), RESET/RESUME -> INVALID.
 import math
 
 from . import paths
@@ -60,8 +63,10 @@ class SimSTM:
         self.last_reply = ("ACK", 0)
         self.motion_seq = 0
         self.last_motion = (0, 0)
-        self.debug_mask = 0
         self.last_status = -10 ** 9
+        self.boot_t = self.t                    # v4: uptime_ms = t - boot_t
+        self.reset_cause = P.ResetCause.POWER
+        self.reset_at = None                    # komanda RESET: kad se restartuje
         # comm_port.c
         self.goal = Goal()
         self.phase = IDLE
@@ -109,6 +114,9 @@ class SimSTM:
 
     def _tick(self):
         t = self.t
+        if self.reset_at is not None and t >= self.reset_at:       # comm_poll: NVIC_SystemReset posle RESET
+            self.hard_reset("restart (komanda RESET)", P.ResetCause.SOFT)
+            return
         # comm_tick_1ms: pad veze
         if self.esp_seen and not self.link_lost and t - self.last_rx > self.hb_ms:
             self.link_lost = True
@@ -140,8 +148,14 @@ class SimSTM:
 
     # ---------------- comm.c ----------------
 
+    _OLD = {"STATUS": ((3, 13), (4, 15)), "PONG": ((4, 1),)}   # starija verzija: kraća poruka
+
     def _send(self, name, seq=0, **f):
         t, pl = P.encode(name, **f)
+        for v, n in self._OLD.get(name, ()):
+            if self.version < v:
+                pl = pl[:n]
+                break
         self.out += build_frame(t, seq, pl)
         if name not in QUIET:
             self.trace.append((self.t, "tx", name, seq, f))
@@ -182,7 +196,7 @@ class SimSTM:
         except Exception:
             name, d = None, {}
         if name == "PING":
-            self._send("PONG", seq, version=self.version)
+            self._send("PONG", seq, version=self.version, reset_cause=self.reset_cause)
             return
         if name not in QUIET:
             self.trace.append((self.t, "rx", name or "0x%02x" % t, seq, d))
@@ -214,9 +228,17 @@ class SimSTM:
         elif name == "MATCH_START":
             self.match_start_now()
             self._reply(seq, 0)
-        elif name == "DEBUG_STREAMS":
-            self.debug_mask = d["mask"]
+        elif name == "RESUME" and self.version >= 4:
+            r = self._set_pose(d["x"], d["y"], d["theta"])
+            if not r:
+                self.match_start = self.t - d["elapsed_ms"]      # comm_port_resume: sat nastavlja
+                self.match_running = True
+                self.log_event("stm", "RESUME: poza i mec od %.1f s" % (d["elapsed_ms"] / 1000))
+            self._reply(seq, r)
+        elif name == "RESET" and self.version >= 4:
+            self._hook_stop()
             self._reply(seq, 0)
+            self.reset_at = self.t + 30
         else:                                   # nepoznato, pogrešna dužina, ENTER_BOOTLOADER (nema u sim.)
             self._reply(seq, R.INVALID)
 
@@ -236,7 +258,8 @@ class SimSTM:
         cl = lambda v: max(-32768, min(32767, int(v)))   # noqa: E731  (clamp16, kao (int16_t) u C-u)
         self._send("STATUS", x=cl(pl.ox * 1000), y=cl(pl.oy * 1000), theta=cl(phi * 18000 / math.pi),
                    v=cl(pl.ov * 1000), state=state, match_ms=match_ms,
-                   last_seq=self.last_motion[0], last_result=self.last_motion[1])
+                   last_seq=self.last_motion[0], last_result=self.last_motion[1],
+                   uptime_ms=(self.t - self.boot_t) & 0xFFFFFFFF, w=cl(pl.ow * 1000))
 
     # ---------------- comm_port.c ----------------
 
@@ -293,7 +316,8 @@ class SimSTM:
 
     def _hook_stop(self):
         self.req = None
-        self.stop_request = P.Reason.STOPPED
+        # comm_stop_reason(): posle pada veze LINK (v4), inače STOPPED
+        self.stop_request = P.Reason.LINK if self.link_lost and self.version >= 4 else P.Reason.STOPPED
 
     def _finish(self, reason):
         self.motion_finished(reason)
@@ -357,7 +381,7 @@ class SimSTM:
 
     # ---------------- restart (NRST, watchdog, pad napona) ----------------
 
-    def hard_reset(self, why="reset"):
+    def hard_reset(self, why="reset", cause=P.ResetCause.PIN):
         """STM32 se restartuje: sve iz comm.c / comm_port.c / regulacije ispočetka, odometrija (0, 0, 0),
         motori stanu. Stvarna poza robota na stolu ostaje."""
         pl = self.plant
@@ -368,6 +392,7 @@ class SimSTM:
         self.plant.place(x * 1000, y * 1000, th * 180 / math.pi)
         self.plant.obstacles = obstacles
         self.trace, self.t, self.on, self.act_ms_by_id = trace, t, on, acts
+        self.boot_t, self.reset_cause = t, cause
         self.log_event("stm", "STM32 %s: odometrija 0,0,0, mec ne broji" % why)
 
     # ---------------- za prikaz ----------------

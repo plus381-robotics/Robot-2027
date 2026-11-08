@@ -20,6 +20,8 @@
 #include "link.h"
 #include "protocol.h"
 
+#define NOW() comm_port_time_ms()
+
 #define RX_SIZE 512             /* stepen dvojke */
 #define TX_SIZE 512
 
@@ -38,8 +40,11 @@ static uint8_t last_reply_type, last_reply_reason;
 static uint8_t motion_seq;           /* aktivna komanda kretanja, 0 = nema */
 static uint8_t last_motion_seq;      /* v3: seq poslednje ZAVRŠENE komande kretanja (0 = nijedna) */
 static uint8_t last_motion_result;   /* v3: njen ishod, 0 = DONE, inače REASON_* */
-static uint8_t debug_mask;
 static uint32_t last_status_ms;
+static uint8_t reset_cause;          /* v4: razlog poslednjeg pokretanja (RESETCAUSE_*), za PONG */
+static volatile uint8_t reset_request; /* v4: komanda RESET: restart posle RESET_DELAY_MS (da ACK ode) */
+static uint32_t reset_t0;
+#define RESET_DELAY_MS 30
 
 /* ---------------- UART: prekid i kružni baferi ---------------- */
 
@@ -81,6 +86,22 @@ static void send(uint8_t type, uint8_t seq, const void *payload, size_t len) {
 	size_t n = link_build_frame(type, seq, payload, len, frame);
 	if (n)
 		tx_write(frame, n);
+}
+
+/* v4: razlog pokretanja iz RCC->CSR (čita se pre nego što ga watchdog_init obriše; ako je već obrisan, 0). */
+static uint8_t read_reset_cause(void) {
+	uint32_t csr = RCC->CSR;
+	uint8_t c = 0;
+	if (csr & RCC_CSR_PINRSTF) c |= RESETCAUSE_PIN;
+	if (csr & (RCC_CSR_PORRSTF | RCC_CSR_BORRSTF)) c |= RESETCAUSE_POWER;
+	if (csr & RCC_CSR_SFTRSTF) c |= RESETCAUSE_SOFT;
+	if (csr & RCC_CSR_IWDGRSTF) c |= RESETCAUSE_IWDG;
+	if (csr & RCC_CSR_WWDGRSTF) c |= RESETCAUSE_WWDG;
+	if (csr & RCC_CSR_LPWRRSTF) c |= RESETCAUSE_LOW_POWER;
+	/* posle NRST-a je i PINRSTF; softverski restart postavlja i PINRSTF (NRST se interno spusti) */
+	if (c & (RESETCAUSE_SOFT | RESETCAUSE_IWDG | RESETCAUSE_WWDG | RESETCAUSE_POWER))
+		c &= ~RESETCAUSE_PIN;
+	return c;
 }
 
 /* ---------------- odgovori ---------------- */
@@ -165,7 +186,7 @@ static void handle(const link_frame_t *f) {
 	link_lost = 0;
 
 	if (f->type == MSG_PING) {
-		msg_pong_t p = { PROTO_VERSION };
+		msg_pong_t p = { PROTO_VERSION, reset_cause };
 		send(MSG_PONG, f->seq, &p, sizeof p);
 		return;
 	}
@@ -232,13 +253,22 @@ static void handle(const link_frame_t *f) {
 		comm_port_match_start();
 		reply(f->seq, 0);
 		return;
+	case MSG_RESUME:                          /* v4: obnova posle restarta: poza + meč od elapsed_ms */
+		if (!PAYLOAD_IS(msg_resume_t)) break;
+		{
+			msg_resume_t m;
+			memcpy(&m, f->payload, sizeof m);
+			reply(f->seq, comm_port_resume(m.x, m.y, m.theta, m.elapsed_ms));
+		}
+		return;
 	case MSG_ENTER_BOOTLOADER:
 		reply(f->seq, comm_hook_bootloader());
 		return;
-	case MSG_DEBUG_STREAMS:
-		if (!PAYLOAD_IS(msg_debug_streams_t)) break;
-		debug_mask = f->payload[0];
+	case MSG_RESET:                           /* v4: posle ACK softverski restart (comm_poll) */
+		comm_hook_stop();
 		reply(f->seq, 0);
+		reset_request = 1;
+		reset_t0 = NOW();
 		return;
 	default:
 		break;
@@ -255,6 +285,7 @@ static void send_status(void) {
 		s.state |= STATE_MOVING;
 	s.last_seq = last_motion_seq;
 	s.last_result = last_motion_result;
+	s.uptime_ms = comm_port_time_ms();
 	send(MSG_STATUS, 0, &s, sizeof s);
 }
 
@@ -267,6 +298,7 @@ void comm_init(void) {
 	HAL_NVIC_SetPriority(USART1_IRQn, 1, 0);
 	HAL_NVIC_EnableIRQ(USART1_IRQn);
 	USART1->CR1 |= USART_CR1_RXNEIE;
+	reset_cause = read_reset_cause();
 }
 
 void comm_poll(void) {
@@ -277,6 +309,10 @@ void comm_poll(void) {
 		if (link_parser_feed(&parser, b, &f))
 			handle(&f);
 	}
+	if (reset_request && NOW() - reset_t0 >= RESET_DELAY_MS)
+		NVIC_SystemReset();
+	if (link_lost && motion_seq)
+		comm_motion_finished(REASON_LINK);    /* pad veze: kretanje je prekinuto (v4: LINK, ne STOPPED) */
 	uint32_t now = comm_port_time_ms();
 	if (esp_seen && !link_lost && now - last_status_ms >= COMM_STATUS_PERIOD_MS) {
 		last_status_ms = now;
@@ -293,6 +329,10 @@ void comm_tick_1ms(void) {
 
 uint8_t comm_esp_connected(void) {
 	return esp_seen && !link_lost;
+}
+
+uint8_t comm_stop_reason(void) {
+	return link_lost ? REASON_LINK : REASON_STOPPED;
 }
 
 uint8_t comm_motion_allowed(void) {

@@ -242,24 +242,58 @@ def _cmd(name, label, timeout, next, motion, long=None, **f):
         raise
 
 
+SETTLE_MS = 150                        # posle DONE: najduže čekanje da robot stvarno stane (v4, PROBLEMI 2)
+SETTLE_V = 20                          # mm/s
+SETTLE_W = 50                          # mrad/s (~3 °/s)
+
+
+def _settle(r, label):
+    """DONE stiže dok robot još malo klizi (PROBLEMI 2). v4 STATUS ima i v i w: sačekaj STATUS u kom robot
+    stoji (najviše SETTLE_MS), da here() i sledeći korak krenu od konačne poze."""
+    if not r.can("w"):
+        return
+    t0, n = ticks_ms(), r.status_n
+    while ticks_diff(ticks_ms(), t0) < SETTLE_MS:
+        _pump()
+        st = r.status
+        if r.status_n != n and st and st.get("w") is not None:
+            n = r.status_n
+            if abs(st["v"]) <= SETTLE_V and abs(st["w"]) <= SETTLE_W:
+                return
+
+
+def _ok(r, label, motion, text):
+    if motion:
+        _settle(r, label)
+    tracker.ok()
+    log(text)
+    return True
+
+
 def _cmd_wait(r, name, label, timeout, motion, long, m, resets, seq_box):
     seq = seq_box
     t0 = ticks_ms()
     acked = moving_seen = False
     quiet = 0                          # STATUS-a zaredom bez MOVING posle MOVING
     last_n = r.status_n
+    boot = r.boot_n
     lost = None                         # od kada nema veze sa STM32 (L17)
+    # v4: posle pada veze STM32 u STATUS-u javi pravi ishod (DONE ili LINK), pa se čeka povratak veze (u meču
+    # dokle god treba, van meča 2 s). Stariji STM32: posle 300 ms False "VEZA" (ishod se ne zna).
+    lost_ms = (None if in_match() else 2000) if r.can("link_reason") else 300
     while ticks_diff(ticks_ms(), t0) < timeout * 1000:
         _pump()
         if not r.alive:
             lost = lost or ticks_ms()
-            if ticks_diff(ticks_ms(), lost) > 300:
-                tracker.fail("VEZA")    # STM32 staje posle 500 ms bez PING-a; ishod se ne pogađa po STATUS-u
+            if lost_ms is not None and ticks_diff(ticks_ms(), lost) > lost_ms:
+                tracker.fail("VEZA")    # STM32 staje posle 500 ms bez PING-a
                 log("%s: nema veze sa STM32" % label)
                 return False
-        else:
+            continue
+        if lost is not None:
             lost = None
-        if m is not None and m.stm_resets != resets:
+            log("%s: veza se vratila, cekam ishod" % label)
+        if (m is not None and m.stm_resets != resets) or r.boot_n != boot:
             tracker.fail("RESTART")         # STM32 restartovan: komanda je izgubljena, poza vraćena
             log("%s: STM32 restart, komanda prekinuta" % label)
             return False
@@ -270,16 +304,15 @@ def _cmd_wait(r, name, label, timeout, motion, long, m, resets, seq_box):
                 acked = True
                 continue
             if kind in ("ok", "done"):
-                tracker.ok()
-                log("%s: OK %.1fs" % (label, ticks_diff(ticks_ms(), t0) / 1000))
-                return True
+                return _ok(r, label, motion, "%s: OK %.1fs" % (label, ticks_diff(ticks_ms(), t0) / 1000))
             if reason == "MATCH_OVER":
                 tracker.fail("KRAJ")
                 raise Abort("kraj meca")        # L9: odmah kraj, bez još jedne komande koja bi pala
             if kind == "timeout" and motion and reason != "SUPERSEDED":
                 _stop_and_wait(r)       # STM32 je komandu možda primio, a izgubljeni su samo ACK-ovi
-            tracker.fail(reason or kind)
-            log("%s: %s" % (label, _reason(reason or kind)))
+            why = "VEZA" if reason == "LINK" else (reason or kind)    # v4: pad veze prekinuo kretanje
+            tracker.fail(why)
+            log("%s: %s" % (label, _reason(why)))
             return False
         # P-2: DONE/FAIL može da se izgubi (CRC). Protokol v3: STATUS nosi seq i ishod poslednje završene
         # komande kretanja, pa se tačan ishod zna iz sledećeg STATUS-a (50 ms).
@@ -291,10 +324,10 @@ def _cmd_wait(r, name, label, timeout, motion, long, m, resets, seq_box):
             if st.get("last_seq") == seq:
                 res = st.get("last_result")
                 if res == 0:
-                    tracker.ok()
-                    log("%s: OK po STATUS-u (DONE nije stigao)" % label)
-                    return True
+                    return _ok(r, label, motion, "%s: OK po STATUS-u (DONE nije stigao)" % label)
                 why = _REASONS.get(res, str(res))
+                if why == "LINK":
+                    why = "VEZA"                # pad veze je prekinuo kretanje (v4)
                 tracker.fail(why)
                 log("%s: %s po STATUS-u (FAIL nije stigao)" % (label, why))
                 return False

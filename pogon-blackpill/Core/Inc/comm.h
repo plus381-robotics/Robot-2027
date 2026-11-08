@@ -34,6 +34,7 @@ void comm_tick_1ms(void);    /* 1 kHz prekid: provera heartbeat-a */
 
 uint8_t comm_esp_connected(void);   /* 1 = ESP se javio i veza je živa */
 uint8_t comm_motion_allowed(void);  /* 0 = veza sa ESP-om je pukla, motori treba da stoje */
+uint8_t comm_stop_reason(void);    /* za comm_hook_stop: REASON_LINK posle pada veze, inače STOPPED */
 
 /* Kad se završi kretanje koje je pokrenuo ESP (GOTO/ROTATE/MOVE):
  * reason 0 = uspešno (DONE), inače REASON_* iz protocol.h (FAIL). */
