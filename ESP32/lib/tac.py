@@ -527,9 +527,14 @@ def _ir_bits(names):
             raise Abort("nepoznat IR senzor %s (npr. FLU, BRD, ili grupa: F, B, D, U, FD)" % n)
         if _mirrored():
             n = n.replace("L", "r").replace("R", "L").replace("r", "R")
+        g = 0
         for k, s in enumerate(_IR):
             if all(c in s for c in n):
-                b |= 1 << k
+                g |= 1 << k
+        if not g:                                       # npr. "FB": napred i nazad u istom senzoru ne postoji
+            raise Abort("IR grupa %s ne pogadja nijedan senzor (F/B = napred/nazad, L/R = levo/desno, "
+                        "D/U = donji/gornji; prednji donji = FD)" % n)
+        b |= g
     return b
 
 

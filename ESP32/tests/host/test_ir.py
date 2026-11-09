@@ -30,6 +30,12 @@ def test_nepoznat_senzor(app, stm):
     assert any("nepoznat IR senzor F1" in l for l in app.log)
 
 
+def test_mala_slova_i_grupa_bez_senzora(app, stm):
+    _run(app, "ir_off('f')\nir_off('fb')\nlog('posle')\n")
+    assert masks(stm)[0] == 0xF0                                              # 'f' = sva 4 prednja
+    assert any("IR grupa FB ne pogadja nijedan senzor" in l for l in app.log) and "posle" not in app.log
+
+
 def test_plava_strana_levo_desno_zamenjeno(app, stm):
     from runner import run_tactic
     (app.tactics_dir / "t.py").write_text("from gambit import *\nir_off('FL')\nlog('vidi %s' % ir_sees('FRU'))\n")
