@@ -121,7 +121,7 @@ table** = po pravilima. **Save scenario / load scenario…** čuva kamenolome i 
 **IR senzori** (`[ir]` u profilu): u svakom od 4 ugla po dva, donji D (`low_z`, 40 mm, vidi kamenolome) i gornji U
 (`high_z`, 340 mm, iznad kutija, vidi protivnika). Imena: F/B napred/nazad, L/R levo/desno, D/U: FLD FLU FRD FRU BLD
 BLU BRD BRU. Taktika ih gasi i pali po imenu ili grupi slova: `ir_off("FD")` (donji prednji), `ir_on()`,
-`ir_sees("FU")` (protokol v5). U panelu STATE: veliki luk = gornji, mali = donji; isključeni su tamni, crveni vide nešto.
+`ir_sees("FU")` (protokol v5). U panelu STATE: u svakom uglu dugme za gornji i donji; isključeni su isprekidani, crveni vide nešto.
 
 ### 3D model robota (CAD)
 

@@ -104,36 +104,28 @@ function stateCells(c, i) {
 const irMirror = n => n.replace('L', 'r').replace('R', 'L').replace('r', 'R');   // plava: levo <-> desno
 let irState = { raw: 0, mask: 0xFF };
 
-function buildIrSvg() {
-  const sens = info.profile.ir_sensors || [], b = info.profile.body;
-  const L = b.length, Wd = b.width, R = 62, G = 26;            // mm; lepeza 62 mm na slici (domet nije u razmeri)
-  const pad = R + 64, w = Wd + 2 * G + 40, h = L + 2 * pad;
-  const P = (x, y) => [w / 2 - y, h / 2 - x];                  // robot: x napred = gore, y levo = levo
-  const parts = [`<rect x="${(w - Wd) / 2}" y="${pad}" width="${Wd}" height="${L}" rx="10" class="ir-body"/>`,
-    `<path d="M ${w / 2} ${pad + 14} l -14 22 l 28 0 z" class="ir-arrow"/>`,
-    `<text x="${w / 2}" y="22" class="ir-side">▲ FRONT (F)</text>`,
-    `<text x="${w / 2}" y="${h - 10}" class="ir-side">BACK (B) ▼</text>`];
-  // U svakom uglu dva senzora, jedan pored drugog (na robotu su jedan iznad drugog): spolja gornji U (iznad kutija),
-  // unutra donji D; slovo U/D na vrhu lepeze, ime ugla (FL, FR, BL, BR) iznad para.
-  const corners = {};
+function buildIrBox() {
+  // Izgled A: robot odozgo (napred gore), u svakom uglu dva dugmeta: gornji (U, iznad kutija) i donji (D).
+  const sens = info.profile.ir_sensors || [], corner = {};
   sens.forEach((s, k) => {
-    const up = s.z > 200, [cx0, cy] = P(s.x, s.y), out = cx0 < w / 2 ? -1 : 1;
-    const cx = cx0 + out * (up ? G : -G) * 0.5 + out * G * 0.5, dir = s.d > 0 ? -1 : 1, a = 0.36;
-    const x1 = cx + R * Math.sin(-a), y1 = cy + dir * R * Math.cos(a), x2 = cx + R * Math.sin(a);
-    parts.push(`<g class="ir-s ${up ? 'up' : 'dn'}" data-k="${k}"><path d="M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 0 ${dir > 0 ? 0 : 1} ${x2} ${y1} Z"/>` +
-      `<circle cx="${cx}" cy="${cy}" r="6"/><text class="ir-ud" x="${cx}" y="${cy + dir * (R * 0.62)}">${up ? 'U' : 'D'}</text></g>`);
-    const c = corners[s.name.slice(0, 2)] || (corners[s.name.slice(0, 2)] = { x: 0, n: 0, y: cy + dir * (R + 18), k });
-    c.x += cx; c.n++;
+    const key = (s.x > 0 ? 'F' : 'B') + (s.y > 0 ? 'L' : 'R');               // y > 0 = levo
+    (corner[key] = corner[key] || []).push(k);
   });
-  for (const [nm, c] of Object.entries(corners))
-    parts.push(`<text class="ir-corner" data-k="${c.k}" x="${c.x / c.n}" y="${c.y}">${nm}</text>`);
-  const svg = $('irSvg');
-  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-  svg.innerHTML = parts.join('');
-  for (const g of svg.querySelectorAll('.ir-s')) g.onclick = () => {
+  const cell = (key, side) => {
+    const ks = (corner[key] || []).slice().sort((i, j) => sens[j].z - sens[i].z);   // gornji prvi
+    const rows = ks.map(k => {
+      const lvl = `<span class="ir-lvl">${sens[k].z > 200 ? 'upper' : 'lower'}</span>`;
+      const chip = `<button type="button" class="ir-s" data-k="${k}"></button>`;
+      return side === 'L' ? lvl + chip : chip + lvl;
+    }).join('');
+    return `<div class="ir-cn ir-${side}"><span class="ir-ct" data-k="${ks[0]}">${key}</span>${rows}</div>`;
+  };
+  const box = $('irBox');
+  box.innerHTML = cell('FL', 'L') + '<div class="ir-robot" title="robot seen from above, front up">▲</div>' + cell('FR', 'R') +
+    cell('BL', 'L') + cell('BR', 'R');
+  for (const g of box.querySelectorAll('.ir-s')) g.onclick = () => {
     if (!live || live.kind) return;                            // samo Live simulacija
-    const bit = 1 << +g.dataset.k;
-    liveSend(['ir_mask', irState.mask ^ bit]);
+    liveSend(['ir_mask', irState.mask ^ (1 << +g.dataset.k)]);
   };
 }
 
@@ -141,14 +133,16 @@ function renderIr(raw, mask) {
   irState = { raw, mask };
   const sens = info.profile.ir_sensors || [], blue = (run && run.meta && run.meta.side) === 'plava';
   const name = s => (blue ? irMirror(s.name) : s.name);       // imena kao u taktici (žuta)
-  $('irSvg').querySelectorAll('.ir-s').forEach(g => {
+  $('irBox').querySelectorAll('.ir-s').forEach(g => {
     const k = +g.dataset.k, on = !!(mask & (1 << k)), sees = !!(raw & (1 << k));
-    g.setAttribute('class', 'ir-s ' + (sens[k].z > 200 ? 'up ' : 'dn ') + (on ? (sees ? 'hit' : 'on') : (sees ? 'off hit' : 'off')) +
-      (live && !live.kind ? ' click' : ''));
+    g.className = 'ir-s ' + (on ? (sees ? 'hit' : 'on') : (sees ? 'off hit' : 'off')) + (live && !live.kind ? ' click' : '');
+    g.textContent = name(sens[k]);
+    g.title = `${name(sens[k])}: ${sens[k].z > 200 ? 'upper (over the boxes)' : 'lower'} · ${on ? 'on' : 'off'}` +
+      (sees ? ' · sees something' : '') + (live && !live.kind ? ' · click to switch' : '');
   });
-  $('irSvg').querySelectorAll('.ir-corner').forEach(t => { t.textContent = name(sens[+t.dataset.k]).slice(0, 2); });
+  $('irBox').querySelectorAll('.ir-ct').forEach(t => { t.textContent = name(sens[+t.dataset.k]).slice(0, 2); });
   const off = sens.filter((s, k) => !(mask & (1 << k))).map(name), sees = sens.filter((s, k) => raw & (1 << k)).map(name);
-  $('irText').innerHTML = `<span class="dim">each corner has two: U = upper (over the boxes), D = lower · F/B front/back, L/R left/right · e.g. FLD</span><br>` +
+  $('irText').innerHTML = `<span class="dim">F/B front/back · L/R left/right · U upper (over the boxes) / D lower</span><br>` +
     `sees: <b>${sees.join(' ') || '–'}</b> · off: <b>${off.join(' ') || '–'}</b>` +
     (blue ? ' <span class="dim">(blue: names as in the tactic, L/R swapped)</span>' : '');
 }
@@ -1198,7 +1192,7 @@ async function main() {
   };
   repoRefresh();
   view = new FieldView($('view'), info);
-  buildIrSvg(); renderIr(0, 0xFF);
+  buildIrBox(); renderIr(0, 0xFF);
   charts = new Charts($('charts'), t => seek(t));
   view.onHover = p => {
     if (!p) { $('cursor').textContent = ''; return; }

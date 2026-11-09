@@ -203,8 +203,8 @@
     <div class="card" id="status">
       <h3>State</h3>
       <div class="grid mono" id="stgrid"></div>
-      <div id="irPanel" title="IR sensors seen from above (front up). Green = on, nothing seen · red = sees something and stops the robot · grey dashed = switched off (ir_off) · in Live: click a sensor to switch it">
-        <svg id="irSvg"></svg><div id="irText" class="small"></div>
+      <div id="irPanel" title="IR sensors: robot seen from above (front up), in each corner an upper (U, over the boxes) and a lower (D) sensor. Green = on, nothing seen · red = sees something and stops the robot · grey dashed = switched off (ir_off) · in Live: click a sensor to switch it">
+        <div id="irBox"></div><div id="irText" class="small"></div>
       </div>
       <div id="stepnow">
         <div class="stepline"><span id="stepname">—</span><span id="stepcount" class="dim"></span></div>

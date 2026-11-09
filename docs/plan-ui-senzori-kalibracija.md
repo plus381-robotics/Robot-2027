@@ -234,3 +234,5 @@ K-sync (sada) -> K0 + K1 kad robot vozi (2-3 meseca). Odometrija: ručno izmeren
 
 > Ispravka (posle U2): senzori su u uglovima, po dva (donji D i gornji U), imena FLD..BRU; slika crta u svakom
 > uglu veliki luk (gornji) i mali (donji), sa natpisom ugla (FL, FR, BL, BR). Skica iznad sa F1..B4 je zastarela.
+> Izabran izgled A (posle tri predloga): u svakom uglu robota dva dugmeta sa imenom, gornji (U) i donji (D); boja =
+> stanje (zeleno uključen, crveno vidi, isprekidano isključen); u Live klik na dugme pali/gasi senzor.
