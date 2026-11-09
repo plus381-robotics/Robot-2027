@@ -123,10 +123,13 @@ int main(void) {
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
+<<<<<<< Updated upstream
 
 		comm_poll();
 		watchdog_feed();
 
+=======
+>>>>>>> Stashed changes
 		ax_move(id, ax_position, ax_speed);
 	}
 	/* USER CODE END 3 */

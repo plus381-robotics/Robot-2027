@@ -54,17 +54,4 @@ void ax_init (){
 	torque_enable(6); //back zakretni
 	torque_enable(7); //back desni
 	torque_enable(8); //back lift
-
-	torque_enable(9);
-	torque_enable(10);
-	torque_enable(11);
-	torque_enable(12);
-	torque_enable(13);
-	torque_enable(14);
-	torque_enable(15);
-	torque_enable(16);
-	torque_enable(17);
-	torque_enable(18);
-	torque_enable(19);
-	torque_enable(20);
 }
