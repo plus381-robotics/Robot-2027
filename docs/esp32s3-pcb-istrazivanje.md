@@ -1,478 +1,380 @@
 # ESP32-S3 ploča: istraživanje za PCB
 
-Nacrt, 2026-11-09. Ulaz: slika „ESP32-S3 · povezivanje" (plan pinova), kod u `ESP32/` (WROOM-32 sada),
-`docs/faza4-esp32s3-lidar.md`, `docs/esp-ciscenje-analiza.md` (6. Priprema za S3), Nucleo `Kik.ioc`.
-Skice rasporeda i šeme ključnih delova: [`esp32s3-pcb-skice.html`](esp32s3-pcb-skice.html) (otvoriti u browseru).
-Ovde se ništa ne menja u `ESP32/` kodu; spisak izmena softvera koje ploča traži je u tački 10, za odobrenje.
+Verzija 2, 2026-11-09 (posle odgovora tima). Ulaz: slika „ESP32-S3 · povezivanje", kod u `ESP32/` (WROOM-32 sada),
+`docs/faza4-esp32s3-lidar.md`, `docs/esp-ciscenje-analiza.md`, Nucleo `Kik.ioc`, Waveshare šema ESP32-S3-DEV-KIT.
+Skice i šeme: [`esp32s3-pcb-skice.html`](esp32s3-pcb-skice.html) (pravi ga `esp32s3-pcb-skice-gen.py`).
+U `ESP32/` kodu ništa nije menjano; izmene softvera koje ploča traži su u tački 11, za odobrenje.
 
-Oznake: **[MORA]** bez toga ploča ne radi pouzdano ili postoji rizik da nešto izgori; **[PREPORUKA]** treba
-uraditi na v1 ploči jer kasnije košta više; **[OPCIJA]** za buduće dodatke (footprint bez lemljenja je jeftin).
-
----
-
-## 0. Ukratko
-
-**Izbor pinova je dobar.** Plan sa slike izbegava sve što na ESP32-S3-DevKitC-1 N16R8 ne sme da se koristi:
-strapping pinove (0, 3, 45, 46), USB (19, 20), konzolu UART0 (43, 44) i octal PSRAM (35, 36, 37). Svi pinovi
-koje taktika i meni koriste su na levoj letvici (J1), poređani skoro istim redom kao funkcije, pa se ploča
-lako crta. Pinovi su u `config.py` (S-1), pa se na S3 menja samo fajl sa pinovima.
-
-**Šta treba promeniti ili dodati (po važnosti):**
-
-| # | Šta | Zašto | Oznaka |
-|---|---|---|---|
-| 1 | NRST preko N-MOSFET-a (2N7002), a ne direktno sa GPIO15 | GPIO15 pri uključenju ESP-a daje impuls u nulu od ~60 µs, a to resetuje STM32. Kad ESP nema napajanje, njegov pin drži NRST nisko i STM32 stoji u resetu. | MORA |
-| 2 | Otpornik i dioda na LED strani optokaplera za E-STOP | LED u PC817 izdrži 50 mA i 6 V u suprotnom smeru; bez otpornika izgori na naponu baterije | MORA |
-| 3 | Pomerač nivoa za NeoPixel (74AHCT1G125) | WS2812 traži bar 0,7·VDD = 3,5 V na DIN-u, ESP daje 3,3 V. Radi „ponekad", posebno ne sa dužim kablom. | MORA |
-| 4 | Buzzer: otpornik u bazi/gejtu, pull-down, dioda preko zujalice | Bez pull-down-a zuji dok se ESP pali; bez diode indukcioni napon kvari tranzistor | MORA |
-| 5 | Ulaz 5 V: zaštita od obrnutog polariteta, TVS, osigurač (PTC), dioda prema DevKitC 5V pinu | Espressif kaže da su USB, 5V pin i 3V3 pin „međusobno isključivi" izvori napajanja, a mi ćemo imati i USB i bateriju | MORA |
-| 6 | Konektori koji ne mogu da se zamene na opasan način | Na slici su tri XH-2 (napajanje 5 V, E-STOP sa naponom baterije, buzzer): E-STOP kabl u buzzer konektoru pusti napon baterije na 5 V liniju | MORA |
-| 7 | Lidar MOTOCTL pin (GPIO42) i XH-6 konektor | U planu (faza4 L-2) lidar je na UART2, a konektor na slici nema MOTOCTL | PREPORUKA |
-| 8 | Redni otpornici 470 Ω na UART-u ka STM32 | GPIO18 pri uključenju kratko vuče liniju (sudar sa TX-om STM32), a otpornik ograničava i struju kad je jedna strana bez napajanja | PREPORUKA |
-| 9 | Drugi I2C (I2C1) za spoljne senzore, ekran ostaje sam na I2C0 | Pokvaren kabl senzora koji drži SDA nisko ne obara ekran i meni; ekran ide na 800 kHz, senzori na 400 kHz | PREPORUKA |
-| 10 | Pin za prekid ili XSHUT na konektoru senzora (GPIO39) | Više ToF senzora (VL53L0X/L1X) ima istu adresu 0x29, pa se adresa dodeljuje preko XSHUT-a | PREPORUKA |
-| 11 | Merenje baterije (GPIO10 = ADC1) ili INA3221 na I2C | U planu (PROVERA, ROBOT, ikonica); na slici ga nema | OPCIJA |
-| 12 | Konektor za proširenje 2×8 sa svim slobodnim pinovima | Pinovi za buduće dodatke (CAN, servo ploča, kamera) bez nove ploče | PREPORUKA |
-
-**Raspored ploče:** za v1 nosač-ploča sa DevKitC-1 na ženskim letvicama (opcija A, 100 × 63 mm, dva sloja).
-Ako ekran, tasteri i enkoder stoje zajedno na jednom panelu, prave se dve ploče sa jednim trakastim kablom
-(opcija B). ESP modul zalemljen direktno na ploču (opcija C) tek za v2, kad v1 proradi. Skice su u HTML fajlu.
+Oznake: **[MORA]** bez toga ploča ne radi pouzdano ili nešto može da izgori; **[PREPORUKA]** uraditi na v1;
+**[OPCIJA]** footprint postoji, lemi se kad zatreba.
 
 ---
 
-## 1. Šta softver danas koristi od hardvera
+## 0. Odluke (9. 11. 2026)
 
-| Funkcija | WROOM-32 (`config.py`) | S3 (slika) | Kod | Napomena |
-|---|---|---|---|---|
-| UART ka STM32 | UART2 TX 17, RX 16, 115200 | UART1 TX 17, RX 18, 921600 | `main.py`, `robot.py` | `rxbuf=1024`; STM32 na USART1 (PA9 TX, PA10 RX), i Nucleo i BlackPill |
-| Ekran | I2C0 SDA 21, SCL 22, 400 kHz | I2C SDA 8, SCL 9 | `screen.py` | SSD1306 128×64 na 0x3C; bez ekrana sve radi |
-| Tasteri | NAZAD 25, OK 26, STOP 27 | T1 4, T2 5, T3 6 | `inputs.py` | na GND, interni pull-up; STOP šalje STOP odmah na pritisak (20 ms debounce) |
-| Enkoder | A 32, B 33, SW 14 | 11, 12, 13 | `inputs.py` | hard IRQ, `ENC_STEPS`; na S3 i PCNT (faza4) |
-| STM32 NRST / BOOT0 | nije povezano | 15 / 16 | `match.py` (`StmReset`), `stmflash.py` | NRST kao `Pin.OPEN_DRAIN` (0 = reset), BOOT0 `Pin.OUT`; impuls 20 ms |
-| E-STOP stanje | - | 7 | (plan) | faza4: samo prikaz i prekid taktike |
-| Buzzer | - | 14 | (plan K-2) | PWM |
-| NeoPixel | - | 21 | (plan K-1) | boja po stanju meča |
-| UART2 | - | 47 / 48 | (plan L-2) | lidar RPLIDAR A2 (faza4) ili kamera/PAMI (slika) |
-| WDT, WiFi, upload, telemetrija | da | da | `match.py`, `net.py`, `upload.py`, `telem.py` | antena mora da „vidi" spolja (tačka 8) |
-
-Iz koda koji zavisi od hardvera, a utiče na ploču:
-- `match.py`: kad STM32 ostane u starom meču ili se ne javlja 1,5 s u meču, ESP ga resetuje preko NRST-a.
-  Znači da **lažni impuls na NRST-u usred meča resetuje pogon** (odometrija se vraća preko RESUME, ali korak
-  koji je bio u toku vraća `False`). Zato je tačka 4 (NRST) važna.
-- `stmflash.py`: flešovanje STM32 preko WiFi-ja: BOOT0 = 1, NRST impuls, pa AN3155 protokol preko istog UART-a.
-- `inputs.py`: STOP reaguje na pritisak, a ne na puštanje, pa smetnja na liniji STOP tastera duža od 20 ms
-  zaustavlja robota u meču. Zato su predloženi spoljni pull-up i RC filter (tačka 5.6).
-
----
-
-## 2. Šta fali na slici u odnosu na softver i planove
-
-1. **Lidar MOTOCTL.** `faza4` L-2: RPLIDAR A2 na UART2, „pin za MOTOCTL (PWM motora)". A2 ima: 5 V, GND,
-   TX i RX (3,3 V TTL), MOTOCTL (ulaz, aktivno visoko, PWM; Slamtec navodi 20 kHz, druga tabela 24,5-25 kHz,
-   proveriti za vaš model). Konektor na slici (TX, RX, 5V, 3V3, GND) nema MOTOCTL. Predlog: **GPIO42**
-   (LEDC PWM), konektor **XH-6** (tačka 7).
-2. **UART2 je samo jedan.** S3 ima tri UART-a: UART0 (ROM ispis pri pokretanju, REPL), UART1 (STM32), UART2.
-   Na slici je UART2 „kamera, PAMI ili drugi modul", u planu je lidar. Za lidar **i** kameru treba treći
-   UART: UART0 preusmeren na druge pinove (firmver bez UART REPL-a; REPL ionako ide preko USB-CDC) ili
-   SC16IS752 (I2C → 2 × UART). Na v1 ploči dovoljno je da konektor za proširenje (5.10) ima dva slobodna pina.
-3. **Koji taster je koji.** Softver ima NAZAD, OK i STOP, slika T1, T2 i T3 (crven, žut, zelen). Predlog:
-   T1 = NAZAD (žuti), T2 = OK (zeleni), T3 = STOP (crveni). Upisati u board fajl i na silkscreen.
-4. **Baterija.** U planu (faza4: INA3221; PROVERA i ROBOT stranice, ikonica, „dug zvuk = slaba baterija").
-   Dve mogućnosti: INA3221 na I2C (na power ploči ili ovde) ili delitelj na **GPIO10** (ADC1_CH9). ADC2
-   (GPIO11-20) ne raditi analogno: deli se sa WiFi-jem. Vidi pitanje 7.
-5. **Senzori na I2C (IMU, ToF, senzor boje).** VL53L0X i VL53L1X imaju istu adresu (0x29): za više njih treba
-   XSHUT pin po senzoru ili I2C multiplekser (TCA9548A). IMU obično ima INT pin. Konektor na slici ima samo
-   SDA, SCL, 3V3 i GND. Predlog: konektor senzora XH-5 sa 5. pinom **GPIO39** (INT ili XSHUT) i mesto za
-   TCA9548A (bez lemljenja dok ne zatreba).
-6. **Veći ekran (U-3, SSD1309 2,42").** Ti moduli su često 7-pinski (GND, VCC, SCL, SDA, RES, DC, CS); u I2C
-   režimu RES mora da dobije impuls posle uključenja (RC na modulu ili GPIO). Predlog: ostaviti mesto za RC
-   reset (10 kΩ / 1 µF) na OLED konektoru ili koristiti slobodan pin sa konektora za proširenje.
-7. **LED-ovi na UART linijama.** Na slici LED ide sa linije na GND: UART u mirovanju drži 1, pa LED stalno
-   svetli i samo trepne pri prenosu. Bolje: LED od 3V3 preko 2,2-4,7 kΩ na liniju (svetli na nulama, tj.
-   kad ima saobraćaja) ili preko bafera (74LVC2G34). Mogu i da se izostave: stranica VEZA već pokazuje vezu.
-8. **ESP reset spolja.** Ako je DevKitC zatvoren u robotu, EN pin (J1-3) izvesti na konektor za proširenje
-   (spoljni taster za reset ESP-a).
-9. **Činč** je na STM32 (Nucleo PA12), ESP ga vidi preko STATUS-a. Direktna veza do ESP-a nije potrebna;
-   ako se ikad zatraži, ide preko konektora za proširenje.
-
----
-
-## 3. Provera izbora pinova
-
-### 3.1 Pinovi koji se ne koriste na DevKitC-1 N16R8
-
-| Pinovi | Zašto |
+| Pitanje | Odluka |
 |---|---|
-| 0, 3, 45, 46 | strapping (režim pokretanja, JTAG izvor, napon VDD_SPI); GPIO0 je taster BOOT |
-| 19, 20 | nativni USB (D-, D+): REPL i mpremote preko USB-CDC |
-| 43, 44 | UART0: drugi USB-C (USB-UART čip) i ROM ispis pri pokretanju |
-| 26-32 | interni fleš (nisu izvedeni) |
-| 35, 36, 37 | octal PSRAM kod N16R8 (izvedeni na J3, ali zauzeti) |
-| 38 | RGB LED na DevKitC-1 v1.1 |
-| 48 | RGB LED na DevKitC-1 **v1.0** (na v1.1 je slobodan) |
+| Baterija | 4S LiPo (12,0-16,8 V), **isti GND** za bateriju i logiku |
+| Korisnički interfejs | **na istoj ploči**: tasteri i enkoder zalemljeni, ekran utaknut u ženski header (ne lemi se) |
+| NeoPixel | **izbačen** (status može da pokazuje RGB LED koji već postoji na ESP ploči, GPIO38) |
+| Lidar | RPLIDAR A2, na UART2 ESP-a |
+| Baterija (merenje) | glavno: INA3221 na powerboard-u; rezerva: ADC na ESP-u (GPIO10) |
+| TX/RX | dobijaju LED-ove, preko bafera (ne opterećuju liniju) |
+| USB | samo za hitno flešovanje; inače sve preko WiFi-ja |
+| PCB | 2 sloja, **manja od 100 × 100 mm**, PCBWay, ručno lemljenje, delovi sa DigiKey-a |
+| Nucleo | posebna ploča, kabl < 0,5 m; na Nucleo strani verovatno redosled RX, GND, TX |
+| DC-DC | sopstveni, SiC417 (Vishay, do 10 A, ulaz do 28 V), na powerboard-u |
+| STOP taster | ostaje samo na ESP-u (ne ide direktno na STM32) |
+| ESP ploča | kupuje se kod malina314: **Waveshare ESP32-S3-DEV-KIT-N16R8** (tačka 1) |
 
-### 3.2 Pin po pin
+---
 
-| GPIO | J1/J3 | Funkcija (slika) | Ocena | Napomena |
-|---|---|---|---|---|
-| 4, 5, 6 | J1-4..6 | T1, T2, T3 | ✅ | ADC1 pinovi „potrošeni" na tastere; ok jer ostaju 1, 2, 10 |
-| 7 | J1-7 | E-STOP | ✅ | |
-| 15 | J1-8 | NRST | ⚠️ | XTAL_32K_P: impuls u nulu ~60 µs pri uključenju. STM32 NRST propušta impuls duži od ~300 ns. Direktno vezan = reset STM32 kad se ESP uključi ili kad napon ESP-a padne (brownout). Rešenje: MOSFET (tačka 4); tada je impuls u nulu bezopasan. |
-| 16 | J1-9 | BOOT0 | ✅ | isti impuls u nulu, a nula je bezbedno stanje za BOOT0 |
-| 17 | J1-10 | UART1 TX | ✅ | impuls u nulu pri uključenju = jedan pogrešan bajt; COBS okvir to preživi (0x00 je kraj okvira) |
-| 18 | J1-11 | UART1 RX | ⚠️ | impuls u 0 ili 1 pri uključenju: pin kratko gura liniju protiv TX-a STM32. Rešenje: 470 Ω redno. |
-| 8, 9 | J1-12, J1-15 | I2C SDA, SCL | ✅ | između njih su 3 i 46 (strapping): ne vezivati ništa na njih |
-| 11, 12, 13 | J1-17..19 | enkoder | ✅ | PCNT radi na bilo kom pinu |
-| 14 | J1-20 | buzzer | ✅ | impuls u nulu = tranzistor ugašen, bezopasno |
-| 21 | J3-18 | NeoPixel | ✅ | bez impulsa pri uključenju |
-| 47, 48 | J3-17, 16 | UART2 | ⚠️ | 48 = RGB LED na v1.0 ploči (LED bi treptao od podataka). Oba pina su u naponskom domenu VDD_SPI: 3,3 V kod N16R8, ali **1,8 V** kod varijanti sa 1,8 V memorijom (npr. R8V, R16V). Ne menjati modul bez provere. |
+## 1. Koju ESP ploču kupiti
 
-Izvor za impulse pri uključenju: Espressif „Schematic Checklist" za ESP32-S3 (tabela Power-up glitches):
-GPIO1-14, XTAL_32K_P/N (15, 16) i 17 imaju impuls u nulu ~60 µs, GPIO18 u nulu ili jedinicu, 19 i 20 po dva.
+malina314 prodaje Waveshare ploče, ne Espressif DevKitC-1. Proverio sam Waveshare šemu ESP32-S3-DEV-KIT-N8R8
+(N16R8 je ista ploča sa 16 MB fleša):
+- Letvice 2 × 22, **isti raspored kao Espressif DevKitC-1** (P2: GND, U0TXD, U0RXD, 1, 2, 42, 41, 40, 39, 38, 37,
+  36, 35, 0, 45, 48, 47, 21, 20, 19, GND, GND; P1 kao J1 kod DevKitC-1).
+- **RGB LED (WS2812B) na GPIO38**, napajan sa 3V3. Kod Espressif DevKitC-1 je na GPIO38 (v1.1) ili GPIO48 (v1.0).
+  Plan ispod ne koristi ni 38 ni 48 za ništa bitno, pa radi na svim ovim pločama.
+- **Jedan USB-C** sa hub-om CH334F: na istom kablu su i nativni USB (REPL, mpremote) i CH343 (UART0, auto-reset).
+  Za hitno flešovanje je to zgodno: jedan kabl.
+- 5 V sa USB-a ide na 5V liniju ploče preko Schottky diode B5819WS, pa spoljnih 5 V ne ide nazad u računar.
+- LDO SGM2212-3.3 (ili AMS1117), EN RC 10 kΩ / 1 µF, BOOT i RESET tasteri.
 
-### 3.3 Slobodni pinovi posle plana
-
-| GPIO | J1/J3 | Predlog |
+| Ploča (malina314) | Cena | Za nas |
 |---|---|---|
-| 10 | J1-16 | VBAT preko delitelja (ADC1_CH9), ili slobodan na konektoru za proširenje |
-| 1, 2 | J3-4, 5 | ADC1: analogna rezerva (struja, potenciometar, IR analogni) na konektoru za proširenje |
-| 42 | J3-6 | LIDAR MOTOCTL (PWM) |
-| 41, 40 | J3-7, 8 | I2C1 SDA, SCL (senzori) |
-| 39 | J3-9 | INT ili XSHUT senzora |
-| 38 | J3-10 | samo ako se RGB LED na v1.1 ne koristi (na konektor za proširenje preko kratkospojnika) |
+| ESP32-S3-DEV-KIT-**N16R8** (WROOM-1, 16 MB fleš, 8 MB octal PSRAM) | 1.390 RSD | ✅ **kupiti 2 komada** (robot + razvoj/rezerva) |
+| ESP32-S3-DEV-KIT-N8R8 | 1.290 RSD | ✅ isto radi (8 MB fleša je dovoljno za MicroPython) |
+| ESP32-S3-DEV-KIT-N16R8-U (spoljna antena, SMA, štap 155 mm) | 1.490 RSD | samo ako ploča završi u metalnom kućištu |
+| ESP32-S3 WROOM-2, 32 MB / 16 MB (N32R16V) | 1.890 RSD | ❌ memorija na 1,8 V: GPIO47/48 rade na 1,8 V, treba drugi firmver |
+| ESP32-S3-Nano, ESP32-S3-Pico | 1.190 / 1.290 RSD | ❌ drugi raspored pinova (Pico ima i samo 2 MB PSRAM) |
+| ESP32-P4 i ESP32-C5 ploče | | ❌ drugi čip (P4 nema WiFi u čipu, C5 je RISC-V), sve bi se menjalo |
+| ESP32-S3 RGB LCD driver, RGB Matrix | | ❌ pinovi zauzeti za ekran |
 
-GPIO39-42 su i JTAG pinovi, ali S3 podrazumevano koristi JTAG preko USB-a, pa su slobodni. Analogni ulazi koji
-rade uz WiFi (ADC1) su samo GPIO1-10; od njih ostaju 1, 2 i 10. Zato se na njih ne stavlja ništa digitalno.
-
-### 3.4 Gde su pinovi na ploči (važno za raspored)
-
-DevKitC-1 (letvice 2 × 22, korak 2,54 mm; ploča 62,7 × 25,4 mm; razmak redova proveriti u Espressif DXF-u):
-
-    J1 (levo, od antene ka USB-u):  3V3 3V3 RST | 4 5 6 | 7 | 15 16 | 17 18 | 8 3 46 9 | 10 | 11 12 13 | 14 | 5V G
-    J3 (desno, od antene ka USB-u): G 43 44 | 1 2 | 42 41 40 39 | 38 37 36 35 0 45 | 48 47 | 21 | 20 19 G G
-
-Sve od plana osim NeoPixela i UART2 je na J1, i to redom: tasteri, E-STOP, NRST i BOOT0, UART, I2C,
-enkoder, buzzer, pa 5V. Ako se konektori poređaju oko leve strane ploče istim redom, veze se ne ukrštaju.
-J3 strana dobija senzore (I2C1), lidar, NeoPixel i konektor za proširenje.
-
-**Zaključak:** pinovi ostaju kako su na slici; menja se samo način vezivanja NRST-a (MOSFET) i dodaju se
-pinovi 42, 41, 40, 39 (i opciono 10).
+Napomene:
+- Pinovi dolaze nezalemljeni (4 letvice po 20): na ESP ploču se leme muški pinovi (20 + 2 po strani), a na našu
+  ploču ženske letvice 1 × 22.
+- **Pre narudžbe PCB-a izmeriti ploču kad stigne** (razmak redova letvica, dužina, gde je USB-C i antena) i
+  prema tome napraviti footprint. Za Espressif DevKitC-1 forum navodi 22,86 mm između redova; Waveshare nije
+  zvanično potvrdio da je isto.
+- Za MicroPython: firmver ESP32_GENERIC_S3, varijanta SPIRAM_OCT, verzija 1.29 kao do sada.
 
 ---
 
-## 4. NRST i BOOT0 na odvojenom konektoru
+## 2. Plan pinova (konačno)
 
-Odvojeni konektor je dobra ideja:
-- **BlackPill (test robot)** koristi samo UART (ulazak u bootloader komandom ENTER_BOOTLOADER), pa se kabl za
-  NRST i BOOT0 ne vezuje.
-- **Bezbednost u meču:** izvučen kabl znači da ESP ne može da resetuje pogon ni u slučaju greške u softveru.
-  To je najjednostavniji hardverski „isključi" za tu funkciju.
-- **Različiti kablovi i dužine:** UART može da ide na jednu ploču, a NRST i BOOT0 na morpho letvicu Nucleo-a.
+U odnosu na sliku menja se: UART2 RX sa GPIO48 na **GPIO21** (NeoPixel je izbačen, a 48 je RGB LED na
+Espressif v1.0), novi pinovi za lidar MOTOCTL, I2C1, INT i VBAT.
 
-### 4.1 Šema (slika u HTML fajlu)
+| GPIO | Letvica | Funkcija | Napomena |
+|---|---|---|---|
+| 4 | J1-4 | T1 · NAZAD (žuti) | taster na ploči |
+| 5 | J1-5 | T2 · OK (zeleni) | |
+| 6 | J1-6 | T3 · STOP (crveni) | šalje STOP odmah |
+| 7 | J1-7 | E-STOP stanje (PC817) | 1 = E-STOP pritisnut ili kabl prekinut |
+| 15 | J1-8 | STM NRST preko 2N7002 | 1 = reset (obrnuta logika) |
+| 16 | J1-9 | STM BOOT0 | 470 Ω redno, 10 kΩ na GND |
+| 17 | J1-10 | UART1 TX → PA10 | 470 Ω redno |
+| 18 | J1-11 | UART1 RX ← PA9 | 470 Ω redno |
+| 8 | J1-12 | I2C0 SDA (ekran) | 2,2 kΩ |
+| 9 | J1-15 | I2C0 SCL (ekran) | 2,2 kΩ |
+| 10 | J1-16 | **VBAT (ADC1_CH9)** | delitelj 100 k / 18 k, rezerva za INA3221 |
+| 11, 12, 13 | J1-17..19 | enkoder A, B, SW | na ploči |
+| 14 | J1-20 | buzzer (PWM) | MOSFET |
+| 1, 2 | J3-4, 5 | analogna rezerva (ADC1) | na konektor za proširenje |
+| 42 | J3-6 | **LIDAR MOTOCTL** (PWM) | |
+| 41, 40 | J3-7, 8 | **I2C1 SDA, SCL** (senzori) | 4,7 kΩ |
+| 39 | J3-9 | **INT / XSHUT senzora** | |
+| 38 | J3-10 | RGB LED na ESP ploči | samo softver (status umesto NeoPixel-a) |
+| 48 | J3-16 | rezerva | konektor za proširenje (na Espressif v1.0 je LED) |
+| 47 | J3-17 | **UART2 TX → lidar RX** | 3,3 V na WROOM-1 |
+| 21 | J3-18 | **UART2 RX ← lidar TX** | |
 
-**NRST [MORA]:**
+Ne koriste se: 0, 3, 45, 46 (strapping), 19, 20 (USB), 43, 44 (UART0), 35-37 (octal PSRAM).
 
-    GPIO15 ──[1 kΩ]──┬── G   Q1 2N7002 (ili BSS138)
-                     │    D ─────────────── J_CTRL-2 (NRST) ──> Nucleo CN7-14 (ili CN6-3 RESET)
-                  [100 kΩ] S ── GND
-                     │
-                    GND
-
-- GPIO = 1 → Q1 provodi → NRST = 0 (reset). GPIO = 0, ESP se restartuje ili je bez napajanja → gejt na
-  GND preko 100 kΩ → Q1 ne provodi → STM32 radi.
-- Impuls u nulu na GPIO15 pri uključenju sada nema efekta. Neutralizuje se i problem kad ESP nema napajanje
-  (zaštitne diode pina bi držale NRST na ~0,6 V, a to je za STM32 nula).
-- Pull-up za NRST postoji u STM32 (~40 kΩ) i na Nucleo-u (sa 100 nF); na ploču se ne stavlja.
-- Druga mogućnost bez izmene softvera: 74LVC1G07 (open-drain bafer koji je u visokoj impedansi kad je bez
-  napajanja) + RC filter 10 kΩ / 100 nF na ulazu (guši impuls od 60 µs, a propušta impuls od 20 ms). Više
-  delova za istu stvar; MOSFET je jednostavniji.
-
-**BOOT0 [MORA]:**
-
-    GPIO16 ──[470 Ω]──┬────────────── J_CTRL-3 (BOOT0) ──> Nucleo CN7-7
-                     [10 kΩ]  (pull-down; Nucleo ima svoj ~10 kΩ, MB1136, proveriti na svojoj reviziji)
-                      │
-                     GND
-
-- Sa oba pull-down-a (5 kΩ ukupno): 3,3 V · 5 / 5,47 ≈ 3,0 V kad ESP drži 1. Dovoljno.
-- Kad ESP nema napajanje ili se pali, BOOT0 ostaje 0 (pull-down). Opciono žuti LED „BOOT0" preko 2N7002.
-
-**Konektor J_CTRL:** JST-PH 3 pina (ili GH): 1 GND, 2 NRST, 3 BOOT0. Na Nucleo strani: CN7-8 (GND),
-CN7-14 (NRST), CN7-7 (BOOT0); RESET je i na Arduino letvici CN6-3.
-
-**Konektor J_UART (odvojen):** JST-PH 3 pina: 1 GND, 2 TX (GPIO17 → PA10, Arduino D2), 3 RX (GPIO18 ← PA9,
-D8). Redno 470 Ω na obe linije, kod ESP-a. Na 921600 baud-a: 470 Ω × ~50 pF ≈ 25 ns, bit traje 1,08 µs.
-
-Zamena J_CTRL i J_UART kablova nije opasna (obe strane su 3,3 V signali sa otpornicima), samo ne radi.
-
-### 4.2 Softver za NRST i BOOT0 (za kasnije, tačka 10)
-- `match.StmReset` i `stmflash.flash_file`: NRST postaje običan izlaz sa obrnutom logikom (1 = reset).
-  Predlog: `STM_NRST_ACTIVE = 1` u board fajlu; isti kod radi i za direktno vezan pin (`0`).
-- `stmflash.flash_file` koristi `uart_args` sa `cfg.UART_BAUD`. Ugrađeni bootloader STM32 (AN2606) prepoznaje
-  brzinu samo do 115200; kad UART pređe na 921600, za flešovanje treba privremeno 115200.
+Zašto ovako (detaljno u verziji 1, ostaje isto):
+- GPIO15 pri uključenju ESP-a ~60 µs ide u nulu (Espressif, tabela impulsa pri uključenju). Direktno vezan na
+  NRST bi resetovao STM32. Preko 2N7002 je impuls u nulu bezopasan, a STM32 radi i kad ESP nema napajanje.
+- GPIO18 pri uključenju kratko vuče liniju (0 ili 1) protiv TX-a STM32: zato 470 Ω.
+- ADC2 (GPIO11-20) ne radi pouzdano uz WiFi, pa su analogni samo 1, 2 i 10.
 
 ---
 
-## 5. Blok po blok: šta ide na ploču
+## 3. NRST i BOOT0 (odvojen konektor) i UART ka Nucleo-u
 
-### 5.1 Napajanje [MORA]
-- Ulaz 5 V iz DC-DC-a (≥ 3 A, vidi tačku 6) na konektor koji ne liči na signalne (XT30 ili 2-polna stezaljka).
-- Zaštita od obrnutog polariteta: P-MOSFET (npr. AO3401A) ili Schottky dioda (pad ~0,4 V, jednostavnije).
-- TVS SMBJ5.0A preko ulaza (skokovi napona kad se motori pale i gase), PTC osigurač 3 A, 470 µF / 10 V + 10 µF + 100 nF.
-- **DevKitC 5V pin preko Schottky diode (ili idealne diode, LM66100).** Espressif: USB, 5V pin i 3V3 pin su
-  međusobno isključivi izvori. Sa diodom: kad je priključen samo USB (sto u radionici), USB ne napaja
-  NeoPixel i lidar preko 5V pina; kad je priključena baterija, 5 V iz DC-DC-a ne ide nazad u USB.
-  Pad na diodi (~0,4 V) ne smeta: LDO na DevKitC-u od 4,6 V i dalje daje 3,3 V.
-- NeoPixel i lidar ne napajati preko DevKitC-a: direktno sa 5 V ulaza, svaki preko svog PTC-a (1,5 A i 1 A),
-  da kratak spoj u kablu ne obori ESP.
-- 3,3 V za spoljne uređaje: LDO na DevKitC-u napaja i ESP (WiFi vršno ~350-500 mA). Spolja ne vući više od
-  ~200-300 mA. Za više (više ToF senzora, kamera na 3,3 V) [OPCIJA]: zaseban 3V3_AUX LDO (AP2112K-3.3 ili
-  TLV75533, 500-600 mA) samo za I2C1 i UART2 konektore.
+- **J_UART** (JST-PH 3): 1 TX (ESP → PA10), 2 GND, 3 RX (ESP ← PA9). Odgovara Nucleo strani „RX, GND, TX" sa
+  kablom 1:1 (pin 1 na pin 1). GND u sredini: obrnut utikač samo zameni TX i RX, ništa ne kvari. **Proveriti
+  redosled na Nucleo strani pre nego što se napravi kabl.**
+- **J_CTRL** (JST-PH 3): 1 NRST, 2 GND, 3 BOOT0. Na Nucleo-u: CN7-14 (ili CN6-3), CN7-8 (GND), CN7-7.
+  Isti profil (GND u sredini), pa zamena kablova sa J_UART ne kvari ništa.
+- NRST: GPIO15 → 1 kΩ → gejt 2N7002, 100 kΩ gejt-GND, drejn → NRST, sors → GND.
+- BOOT0: GPIO16 → 470 Ω → BOOT0, 10 kΩ na GND (Nucleo ima i svoj ~10 kΩ; zajedno ≈ 3,0 V kad je ESP na 1).
+- Kabl < 0,5 m na 921600 baud-a: 470 Ω × ~40 pF ≈ 20 ns, bit traje 1,08 µs. Uvrnuti TX sa GND-om ako je kabl duži.
 
-### 5.2 E-STOP preko optokaplera [MORA]
-- LED strana: E-STOP+ → R → PC817 anoda; katoda → E-STOP−. 1N4148 suprotno, paralelno sa LED-om (zaštita od
-  obrnutog napona, LED izdrži samo 6 V).
-- R = (Vbat_max − 1,2 V) / 5 mA: 2S (8,4 V) 1,5 kΩ; 3S (12,6 V) 2,2 kΩ; 4S (16,8 V) 3,3 kΩ; 6S (25,2 V) 4,7 kΩ
-  0,25 W (1206). Opciono Zener na red (npr. 6,8 V), da se „prazna" ili isključena linija ne vidi kao uključena.
-- Izlaz: kolektor → GPIO7 + 10 kΩ pull-up na 3V3 + 100 nF na GND; emiter → GND.
-- Logika: motori pod naponom → LED svetli → GPIO7 = 0. E-STOP pritisnut **ili kabl prekinut** → GPIO7 = 1,
-  pa se prekid kabla vidi kao pritisnut E-STOP (bezbedna strana).
-- Na ploči: E-STOP konektor i LED strana optokaplera u ćošku, odvojeni od ostatka (razmak ≥ 2 mm, bez
-  razlivenog bakra ispod optokaplera između strana).
+### 3.1 LED-ovi za TX i RX (ne opterećuju liniju)
 
-### 5.3 Buzzer [MORA]
-- Ne zna se da li je aktivan ili pasivan, magnetni ili piezo (pitanje 6). Plan K-2 kaže PWM: pasivni.
-- Predlog: N-MOSFET (AO3400A ili 2N7002 do ~200 mA) sa niske strane: GPIO14 → 100 Ω → gejt, 100 kΩ gejt → GND,
-  buzzer između +5V i drejna, 1N4148 (ili BAT54) preko buzzera, opciono 10-47 Ω na red (jačina).
-- Ako ostaje BC547 sa slike: 1 kΩ u bazi, 10 kΩ baza → GND, ista dioda.
-- PWM na rezonantnoj frekvenciji buzzera (obično 2,7 ili 4 kHz).
+LED direktno na liniji je loš izbor: opterećuje liniju (1-3 mA), na 921600 baud-a bajt traje ~11 µs pa se
+treptaj ne vidi, a LED sa linije na GND (kao na slici) svetli stalno jer UART miruje u jedinici.
 
-### 5.4 NeoPixel [MORA]
-- GPIO21 → 74AHCT1G125 (napajan sa 5 V, OE na GND) → 330 Ω → DIN. AHCT prima 3,3 V kao jedinicu (prag 2 V),
-  a daje 5 V.
-- Na konektoru: 470-1000 µF / 10 V, PTC 1,5 A. Struja: do 60 mA po LED-u na punoj beloj (12 LED = 0,7 A,
-  16 LED = 1 A); softver ograničava svetlinu (plan K-1), ali osigurač mora da izdrži najgori slučaj.
+Rešenje: jedan **SN74LVC14ADR** (6 Schmitt invertora, SOIC-14) za oba kanala, sa „produživačem impulsa":
 
-### 5.5 I2C [PREPORUKA]
-- **I2C0 (GPIO8, 9) samo za ekran**, kratak kabl. Pull-up 2,2 kΩ (za 800 kHz, T-3). ESP32-S3 I2C radi do
-  800 kbit/s (TRM), ne do 1 MHz. Modul ekrana ima svoj pull-up (obično 4,7 ili 10 kΩ); paralelno sa 2,2 kΩ
-  je i dalje ispod 3 mA struje kad je linija u nuli.
-- **I2C1 (GPIO41 SDA, 40 SCL) za spoljne senzore**, 400 kHz, pull-up 4,7 kΩ. Kvar na kablu senzora ne obara
-  ekran i meni. Ako se ostane na jednom bus-u kao na slici: pull-up 2,2 kΩ i 400 kHz.
-- Konektori senzora: XH-5 (1 GND, 2 3V3, 3 SCL, 4 SDA, 5 INT/XSHUT = GPIO39). Mesto za TCA9548A [OPCIJA].
-- Konektor nikad ne daje 5 V na I2C konektoru: modul sa pull-up-om na 5 V bi doveo 5 V na pin ESP-a.
-- 100 nF na 3V3 pinu svakog konektora.
+    linija ──> [LVC14 A] ──>|── 1N4148W ──┬───────┬──> [LVC14 B] ──> 680 Ω ── LED ── 3V3
+    (ESP strana R)                     220 nF    220 kΩ           (LED svetli kad je izlaz B na 0)
+                                          │       │
+                                         GND     GND
 
-### 5.6 Tasteri [PREPORUKA]
-- Interni pull-up S3 je ~45 kΩ; sa dugim kablom pored motora to je slabo. Na ploči: 10 kΩ pull-up na 3V3,
-  1 kΩ redno (ESD), 100 nF na GND (RC ≈ 1 ms, softver ionako čeka 20 ms).
-- Najvažniji je STOP (reaguje na pritisak): smetnja ne sme da ga „pritisne".
+- Ulaz invertora na liniji: ~4 pF i < 1 µA, linija se ne oseća.
+- Nula na liniji (start bit, podaci) → izlaz A = 1 → kondenzator se puni preko diode za nekoliko µs → izlaz
+  B = 0 → LED svetli. Posle poslednjeg bajta kondenzator se prazni kroz 220 kΩ (τ ≈ 48 ms) → LED se gasi
+  posle ~50 ms. Svaki okvir je vidljiv treptaj.
+- RX (STATUS na 20 Hz) izgleda kao skoro stalno svetlo kad STM32 šalje; TX trepće sa PING-om.
+- Dva preostala invertora: ulaze vezati na GND.
+- Ulaz se uzima na ESP strani rednog otpornika (posle 470 Ω), da otpornik ograničava struju kad je ESP ploča bez
+  napajanja.
+- **BOOT0 LED** (žuti): 2N7002, gejt na liniji BOOT0, LED + 1 kΩ od 3V3 na drejn. **5V i 3V3 LED** (zeleni).
 
-### 5.7 Enkoder [PREPORUKA]
-- KY-040 ima svoje pull-up-ove 10 kΩ na „+". Na ploči: mesto za 10 kΩ pull-up (bez lemljenja ako je KY-040),
-  10 kΩ redno i 10 nF na GND na A i B (Bourns preporuka za PEC11, RC ≈ 100 µs). Za SW: kao taster.
-- 10 nF sa slike bez rednog otpornika: kontakt enkodera direktno prazni kondenzator (varničenje kontakta);
-  redni otpornik to sprečava.
+---
 
-### 5.8 UART2 i lidar [PREPORUKA]
-- Konektor XH-6: 1 GND, 2 5V, 3 TX (GPIO47), 4 RX (GPIO48), 5 MOTOCTL (GPIO42), 6 3V3.
-- Redno 220-470 Ω na TX i RX. 5 V preko PTC 1 A + 100 µF. Lidar A2 troši reda 0,5 A, više pri startu
-  motora (proveriti datasheet za A2M8 ili A2M12; A2M8 radi na 115200, A2M12 na 256000).
-- Softver (faza4 L-2): UART rxbuf ≥ 4 KB (A2 šalje ~20 KB/s, krug petlje do ~45 ms).
+## 4. E-STOP i baterija (4S)
 
-### 5.9 Zaštita svih spoljnih signala [PREPORUKA]
-- Redni otpornik (100 Ω-1 kΩ) na svakom signalu koji izlazi sa ploče, blizu konektora.
-- ESD diode (npr. TPD4E05U06 ili PESD5V0S1BA) na konektorima do kojih ruke dolaze (tasteri, enkoder, ekran).
-- 100 nF na svakom pinu za napajanje na konektoru.
+**Konektor BAT** (stezaljka 3,5 mm, 3 pina; drugi tip konektora od svih ostalih): 1 GND, 2 VBAT, 3 VMOT.
+- VBAT: baterija posle glavnog prekidača i osigurača, pre E-STOP-a.
+- VMOT: posle E-STOP-a (napon motora).
 
-### 5.10 Konektor za proširenje [PREPORUKA]
-Kutijasti 2 × 8 (2,54 mm, sa ključem):
+**E-STOP [MORA]:** VMOT → **BZT52C8V2** (Zener 8,2 V) → **1,5 kΩ** (1206) → anoda PC817; katoda → GND;
+**1N4148W** suprotno paralelno sa LED-om. Izlaz: kolektor → GPIO7 + 10 kΩ na 3V3 + 100 nF; emiter → GND.
+- 16,8 V: (16,8 − 8,2 − 1,2) / 1,5 kΩ ≈ 4,9 mA. 12 V: ≈ 1,7 mA. PC817 sa CTR ≥ 50 % daje ≥ 0,85 mA, a pull-up
+  od 10 kΩ traži 0,33 mA.
+- Zener: E-STOP se vidi čim napon motora padne ispod ~9,4 V. Bez njega LED svetli dok kondenzatori drajvera ne
+  padnu na ~2 V, a to može da traje. Bez Zener-a: samo 3,3 kΩ.
+- Logika: motori pod naponom → GPIO7 = 0; E-STOP pritisnut ili kabl prekinut → GPIO7 = 1 (bezbedna strana).
+
+**VBAT na ADC (rezerva) [PREPORUKA]:** VBAT → **100 kΩ** → GPIO10, **18 kΩ** na GND, **100 nF** na GND.
+- 16,8 V → 2,56 V; 12 V → 1,83 V. ESP32-S3 ADC sa slabljenjem 11 dB meri do ~3,1 V.
+- Struja delitelja 0,14 mA. Kad ESP nema napajanje, napon na pinu je i dalje < 3,3 V.
+- Softver: prosek više merenja, kalibracija jednom na pravom naponu.
+
+Zona baterije na ploči: stezaljka, Zener, otpornik i LED strana optokaplera, 100 kΩ; ≥ 2 mm do ostalog bakra,
+bez razlivenog bakra između strana optokaplera.
+
+---
+
+## 5. Buzzer: vrste i izbor
+
+| Vrsta | Kako radi | Upravljanje | Primer (DigiKey) |
+|---|---|---|---|
+| **Aktivni** (internally driven) | ima svoj oscilator, na 5 V sam zvoni na jednoj frekvenciji | uključi/isključi (GPIO), PWM ne menja ton | Same Sky **CMI-1275-05TH**: 12 mm, 5 V, 110 mA, 2,7 kHz, 85 dB |
+| **Pasivni** (externally driven, „transducer") | samo membrana, zvuči na frekvenciji koju mu pošalješ | PWM (LEDC), može više tonova | Same Sky **CEM-1206S**: 12 mm, 5 V, 45 mA, 2,4 kHz, 85 dB |
+
+Obe vrste postoje kao **magnetne** (kalem i membrana, mala otpornost, traže tranzistor i diodu, glasne već na
+5 V) i **piezo** (kristal, skoro bez struje, tiše na 5 V, bez diode ali sa otpornikom paralelno).
+
+**Preporuka: pasivni magnetni (CEM-1206S)**, PWM na 2,4 kHz. Plan K-2 (1 kratak = potvrda, 2 = upozorenje,
+3 = greška) radi i sa aktivnim, ali pasivni daje i različite tonove (greška niže, potvrda više). Kolo je isto
+za obe: AO3400A (ili 2N7002), 100 Ω u gejtu, 100 kΩ gejt-GND, 1N4148W preko buzzera. Na footprint-u ostaviti
+rupe za oba razmaka nožica (proveriti u datasheet-u).
+
+---
+
+## 6. ESD zaštita: gde tačno i koji deo
+
+**Deo: TI TPD4E1U06DBVR** (4 kanala, SOT-23-6, 0,8 pF, 5,5 V radni napon, IEC 61000-4-2 ±15 kV kontakt).
+DigiKey: [TPD4E1U06DBVR](https://www.digikey.com/en/products/detail/texas-instruments/TPD4E1U06DBVR/3929533),
+oko 0,60 $ za 1 kom, 0,37 $ od 10 kom (cena iz keša pretrage, proveriti). Kapacitet od 0,8 pF ne smeta ni
+UART-u na 921600 ni I2C-u. Za pojedinačnu liniju: Nexperia PESD5V0S1BA (SOD-323) (na DigiKey-u proveriti
+dostupnost, Farnell ga vodi kao ukinut).
+
+**Pravilo postavljanja:** ESD dioda **odmah do pinova konektora** (≤ 5 mm), redosled konektor → ESD → redni
+otpornik → ESP. GND pin diode vijom direktno na GND sloj, kratko. Nekorišćen kanal ostaje nepovezan.
+
+| Oznaka | Gde | Linije |
+|---|---|---|
+| U_ESD1 | između J_UART i J_CTRL | UART1 TX, UART1 RX, NRST, BOOT0 |
+| U_ESD2 | kod LIDAR konektora | UART2 TX, UART2 RX, MOTOCTL |
+| U_ESD3 | između SENS1 i SENS2 | SDA1, SCL1, INT |
+| U_ESD4 | kod konektora za proširenje | GPIO1, GPIO2, GPIO48, EN |
+| U_ESD5 | kod konektora za proširenje | SDA1, SCL1, UART2 TX, UART2 RX |
+
+Gde **ne treba** ESD niz i zašto:
+- **Tasteri i enkoder** (na ploči): metalno kućište enkodera (držači) i tastera na GND, pa udar iz prsta ide u
+  masu. Linije imaju 1 kΩ redno i 100 nF (tasteri) odnosno 10 kΩ i 10 nF (enkoder), što guši ostatak.
+- **Ekran** (na ploči, u header-u): nema spoljnog kabla.
+- **BAT** (VBAT, VMOT): 100 kΩ i 1,5 kΩ + Zener su veliki redni otpori; 100 nF na ADC pinu.
+- **5 V ulaz**: TVS SMBJ6.0A (snaga, pokriva i ESD).
+- **USB**: na ESP ploči, koristi se samo u hitnim slučajevima.
+
+---
+
+## 7. Napajanje
+
+- DC-DC na powerboard-u (SiC417) **podesiti na 5,2 V**: RPLIDAR A2 traži 4,9-5,5 V, a na ploči se gubi
+  ~0,1-0,2 V (zaštita polariteta, osigurači).
+- **PWR_IN** (JST VH, 2 pina, 3,96 mm; ne može da se pomeša sa ostalima) → **AO3401A** (zaštita polariteta,
+  P-MOSFET, pad ~30 mV; Schottky od 0,4 V bi spustio lidar ispod 4,9 V) → **PTC 2 A** (Bourns MF-MSMF200-2) →
+  **SMBJ6.0A** → 100 µF + 10 µF + 100 nF.
+- Grane:
+  - ESP ploča: **B5819W** (Schottky) → 5V pin (štiti od mešanja sa USB-om; LDO na ploči radi i od 4,8 V).
+  - Lidar: **PTC 1,1 A** (MF-MSMF110-2) + 100 µF kod konektora.
+  - Konektor za proširenje: **PTC 0,5 A** (MF-MSMF050-2).
+  - Buzzer: direktno sa 5 V.
+
+| Potrošač | Tipično | Najviše |
+|---|---|---|
+| ESP32-S3 + PSRAM (LDO na ploči) | 120 mA | 500 mA |
+| OLED | 20 mA | 40 mA |
+| RPLIDAR A2 | ~450 mA | ~600 mA + start |
+| Buzzer | 30 mA | 60 mA |
+| Senzori I2C | 50 mA | 100 mA |
+| Proširenje | - | 500 mA (PTC) |
+| **Ukupno** | **~0,7 A** | **~1,8 A** |
+
+---
+
+## 8. Konektori (konačno)
+
+Na ploči ostaju samo konektori za ono što je van ploče. Svaki ima tip ili broj pinova koji ga razlikuje od
+ostalih, ili isti profil (pin za GND na istom mestu), pa pogrešan kabl ne pušta napon na pogrešno mesto.
+
+| Konektor | Tip (DigiKey MPN) | Pinovi |
+|---|---|---|
+| PWR_IN | JST VH 2 (B2P-VH) | 1 +5V, 2 GND |
+| BAT | stezaljka 3,5 mm, 3 pina (npr. Phoenix MKDS 1/3-3,5, 1751251; proveriti) | 1 GND, 2 VBAT, 3 VMOT |
+| J_UART | JST PH 3 (B3B-PH-K-S) | 1 TX→PA10, 2 GND, 3 RX←PA9 |
+| J_CTRL | JST PH 3 (B3B-PH-K-S) | 1 NRST, 2 GND, 3 BOOT0 |
+| LIDAR | JST XH 5 (B5B-XH-A) | po kablu A2: 1 VCC 5V, 2 TX lidara (→ GPIO21), 3 RX lidara (← GPIO47), 4 GND, 5 MOTOCTL |
+| SENS1, SENS2 | JST PH 5 (B5B-PH-K-S) | 1 GND, 2 3V3, 3 SCL1, 4 SDA1, 5 INT |
+| EXP | kutijasti 2 × 8 (npr. On Shore 302-S161) | tačka 9 |
+| OLED | ženski header 1 × 4 (Sullins PPTC041LFBN-RC) + 2-4 rupe M2 za odstojnike | po modulu, vidi ispod |
+| ESP ploča | 2 × ženski header 1 × 22 (Sullins PPTC221LFBN-RC) | |
+
+- **LIDAR:** RPLIDAR A2 ima utikač XH 5-pin, redosled (Robotshop crtež, kontakti okrenuti nagore, s leva):
+  VCC (crvena), TX (žuta), RX (zelena), GND (crna), PWM/MOTOCTL (plava). Ploča prima originalni kabl bez
+  adaptera. **Proveriti na komadu pre narudžbe PCB-a.** Jedini XH na ploči, pa nema mešanja.
+- **OLED:** moduli 0,96" postoje sa redosledom GND-VCC-SCL-SDA i VCC-GND-SCL-SDA. Na ploči dva lemna
+  kratkospojnika (SJ1, SJ2) koji biraju da li je pin 1 GND ili 3V3, a pin 2 obrnuto. Zalemiti prema modulu koji
+  se kupi. Rupe M2 da modul ne visi samo na header-u.
+
+---
+
+## 9. Konektor za proširenje (2 × 8)
 
 | Pin | Signal | Pin | Signal |
 |---|---|---|---|
 | 1 | GND | 2 | GND |
-| 3 | 3V3 | 4 | 5V (preko PTC 1 A) |
-| 5 | I2C1 SDA (41) | 6 | I2C1 SCL (40) |
+| 3 | 3V3 | 4 | 5V (PTC 0,5 A) |
+| 5 | SDA1 (41) | 6 | SCL1 (40) |
 | 7 | GPIO1 (ADC1) | 8 | GPIO2 (ADC1) |
-| 9 | GPIO39 | 10 | GPIO10 (ADC1, ako nije VBAT) |
-| 11 | UART2 TX (47) | 12 | UART2 RX (48) |
-| 13 | GPIO42 | 14 | GPIO38 (kratkospojnik, samo bez RGB LED-a) |
-| 15 | EN (reset ESP-a) | 16 | GND |
+| 9 | GPIO39 (INT) | 10 | GPIO48 |
+| 11 | UART2 TX (47) | 12 | UART2 RX (21) |
+| 13 | EN (reset ESP-a) | 14 | GND |
+| 15 | GND | 16 | GND |
 
-Šta može da ide na njega: CAN/TWAI (SN65HVD230 na maloj ploči, bilo koja 2 pina), servo ploča (PCA9685 na
-I2C1), više ToF senzora sa XSHUT-om, kamera, drugi lidar, spoljni taster za reset ESP-a.
+UART2 je deljen sa lidarom: ili lidar ili uređaj na proširenju (npr. kamera). Proširenja idu najlakše preko
+I2C1: PCA9685 (servoi), MCP23017 (GPIO), ADS1115 (analogno), TCA9548A (više ToF senzora).
 
 ---
 
-## 6. Napajanje i struja (procena)
+## 10. Raspored ploče (100 × 100 mm, korisnički interfejs na ploči)
 
-| Potrošač | 5 V (mA), tipično | najviše | Napomena |
+Skica u HTML fajlu (slika 4), 1 mm = 5 px. Gornja strana ploče je gornja strana robota.
+
+- **ESP ploča** uspravno uz desnu ivicu (x 72,6-98, y 0-62,7), **antena na gornjoj ivici** iznad izreza u ploči
+  između letvica (~19,5 × 8 mm), bez bakra i vodova ~10 mm oko antene (x ≥ 65, y ≤ 16). WiFi je glavni put za
+  programiranje, pa antena ima prednost.
+- **USB-C** gleda nadole, u ploču: ispod njega „prolaz" (x 78-93, do donje ivice) bez visokih delova, samo SMD,
+  da utikač može da uđe u hitnom slučaju.
+- **Gore levo: ekran** (0,96" modul 27 × 28 mm, mesto za 1,3" 36 × 34 mm).
+- **Gornja ivica, između ekrana i antene:** J_UART i J_CTRL; ispod njih ESD, redni otpornici, NRST MOSFET,
+  LVC14 i LED-ovi TX, RX, BOOT0 (blizu pinova 15-18 na J1).
+- **Sredina:** tri tastera 12 × 12 mm (STOP crveni levo, NAZAD žuti, OK zeleni) i enkoder (Ø dugmeta 20 mm)
+  desno od njih, ~4 mm od letvice ESP-a.
+- **Levo dole:** konektor za proširenje (uspravno), buzzer i njegov drajver.
+- **Donja ivica:** BAT (zona baterije, levo), PWR_IN, SENS1, SENS2, LIDAR (uz prolaz za USB).
+- **Rupe M3:** (4, 4), (4, 96), (96, 96), (96, 70). Gore desno nema rupe: tu je antena.
+- 5 V vodom ≥ 1,5 mm od PWR_IN do grana (ESP 5V pin J1-21, lidar, proširenje, buzzer).
+
+Pravila za crtanje (ostaju iz verzije 1): donji sloj ceo GND (izrez samo kod antene), merne tačke (5V, 3V3,
+GND, TX, RX, NRST, BOOT0, SDA0, SCL0, GPIO7, VBAT), silkscreen sa rasporedom pinova pored svakog konektora i
+nazivima tastera, 0805 i SOT-23 za ručno lemljenje. Držači kućišta enkodera i tastera na GND.
+
+Opcija za v2 (posle sezone): ESP32-S3-WROOM-1-N16R8 zalemljen direktno na ploču (bez letvica, niža i otpornija
+ploča), sopstveni 3V3 regulator i USB-C sa ESD-om. Waveshare ploča ima i polu-rupe na ivici, pa može i da se
+zalemi ravno na ploču, ali se onda teško menja.
+
+---
+
+## 11. Izmene softvera kad ploča stigne (za odobrenje; ovde nije rađeno)
+
+1. **board_s3.py** (S-1): pinovi iz tačke 2, `UART_ID=1`, `UART2_TX=47`, `UART2_RX=21`, `LIDAR_MOTOCTL=42`,
+   `I2C1_SDA=41`, `I2C1_SCL=40`, `SENS_INT=39`, `VBAT_ADC=10` (+ odnos delitelja 118/18), `RGB_LED=38`,
+   `STM_NRST_ACTIVE=1`, `ESTOP_ACTIVE=1`, `BUZZER=14`; T1/T2/T3 → `BTN_BACK/BTN_OK/BTN_STOP`.
+2. `match.StmReset` i `stmflash`: NRST sa obrnutom logikom (MOSFET).
+3. `stmflash`: bootloader STM32 uvek na 115200 (AN2606), nezavisno od `UART_BAUD`.
+4. `screen.py`: I2C frekvencija iz board fajla (800 kHz sa 2,2 kΩ). Ako ekran bude 1,3" sa SH1106: drugi drajver.
+5. E-STOP (GPIO7) na PROVERA/ROBOT i prekid taktike; VBAT na PROVERA kad INA3221 ne odgovara.
+6. RGB LED na ESP ploči (GPIO38) kao status umesto NeoPixel-a (K-1, jedna boja po stanju); buzzer (K-2) PWM 2,4 kHz.
+7. Lidar (L-1..L-3): UART2 rxbuf ≥ 4 KB, MOTOCTL kao PWM 20-25 kHz.
+8. Host test: board fajl ima sve pinove, bez duplikata, bez zabranjenih pinova (0, 3, 19, 20, 35-37, 43-46).
+
+---
+
+## 12. Spisak delova (DigiKey, ručno lemljenje)
+
+Cene proveriti na DigiKey-u; MPN su delovi koji se tamo prodaju (osim gde piše „proveriti").
+
+| Deo | MPN | Kom | Gde |
 |---|---|---|---|
-| ESP32-S3 + PSRAM (preko LDO-a na DevKitC) | 120 | 500 | WiFi slanje do ~350 mA na 3,3 V |
-| OLED 0,96" / 2,42" | 20 | 40 | |
-| NeoPixel (12-16 LED) | 100-200 | 700-1000 | puna bela; softver ograničava svetlinu |
-| Lidar RPLIDAR A2 | 450 | 600 + start | proveriti datasheet |
-| Buzzer | 30 | 60 | |
-| Senzori I2C (IMU, 2-3 ToF, boja) | 50 | 100 | na 3,3 V |
-| Kamera (opciono, na UART2) | 150-300 | 400 | zavisi od kamere |
-| **Ukupno** | **~1 A** | **~2,5-3 A** | DC-DC 5 V **≥ 3 A**, bolje 5 A ako napaja još nešto |
-
-Šema napajanja je i u HTML fajlu (dijagram).
-
----
-
-## 7. Konektori
-
-**Pravilo:** konektori istog tipa i istog broja pinova imaju napajanje na istim pozicijama (ili ga nemaju), a
-pin 1 je uvek GND. Onda pogrešno uključen kabl menja samo signale (3,3 V ulazi sa otpornikom), a ne pušta
-napajanje na signal ili na GND. Napajanje i E-STOP (napon baterije) idu na konektore drugog tipa.
-
-Zašto: na slici su XH-2 za napajanje 5 V, E-STOP i buzzer. E-STOP kabl (napon baterije) u konektoru za
-buzzer: E-STOP+ ide na drejn tranzistora, pa kroz buzzer (i diodu) pravo na 5 V liniju ESP-a, a E-STOP− spaja
-5 V sa GND-om. XH-5 enkodera
-i UART2 sa slike: enkoder u UART2 konektoru dobija 5 V na SW, pritisak na dugme pravi kratak spoj na 5 V.
-Kabl tastera u I2C konektoru: T3 je na 3V3, pa pritisak na taster T3 kratko spaja 3V3 sa GND.
-
-| Konektor | Tip | Pinovi | Napomena |
-|---|---|---|---|
-| PWR_IN | XT30 ili stezaljka 5,08 mm | +5V, GND | jedini takav |
-| ESTOP | stezaljka 3,5 mm, 2 pina (ili JST-VH) | E-STOP+, E-STOP− | domen baterije, u ćošku |
-| STM_UART | JST-PH 3 | 1 GND, 2 TX→PA10, 3 RX←PA9 | 470 Ω redno |
-| STM_CTRL | JST-PH 3 | 1 GND, 2 NRST, 3 BOOT0 | odvojen (tačka 4) |
-| OLED (I2C0) | XH-4 | 1 GND, 2 3V3, 3 SCL, 4 SDA | isti redosled kao većina OLED modula (GND VCC SCL SDA) |
-| TASTERI | XH-5 | 1 GND, 2 3V3, 3 T1, 4 T2, 5 T3 | 3V3 za tastere sa LED-om, inače prazan |
-| ENKODER | XH-5 | 1 GND, 2 3V3, 3 SW, 4 B (DT), 5 A (CLK) | obrnut redosled od KY-040 (CLK DT SW + GND) |
-| SENZORI ×2 (I2C1) | XH-5 | 1 GND, 2 3V3, 3 SCL, 4 SDA, 5 INT/XSHUT | isti profil kao tasteri i enkoder |
-| BUZZER | XH-2 | 1 BUZ−, 2 +5V | jedini XH-2 |
-| NEOPIXEL | XH-3 | 1 GND, 2 +5V, 3 DIN | jedini XH-3 |
-| LIDAR / UART2 | XH-6 | 1 GND, 2 5V, 3 TX, 4 RX, 5 MOTOCTL, 6 3V3 | jedini XH-6 |
-| PROŠIRENJE | kutijasti 2×8 | tačka 5.10 | sa ključem |
-
-JST-XH ima samo blagu kopču, a vibracije u robotu ga mogu izvući. Za kablove koji idu daleko (STM32, lidar)
-bolji je JST-PH ili GH (GH ima pravu bravicu, ali traži klešta za krimpovanje). Na Nucleo strani su muški
-pinovi: kabl sa Dupont kućištem ili (bolje) isti PH konektor na ploči pogona.
+| ESD 4 kanala | TI TPD4E1U06DBVR (SOT-23-6) | 5 | tačka 6 |
+| N-MOSFET mali | 2N7002 (npr. onsemi 2N7002LT1G, SOT-23) | 2 | NRST, BOOT0 LED |
+| N-MOSFET buzzer | AOS AO3400A (SOT-23) | 1 | buzzer |
+| P-MOSFET polaritet | AOS AO3401A (SOT-23) | 1 | PWR_IN |
+| Schmitt invertor | TI SN74LVC14ADR (SOIC-14) | 1 | TX/RX LED |
+| Optokapler | Sharp PC817X1NSZ1B (DIP-4) | 1 | E-STOP |
+| Zener 8,2 V | Diodes BZT52C8V2 (SOD-123) | 1 | E-STOP |
+| Dioda signalna | 1N4148W (SOD-123) | 4 | E-STOP, buzzer, LED ×2 |
+| Schottky | B5819W (SOD-123) | 1 | 5V → ESP ploča |
+| TVS 5 V | Littelfuse SMBJ6.0A (SMB) | 1 | PWR_IN |
+| PTC | Bourns MF-MSMF200-2, MF-MSMF110-2, MF-MSMF050-2 (1812) | 1+1+1 | PWR_IN, lidar, EXP |
+| Buzzer | Same Sky CEM-1206S (pasivni) ili CMI-1275-05TH (aktivni) | 1 | tačka 5 |
+| Enkoder | Bourns PEC11R-4220F-S0024 (20 mm osovina, taster) | 1 | |
+| Tasteri | Omron B3F-4055 (12 × 12) + kapice B32 u boji | 3 | |
+| Konektori | B2P-VH, B3B-PH-K-S ×2, B5B-PH-K-S ×2, B5B-XH-A, 302-S161, stezaljka 3 pina 3,5 mm | | tačka 8 |
+| Header | Sullins PPTC221LFBN-RC ×2, PPTC041LFBN-RC ×1 | | ESP, OLED |
+| Otpornici, kondenzatori, LED | 0805 (LED 0805 zeleni ×2, crveni/žuti/plavi) | | |
 
 ---
 
-## 8. Raspored ploče: opcije
+## 13. Otvorena pitanja
 
-Skice su u [`esp32s3-pcb-skice.html`](esp32s3-pcb-skice.html).
-
-### A. Nosač-ploča sa DevKitC-1 (preporuka za v1)
-100 × 63 mm, dva sloja. DevKitC u sredini na ženskim letvicama 2 × 22, antena na gornjoj ivici iznad izreza
-u ploči, USB-C na donjoj ivici (dostupni spolja). Leva „krila" prate J1: gore E-STOP i tasteri, levo
-STM_CTRL, STM_UART, OLED, enkoder, dole buzzer i 5 V ulaz (5V pin DevKitC-a je baš tu, J1-21). Desno
-krilo prati J3: gore konektor za proširenje, desno senzori (I2C1), dole lidar i NeoPixel. 5 V za NeoPixel i
-lidar ide širokim vodom po donjem sloju ispod DevKitC-a.
-- Za: DevKitC se menja za minut, USB za razvoj ostaje, najmanje rizika, ispod 100 × 100 mm (najjeftinija
-  izrada).
-- Protiv: letvice su visoke (~8,5 mm + DevKitC), treba držač protiv vibracija (vezica kroz dve rupe ili
-  odštampan klin), sve od korisničkog interfejsa ide kablovima.
-
-### B. Nosač-ploča + ploča panela (ako je korisnički interfejs na jednom panelu)
-Nosač kao A, bez konektora za tastere, enkoder, OLED, buzzer i NeoPixel; umesto njih jedan kutijasti 2×8
-(16 žila trakastog kabla, GND između brzih signala). Panel: OLED, 3 tastera, enkoder i buzzer zalemljeni
-direktno, konektor za NeoPixel prsten.
-- Za: jedan kabl umesto pet, tasteri i enkoder bez letećih žica, panel se menja nezavisno.
-- Protiv: dve ploče; trakasti kabl mora da se učvrsti; panel zavisi od mehanike (rupe za tastere).
-- Žile (16): 5V, 5V, GND, GND, GND, 3V3, SDA, SCL, T1, T2, T3, ENC A, ENC B, ENC SW, BUZ, NEO DIN (5 V,
-  posle pomerača nivoa na nosaču). Buzzer drajver i NeoPixel kondenzator na panelu.
-
-### C. ESP32-S3-WROOM-1-N16R8 zalemljen na ploču (v2)
-~70 × 50 mm. Modul na ivici (antena van ploče ili bez bakra ispod), USB-C (nativni USB, ESD zaštita USBLC6-2),
-sopstveni 3,3 V regulator (1 A), EN RC (10 kΩ / 1 µF), tasteri BOOT i RESET. USB-UART čip nije potreban:
-MicroPython i flešovanje rade preko nativnog USB-a.
-- Za: najmanja i najotpornija (nema letvica), sve na jednom mestu.
-- Protiv: više projektovanja (regulator, USB, EN, strapping), pokvaren modul = lemljenje; raditi tek kad v1
-  potvrdi šemu.
-
-### D. Matična ploča: Nucleo + ESP na istoj ploči
-~160 × 100 mm. Nucleo ide u ženske morpho letvice, DevKitC pored. UART, NRST i BOOT0 su vodovi na ploči.
-- Za: nema kablova između ESP-a i STM32.
-- Protiv: velika ploča, logika i snaga motora na istoj ploči, deo je ploča pogona (Lea), i ne slaže se sa
-  odvojenim konektorom za NRST i BOOT0. Za razgovor, ne za v1.
-
-**Preporuka:** A (ili A + B ako je korisnički interfejs na panelu) za 2027. C posle sezone, kad se šema potvrdi.
-
----
-
-## 9. Smernice za crtanje
-
-- **Antena:** ni bakra ni delova ispod antene modula i ~15 mm oko nje, na oba sloja. Najbolje izrez u ploči
-  ispod antene (između letvica, ~19 mm širine) ili antena preko ivice. U robotu: ESP na gornjem nivou, ne
-  pored baterije, motora ni metalnih ploča. Ako je kućište od metala ili karbona: varijanta sa spoljnom
-  antenom (WROOM-1U, U.FL), proveriti da li postoji DevKitC-1U u potrebnoj memorijskoj varijanti.
-- **Masa:** donji sloj ceo GND (izrez samo ispod antene). Gornji sloj: signali, posle toga GND razliven i
-  povezan vijama na svakih ~10 mm.
-- **5 V:** glavni vod ≥ 1,5 mm (3 A, bakar 35 µm), grane od 1 A ≥ 0,5 mm; svaki NeoPixel i lidar konektor
-  sa svojim kondenzatorom.
-- **E-STOP zona:** konektor i ulaz optokaplera u ćošku, ≥ 2 mm do ostalog bakra, oznaka na silkscreen-u.
-- **Letvice DevKitC-a:** ženske 2 × 22 visine 8,5 mm; ispod DevKitC-a samo SMD delovi; prolaz za USB-C utikač
-  na donjoj ivici bez visokih delova; 2 rupe za vezicu ili klin protiv vibracija. Razmak redova letvica uzeti
-  iz Espressif DXF crteža (forum navodi 22,86 mm; nije zvanično potvrđeno).
-- **Rupe:** 4 × M3 u ćoškovima; ako je šasija od metala, rupe bez veze sa GND (ili preko 0 Ω da može da se bira).
-- **Merne tačke:** 5V, 3V3, GND, TX, RX, NRST, BOOT0, SDA0, SCL0, NEO_DIN, GPIO7.
-- **LED-ovi:** 5V (zeleni), 3V3 (zeleni), BOOT0 (žuti), opciono TX/RX aktivnost (tačka 2.7).
-- **Silkscreen:** ime i raspored pinova pored svakog konektora, pin 1, funkcija tastera (NAZAD, OK, STOP),
-  verzija ploče, „ESP32-S3-DevKitC-1 N16R8" i strelica za smer umetanja.
-- **Izrada:** JLCPCB 2 sloja, ≤ 100 × 100 mm, delovi 0805 i SOT-23 (lako se leme ručno; isti delovi postoje za
-  JLC montažu).
-
----
-
-## 10. Izmene softvera kad ploča bude gotova (za odobrenje; ovde nije rađeno)
-
-1. **S-1 board fajl** `board_s3.py`: svi pinovi sa slike + `LIDAR_MOTOCTL=42`, `I2C1_SDA=41`, `I2C1_SCL=40`,
-   `SENS_INT=39`, `VBAT_ADC=10` (ako se uradi), `STM_NRST_ACTIVE=1`, `ESTOP_ACTIVE=1` (1 = pritisnut),
-   `UART_ID=1`, mapiranje T1/T2/T3 → `BTN_BACK/BTN_OK/BTN_STOP`.
-2. `match.StmReset` i `stmflash.flash_file`: NRST sa obrnutom logikom (MOSFET), BOOT0 isto kao sada.
-3. `stmflash.flash_file`: bootloader uvek na 115200, nezavisno od `UART_BAUD`.
-4. `screen.py`: frekvencija I2C iz board fajla (800 kHz tek sa pull-up-om 2,2 kΩ).
-5. E-STOP (GPIO7): prikaz na PROVERA/ROBOT, prekid taktike; ulaz sa pull-up-om i 20 ms filtrom kao tasteri.
-6. NeoPixel (K-1) i buzzer (K-2) prema planu; svetlina ograničena u podešavanjima.
-7. Lidar (L-1..L-3): UART2 sa rxbuf ≥ 4 KB, MOTOCTL kao PWM 20-25 kHz.
-8. Host testovi: board fajl ima sve pinove, nijedan pin se ne ponavlja, nijedan nije iz zabranjene liste (3.1).
-
----
-
-## 11. Pitanja
-
-1. **Napon baterije** (2S, 3S, 4S, 6S)? Treba za otpornik u E-STOP-u i za delitelj VBAT-a.
-2. **Da li su GND baterije i GND logike isti** (obični DC-DC bez izolacije)? Ako jesu, VBAT može direktno preko
-   delitelja na ADC; ako ne, samo preko INA na power ploči.
-3. **Nucleo:** na posebnoj ploči (kabl, koliko dug?) ili da razmotrimo matičnu ploču (D)? Da li ploča pogona
-   ima mesto za PH konektor umesto Dupont žica?
-4. **Korisnički interfejs:** da li su ekran, tasteri i enkoder na jednom panelu (opcija B)? Gde je NeoPixel
-   (traka ili prsten, koliko LED-ova)?
-5. **Koja revizija DevKitC-1** (v1.0 ili v1.1, piše na ploči)? Na v1.0 GPIO48 vozi RGB LED.
-6. **Buzzer:** aktivni ili pasivni, magnetni ili piezo, 5 V?
-7. **Baterija:** INA3221 na I2C (gde: ovde ili na power ploči) ili delitelj na GPIO10?
-8. **UART2:** lidar (A2M8 ili A2M12?) ili kamera/PAMI? Ako oba: treći UART (tačka 2.2).
-9. **Izrada:** JLCPCB, 2 sloja? Ručno lemljenje ili montaža kod proizvođača?
-10. **Mehanika:** najveće dimenzije ploče, gde je u robotu, ima li metala oko antene?
-11. **DC-DC:** koji modul i koliko struje daje?
-12. Da li STOP taster treba da ide i direktno na STM32 (radi i kad je ESP zaglavljen, pre nego što WDT
-    restartuje ESP za 3 s)? Ako da: još jedan pin na STM_CTRL konektoru.
+1. **Ekran:** 0,96" (SSD1306, radi sa sadašnjim kodom), 1,3" (obično SH1106: drugi drajver) ili 2,42"
+   (SSD1309, podrazumevano SPI, treba prelemiti na I2C i RES pin)? Kakav je redosled pinova na modulu?
+2. **Buzzer:** pasivni (CEM-1206S, preporuka) ili aktivni (CMI-1275-05TH)?
+3. **Nucleo strana:** koji konektor i tačan redosled (RX, GND, TX)? Treba i konektor za NRST/BOOT0 na toj strani.
+4. **Lidar kabl:** proveriti redosled na komadu (VCC, TX, RX, GND, MOTOCTL) i da li je baš XH.
+5. **Mesto ploče na robotu:** gornja ploča robota (dostupna za tastere, antena gore)? Ima li metala iznad ili
+   pored antene (npr. nosač bikona, lidar)?
+6. **Tasteri:** 12 × 12 mm na ploči sa kapicama, ili veći tasteri na panelu sa kablom?
 
 ---
 
 ## Izvori
-- [ESP32-S3-DevKitC-1 v1.1 user guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html):
-  raspored J1 i J3, RGB LED (v1.0 GPIO48, v1.1 GPIO38), GPIO35-37 i octal PSRAM, „mutually exclusive" napajanje.
-- [ESP32-S3 Schematic Checklist](https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32s3/schematic-checklist.html):
-  strapping, impulsi pri uključenju, ADC1, EN RC.
-- [ESP32-S3 datasheet](https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf):
-  GPIO47/48 (SPICLK_P/N) u domenu VDD_SPI, 1,8 V kod R8V/R16V; interni pull-up ~45 kΩ. Forum:
-  [GPIO47/48 1,8 V](https://esp32.com/viewtopic.php?p=115415).
-- [PCB crtež DevKitC-1](https://dl.espressif.com/dl/PCB_ESP32-S3-DevKitC-1_V1_20210312CB.pdf) (62,74 × 25,4 mm),
-  [KiCad forum: razmak letvica](https://forum.kicad.info/t/pin-distance-in-esp32-s3-devkitc-1/71001).
+- [ESP32-S3-DevKitC-1 v1.1 user guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html)
+- [ESP32-S3 Schematic Checklist](https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32s3/schematic-checklist.html)
+- [ESP32-S3 datasheet](https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf),
+  [forum: GPIO47/48 na 1,8 V](https://esp32.com/viewtopic.php?p=115415)
+- [Waveshare ESP32-S3-DEV-KIT-N8R8 šema](https://files.waveshare.com/wiki/ESP32-S3-DEV-KIT-N8R8/ESP32-S3-DEV-KIT-N8R8-schematic.pdf),
+  [Waveshare dokumentacija](https://docs.waveshare.com/ESP32-S3-DEV-KIT-N8R8),
+  [CIRCUITSTATE pinout](https://www.circuitstate.com/pinouts/waveshare-esp32-s3-dev-kit-nxr8-wi-fi-development-board-pinout-diagram-arduino-reference/)
+- malina314: [N16R8](https://malina314.com/proizvod/esp32-s3-microcontroller-2-4ghz-wi-fi-development-board-240mhz-dual-core-processor-esp32-s3-wroom-1-module-options-for-8mb-16mb-flash/),
+  [N8R8](https://malina314.com/proizvod/esp32-s3-microcontroller-2-4ghz-wi-fi-development-board-240mhz-dual-core-processor-esp32-s3-wroom-1-n8r8-module/),
+  [N16R8-U](https://malina314.com/proizvod/esp32-s3-dev-kit-n16r8-u/)
 - [UM1724 Nucleo-64](https://www.st.com/resource/en/user_manual/um1724-stm32-nucleo64-boards-mb1136-stmicroelectronics.pdf),
-  [šema MB1136](https://pages.hmc.edu/brake/class/e155/fa21/assets/doc/Nucleo-64_Schematic_MB1136.pdf): CN7-7 BOOT0,
-  CN7-14 NRST, BOOT0 podrazumevano 0 (10 kΩ).
-- STM32F401 datasheet: NRST filtrira impulse < 100 ns, propušta > 300 ns; interni pull-up ~40 kΩ.
-  AN2606: USART bootloader na PA9/PA10, prepoznavanje brzine do 115200.
-- [Slamtec RPLIDAR A2 manual](https://manuals.plus/slamtec/rplidar-a2-low-cost-360-degree-laser-range-scanner-manual):
-  5 V, TX/RX 3,3 V, MOTOCTL aktivno visoko, PWM.
-- WS2812B datasheet (VIH = 0,7·VDD), PC817 datasheet (IF 50 mA, VR 6 V), 74AHCT1G125 (VIH 2 V na 5 V),
-  Bourns PEC11 (preporučeno kolo enkodera).
+  [šema MB1136](https://pages.hmc.edu/brake/class/e155/fa21/assets/doc/Nucleo-64_Schematic_MB1136.pdf)
+- [RPLIDAR A2M8 crtež sa utikačem (Robotshop)](https://cdn.robotshop.com/media/R/Rpk/RB-Rpk-27/pdf/rplidar-a2m8-360-laser-scanner-open-box-dimensional-drawing.pdf),
+  [Slamtec A2 manual](https://manuals.plus/slamtec/rplidar-a2-low-cost-360-degree-laser-range-scanner-manual)
+- [SiC417 datasheet (Vishay 69062)](https://datasheet.chipsmall.com/SIC417CD-T1-E3/131889.pdf)
+- DigiKey: [TPD4E1U06DBVR](https://www.digikey.com/en/products/detail/texas-instruments/TPD4E1U06DBVR/3929533),
+  [CEM-1206S](https://www.digikey.ca/en/products/detail/same-sky-formerly-cui-devices/CEM-1206S/412414),
+  [CMI-1275-05TH](https://www.digikey.com.au/en/products/detail/same-sky-formerly-cui-devices/CMI-1275-05TH/25577239)
+- STM32F401 datasheet (NRST filter), AN2606 (USART bootloader), PC817, 74LVC14, Bourns PEC11.
