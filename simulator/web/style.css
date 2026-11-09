@@ -273,3 +273,4 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 .ir-s.off path { fill: none; stroke: #6b7785; stroke-dasharray: 5 4; } .ir-s.off circle { fill: #6b7785; }
 .ir-s.off.hit circle { fill: #ff4d4d; }
 .ir-s.click { cursor: pointer; } .ir-s.click:hover path { stroke-width: 4; }
+.ir-side { fill: #9cd0ff; font: 700 22px system-ui, sans-serif; text-anchor: middle; }

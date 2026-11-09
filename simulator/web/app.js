@@ -107,10 +107,12 @@ let irState = { raw: 0, mask: 0xFF };
 function buildIrSvg() {
   const sens = info.profile.ir_sensors || [], b = info.profile.body;
   const L = b.length, Wd = b.width, R = 70;                    // mm; lepeza 70 mm na slici (domet nije u razmeri)
-  const pad = R + 28, w = Wd + 40, h = L + 2 * pad;
+  const pad = R + 56, w = Wd + 40, h = L + 2 * pad;
   const P = (x, y) => [w / 2 - y, h / 2 - x];                  // robot: x napred = gore, y levo = levo
   const parts = [`<rect x="${(w - Wd) / 2}" y="${pad}" width="${Wd}" height="${L}" rx="10" class="ir-body"/>`,
-    `<path d="M ${w / 2} ${pad + 14} l -14 22 l 28 0 z" class="ir-arrow"/>`];
+    `<path d="M ${w / 2} ${pad + 14} l -14 22 l 28 0 z" class="ir-arrow"/>`,
+    `<text x="${w / 2}" y="22" class="ir-side">▲ FRONT (F)</text>`,
+    `<text x="${w / 2}" y="${h - 10}" class="ir-side">BACK (B) ▼</text>`];
   sens.forEach((s, k) => {
     const [cx, cy] = P(s.x, s.y), dir = s.d > 0 ? -1 : 1, a = 0.42;     // ±24°
     const x1 = cx + R * Math.sin(-a), y1 = cy + dir * R * Math.cos(a), x2 = cx + R * Math.sin(a);
@@ -137,7 +139,8 @@ function renderIr(raw, mask) {
     g.querySelector('text').textContent = name(sens[k]);
   });
   const off = sens.filter((s, k) => !(mask & (1 << k))).map(name), sees = sens.filter((s, k) => raw & (1 << k)).map(name);
-  $('irText').innerHTML = `sees: <b>${sees.join(' ') || '–'}</b> · off: <b>${off.join(' ') || '–'}</b>` +
+  $('irText').innerHTML = `<span class="dim">F1-F4 front, B1-B4 back, left to right as the robot looks forward</span><br>` +
+    `sees: <b>${sees.join(' ') || '–'}</b> · off: <b>${off.join(' ') || '–'}</b>` +
     (blue ? ' <span class="dim">(blue: names as in the tactic, left/right swapped)</span>' : '');
 }
 
