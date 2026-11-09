@@ -2,6 +2,7 @@
 
 Ostavljeno za kad stignu ESP32-S3-DevKitC-1 N16R8 i lidar (RPLIDAR A2). Oznake su iz
 arhitektonskog pregleda ESP koda (vidi `docs/plan-esp.md`) i pregleda ekrana.
+Ploča (pinovi, konektori, NRST/BOOT0, raspored): `docs/esp32s3-pcb-istrazivanje.md` i `docs/esp32s3-pcb-skice.html`.
 
 ## Prelazak na ESP32-S3
 - [ ] **S-1** `config.py` razdvojiti na pinove ploče (`board_wroom32.py`, `board_s3.py`) i ponašanje;
