@@ -1,6 +1,6 @@
 # ESP32-S3 ploča: istraživanje za PCB
 
-Verzija 2, 2026-11-09 (posle odgovora tima). Ulaz: slika „ESP32-S3 · povezivanje", kod u `ESP32/` (WROOM-32 sada),
+Verzija 3, 2026-11-09 (posle drugog kruga odgovora tima). Ulaz: slika „ESP32-S3 · povezivanje", kod u `ESP32/` (WROOM-32 sada),
 `docs/faza4-esp32s3-lidar.md`, `docs/esp-ciscenje-analiza.md`, Nucleo `Kik.ioc`, Waveshare šema ESP32-S3-DEV-KIT.
 Skice i šeme: [`esp32s3-pcb-skice.html`](esp32s3-pcb-skice.html) (pravi ga `esp32s3-pcb-skice-gen.py`).
 U `ESP32/` kodu ništa nije menjano; izmene softvera koje ploča traži su u tački 11, za odobrenje.
@@ -17,15 +17,18 @@ Oznake: **[MORA]** bez toga ploča ne radi pouzdano ili nešto može da izgori; 
 | Baterija | 4S LiPo (12,0-16,8 V), **isti GND** za bateriju i logiku |
 | Korisnički interfejs | **na istoj ploči**: tasteri i enkoder zalemljeni, ekran utaknut u ženski header (ne lemi se) |
 | NeoPixel | **izbačen** (status može da pokazuje RGB LED koji već postoji na ESP ploči, GPIO38) |
-| Lidar | RPLIDAR A2, na UART2 ESP-a |
+| Lidar | **RPLIDAR A2M8-R4**, na UART2 ESP-a; konektor kao na adapteru: PWM, GND, TX, RX, 5V |
 | Baterija (merenje) | glavno: INA3221 na powerboard-u; rezerva: ADC na ESP-u (GPIO10) |
-| TX/RX | dobijaju LED-ove, preko bafera (ne opterećuju liniju) |
+| TX/RX | **bez LED-ova** (ostaju samo LED-ovi 5V, 3V3 i BOOT0) |
+| Ekran | **0,96" SSD1306**, I2C (testiran, radi sa sadašnjim kodom) |
+| Buzzer | **pasivni**, Same Sky CEM-1206S, PWM |
 | USB | samo za hitno flešovanje; inače sve preko WiFi-ja |
 | PCB | 2 sloja, **manja od 100 × 100 mm**, PCBWay, ručno lemljenje, delovi sa DigiKey-a |
-| Nucleo | posebna ploča, kabl < 0,5 m; na Nucleo strani verovatno redosled RX, GND, TX |
+| Nucleo | posebna ploča, kabl < 0,5 m; **JST XH 3** i za UART (RX, GND, TX) i za NRST/BOOT0 |
+| Raspored ploče | skica iz verzije 2 odbačena; čeka mehaničke podatke (tačka 10) |
 | DC-DC | sopstveni, SiC417 (Vishay, do 10 A, ulaz do 28 V), na powerboard-u |
 | STOP taster | ostaje samo na ESP-u (ne ide direktno na STM32) |
-| ESP ploča | kupuje se kod malina314: **Waveshare ESP32-S3-DEV-KIT-N16R8** (tačka 1) |
+| ESP ploča | **2 × Waveshare ESP32-S3-DEV-KIT-N16R8** (tačka 1) |
 
 ---
 
@@ -103,36 +106,23 @@ Zašto ovako (detaljno u verziji 1, ostaje isto):
 
 ## 3. NRST i BOOT0 (odvojen konektor) i UART ka Nucleo-u
 
-- **J_UART** (JST-PH 3): 1 TX (ESP → PA10), 2 GND, 3 RX (ESP ← PA9). Odgovara Nucleo strani „RX, GND, TX" sa
-  kablom 1:1 (pin 1 na pin 1). GND u sredini: obrnut utikač samo zameni TX i RX, ništa ne kvari. **Proveriti
-  redosled na Nucleo strani pre nego što se napravi kabl.**
-- **J_CTRL** (JST-PH 3): 1 NRST, 2 GND, 3 BOOT0. Na Nucleo-u: CN7-14 (ili CN6-3), CN7-8 (GND), CN7-7.
+- **J_UART** (JST XH 3, B3B-XH-A): 1 TX (ESP → PA10), 2 GND, 3 RX (ESP ← PA9). Nucleo strana je XH 3 sa
+  redosledom RX, GND, TX, pa kabl ide 1:1 (pin 1 na pin 1). GND u sredini: obrnut utikač samo zameni TX i RX.
+- **J_CTRL** (JST XH 3, B3B-XH-A): 1 NRST, 2 GND, 3 BOOT0 (na Nucleo strani isti XH 3; redosled uskladiti pri
+  izradi kabla). Na Nucleo-u: CN7-14 (ili CN6-3), CN7-8 (GND), CN7-7.
   Isti profil (GND u sredini), pa zamena kablova sa J_UART ne kvari ništa.
 - NRST: GPIO15 → 1 kΩ → gejt 2N7002, 100 kΩ gejt-GND, drejn → NRST, sors → GND.
 - BOOT0: GPIO16 → 470 Ω → BOOT0, 10 kΩ na GND (Nucleo ima i svoj ~10 kΩ; zajedno ≈ 3,0 V kad je ESP na 1).
 - Kabl < 0,5 m na 921600 baud-a: 470 Ω × ~40 pF ≈ 20 ns, bit traje 1,08 µs. Uvrnuti TX sa GND-om ako je kabl duži.
 
-### 3.1 LED-ovi za TX i RX (ne opterećuju liniju)
+### 3.1 LED-ovi
 
-LED direktno na liniji je loš izbor: opterećuje liniju (1-3 mA), na 921600 baud-a bajt traje ~11 µs pa se
-treptaj ne vidi, a LED sa linije na GND (kao na slici) svetli stalno jer UART miruje u jedinici.
+TX i RX nemaju LED (odluka 9. 11.). Ostaju: **BOOT0** (žuti; 2N7002, gejt na liniji BOOT0, LED + 1 kΩ od 3V3
+na drejn), **5V** i **3V3** (zeleni). Stanje veze se vidi na ekranu (stranica VEZA).
 
-Rešenje: jedan **SN74LVC14ADR** (6 Schmitt invertora, SOIC-14) za oba kanala, sa „produživačem impulsa":
-
-    linija ──> [LVC14 A] ──>|── 1N4148W ──┬───────┬──> [LVC14 B] ──> 680 Ω ── LED ── 3V3
-    (ESP strana R)                     220 nF    220 kΩ           (LED svetli kad je izlaz B na 0)
-                                          │       │
-                                         GND     GND
-
-- Ulaz invertora na liniji: ~4 pF i < 1 µA, linija se ne oseća.
-- Nula na liniji (start bit, podaci) → izlaz A = 1 → kondenzator se puni preko diode za nekoliko µs → izlaz
-  B = 0 → LED svetli. Posle poslednjeg bajta kondenzator se prazni kroz 220 kΩ (τ ≈ 48 ms) → LED se gasi
-  posle ~50 ms. Svaki okvir je vidljiv treptaj.
-- RX (STATUS na 20 Hz) izgleda kao skoro stalno svetlo kad STM32 šalje; TX trepće sa PING-om.
-- Dva preostala invertora: ulaze vezati na GND.
-- Ulaz se uzima na ESP strani rednog otpornika (posle 470 Ω), da otpornik ograničava struju kad je ESP ploča bez
-  napajanja.
-- **BOOT0 LED** (žuti): 2N7002, gejt na liniji BOOT0, LED + 1 kΩ od 3V3 na drejn. **5V i 3V3 LED** (zeleni).
+**Pažnja kod konektora:** J_UART i J_CTRL (XH 3) i LIDAR (XH 5) su iste serije. Utikač XH 3 može da se gurne u
+XH 5 sa strane; tada bi 5 V lidara mogao da dođe na liniju ka Nucleo-u. Postaviti ih daleko jedan od drugog,
+jasno obeležiti, a po želji J_UART i J_CTRL obojiti (crvena/plava kućišta) ili uzeti XH sa bočnim ključem.
 
 ---
 
@@ -170,7 +160,7 @@ bez razlivenog bakra između strana optokaplera.
 Obe vrste postoje kao **magnetne** (kalem i membrana, mala otpornost, traže tranzistor i diodu, glasne već na
 5 V) i **piezo** (kristal, skoro bez struje, tiše na 5 V, bez diode ali sa otpornikom paralelno).
 
-**Preporuka: pasivni magnetni (CEM-1206S)**, PWM na 2,4 kHz. Plan K-2 (1 kratak = potvrda, 2 = upozorenje,
+**Odluka: pasivni magnetni (CEM-1206S)**, PWM na 2,4 kHz. Plan K-2 (1 kratak = potvrda, 2 = upozorenje,
 3 = greška) radi i sa aktivnim, ali pasivni daje i različite tonove (greška niže, potvrda više). Kolo je isto
 za obe: AO3400A (ili 2N7002), 100 Ω u gejtu, 100 kΩ gejt-GND, 1N4148W preko buzzera. Na footprint-u ostaviti
 rupe za oba razmaka nožica (proveriti u datasheet-u).
@@ -240,20 +230,20 @@ ostalih, ili isti profil (pin za GND na istom mestu), pa pogrešan kabl ne pušt
 |---|---|---|
 | PWR_IN | JST VH 2 (B2P-VH) | 1 +5V, 2 GND |
 | BAT | stezaljka 3,5 mm, 3 pina (npr. Phoenix MKDS 1/3-3,5, 1751251; proveriti) | 1 GND, 2 VBAT, 3 VMOT |
-| J_UART | JST PH 3 (B3B-PH-K-S) | 1 TX→PA10, 2 GND, 3 RX←PA9 |
-| J_CTRL | JST PH 3 (B3B-PH-K-S) | 1 NRST, 2 GND, 3 BOOT0 |
-| LIDAR | JST XH 5 (B5B-XH-A) | po kablu A2: 1 VCC 5V, 2 TX lidara (→ GPIO21), 3 RX lidara (← GPIO47), 4 GND, 5 MOTOCTL |
+| J_UART | JST XH 3 (B3B-XH-A) | 1 TX→PA10, 2 GND, 3 RX←PA9 (Nucleo: RX, GND, TX) |
+| J_CTRL | JST XH 3 (B3B-XH-A) | 1 NRST, 2 GND, 3 BOOT0 |
+| LIDAR | JST XH 5 (B5B-XH-A) | kao adapter A2M8-R4: 1 PWM (MOTOCTL), 2 GND, 3 TX lidara (→ GPIO21), 4 RX lidara (← GPIO47), 5 5V |
 | SENS1, SENS2 | JST PH 5 (B5B-PH-K-S) | 1 GND, 2 3V3, 3 SCL1, 4 SDA1, 5 INT |
 | EXP | kutijasti 2 × 8 (npr. On Shore 302-S161) | tačka 9 |
 | OLED | ženski header 1 × 4 (Sullins PPTC041LFBN-RC) + 2-4 rupe M2 za odstojnike | po modulu, vidi ispod |
 | ESP ploča | 2 × ženski header 1 × 22 (Sullins PPTC221LFBN-RC) | |
 
-- **LIDAR:** RPLIDAR A2 ima utikač XH 5-pin, redosled (Robotshop crtež, kontakti okrenuti nagore, s leva):
-  VCC (crvena), TX (žuta), RX (zelena), GND (crna), PWM/MOTOCTL (plava). Ploča prima originalni kabl bez
-  adaptera. **Proveriti na komadu pre narudžbe PCB-a.** Jedini XH na ploči, pa nema mešanja.
-- **OLED:** moduli 0,96" postoje sa redosledom GND-VCC-SCL-SDA i VCC-GND-SCL-SDA. Na ploči dva lemna
-  kratkospojnika (SJ1, SJ2) koji biraju da li je pin 1 GND ili 3V3, a pin 2 obrnuto. Zalemiti prema modulu koji
-  se kupi. Rupe M2 da modul ne visi samo na header-u.
+- **LIDAR:** na adapteru A2M8-R4 piše PWM, GND, TX, RX, 5V. To je isti redosled kao na utikaču lidara
+  (Robotshop crtež: VCC, TX, RX, GND, PWM), gledano s druge strane, pa su TX i RX nazvani iz ugla lidara: TX
+  lidara ide na GPIO21 (RX ESP-a). Header na ploči postaviti **istim redom i u istoj orijentaciji kao na
+  adapteru**, pa kabl ide bez prepravke. Brza provera: lidar samo na 5V i GND, pin koji drži ~3,3 V je TX lidara.
+- **OLED:** 0,96" SSD1306 koji je testiran. Footprint (redosled pinova i rupe M2) uzeti sa tog modula; lemni
+  kratkospojnici za GND/VCC nisu potrebni jer je modul poznat.
 
 ---
 
@@ -275,32 +265,25 @@ I2C1: PCA9685 (servoi), MCP23017 (GPIO), ADS1115 (analogno), TCA9548A (više ToF
 
 ---
 
-## 10. Raspored ploče (100 × 100 mm, korisnički interfejs na ploči)
+## 10. Raspored ploče
 
-Skica u HTML fajlu (slika 4), 1 mm = 5 px. Gornja strana ploče je gornja strana robota.
+Skica iz verzije 2 je odbačena (nema smisla za mehaniku robota). Novi raspored se crta kad budu poznati
+mehanički podaci (pitanja u tački 13). Do tada važe samo ograničenja koja ne zavise od mehanike:
 
-- **ESP ploča** uspravno uz desnu ivicu (x 72,6-98, y 0-62,7), **antena na gornjoj ivici** iznad izreza u ploči
-  između letvica (~19,5 × 8 mm), bez bakra i vodova ~10 mm oko antene (x ≥ 65, y ≤ 16). WiFi je glavni put za
-  programiranje, pa antena ima prednost.
-- **USB-C** gleda nadole, u ploču: ispod njega „prolaz" (x 78-93, do donje ivice) bez visokih delova, samo SMD,
-  da utikač može da uđe u hitnom slučaju.
-- **Gore levo: ekran** (0,96" modul 27 × 28 mm, mesto za 1,3" 36 × 34 mm).
-- **Gornja ivica, između ekrana i antene:** J_UART i J_CTRL; ispod njih ESD, redni otpornici, NRST MOSFET,
-  LVC14 i LED-ovi TX, RX, BOOT0 (blizu pinova 15-18 na J1).
-- **Sredina:** tri tastera 12 × 12 mm (STOP crveni levo, NAZAD žuti, OK zeleni) i enkoder (Ø dugmeta 20 mm)
-  desno od njih, ~4 mm od letvice ESP-a.
-- **Levo dole:** konektor za proširenje (uspravno), buzzer i njegov drajver.
-- **Donja ivica:** BAT (zona baterije, levo), PWR_IN, SENS1, SENS2, LIDAR (uz prolaz za USB).
-- **Rupe M3:** (4, 4), (4, 96), (96, 96), (96, 70). Gore desno nema rupe: tu je antena.
-- 5 V vodom ≥ 1,5 mm od PWR_IN do grana (ESP 5V pin J1-21, lidar, proširenje, buzzer).
+- **Antena ESP-a na ivici ploče**, bez bakra i vodova ~10 mm oko nje, izrez u ploči između letvica; ništa metalno
+  iznad ni pored antene. WiFi je glavni put za programiranje.
+- **USB-C ESP-a dostupan** (hitno flešovanje): ili na ivici, ili prolaz bez visokih delova do ivice.
+- **Ekran, tasteri i enkoder** na strani okrenutoj korisniku; dugme enkodera (Ø ~20 mm) ne sme da udara u ESP
+  ploču ni ekran.
+- **ESD diode ≤ 5 mm od konektora**; redni otpornici odmah iza njih.
+- **Zona baterije** (BAT stezaljka, Zener, 1,5 kΩ, LED strana PC817, 100 kΩ) u jednom uglu, ≥ 2 mm do ostalog
+  bakra.
+- **J_UART i J_CTRL daleko od LIDAR konektora** (iste serije, vidi 3.1).
+- Pinovi za tastere, E-STOP, STM32, ekran, enkoder i buzzer su na J1 (levo), za lidar, senzore i proširenje na J3
+  (desno): konektore staviti na odgovarajuću stranu ESP ploče.
+- **Rupe M3** na mestima koja traži šasija; ploča manja od 100 × 100 mm, 2 sloja, donji sloj ceo GND, 5 V ≥ 1,5 mm.
 
-Pravila za crtanje (ostaju iz verzije 1): donji sloj ceo GND (izrez samo kod antene), merne tačke (5V, 3V3,
-GND, TX, RX, NRST, BOOT0, SDA0, SCL0, GPIO7, VBAT), silkscreen sa rasporedom pinova pored svakog konektora i
-nazivima tastera, 0805 i SOT-23 za ručno lemljenje. Držači kućišta enkodera i tastera na GND.
-
-Opcija za v2 (posle sezone): ESP32-S3-WROOM-1-N16R8 zalemljen direktno na ploču (bez letvica, niža i otpornija
-ploča), sopstveni 3V3 regulator i USB-C sa ESD-om. Waveshare ploča ima i polu-rupe na ivici, pa može i da se
-zalemi ravno na ploču, ali se onda teško menja.
+Opcija za v2 (posle sezone): ESP32-S3-WROOM-1-N16R8 zalemljen direktno na ploču, bez letvica.
 
 ---
 
@@ -308,10 +291,10 @@ zalemi ravno na ploču, ali se onda teško menja.
 
 1. **board_s3.py** (S-1): pinovi iz tačke 2, `UART_ID=1`, `UART2_TX=47`, `UART2_RX=21`, `LIDAR_MOTOCTL=42`,
    `I2C1_SDA=41`, `I2C1_SCL=40`, `SENS_INT=39`, `VBAT_ADC=10` (+ odnos delitelja 118/18), `RGB_LED=38`,
-   `STM_NRST_ACTIVE=1`, `ESTOP_ACTIVE=1`, `BUZZER=14`; T1/T2/T3 → `BTN_BACK/BTN_OK/BTN_STOP`.
+   `STM_NRST_ACTIVE=1`, `ESTOP_ACTIVE=1`, `BUZZER=14` (pasivni, PWM 2,4 kHz); T1/T2/T3 → `BTN_BACK/BTN_OK/BTN_STOP`.
 2. `match.StmReset` i `stmflash`: NRST sa obrnutom logikom (MOSFET).
 3. `stmflash`: bootloader STM32 uvek na 115200 (AN2606), nezavisno od `UART_BAUD`.
-4. `screen.py`: I2C frekvencija iz board fajla (800 kHz sa 2,2 kΩ). Ako ekran bude 1,3" sa SH1106: drugi drajver.
+4. `screen.py`: I2C frekvencija iz board fajla (800 kHz sa 2,2 kΩ; ekran 0,96" SSD1306 ostaje).
 5. E-STOP (GPIO7) na PROVERA/ROBOT i prekid taktike; VBAT na PROVERA kad INA3221 ne odgovara.
 6. RGB LED na ESP ploči (GPIO38) kao status umesto NeoPixel-a (K-1, jedna boja po stanju); buzzer (K-2) PWM 2,4 kHz.
 7. Lidar (L-1..L-3): UART2 rxbuf ≥ 4 KB, MOTOCTL kao PWM 20-25 kHz.
@@ -329,32 +312,30 @@ Cene proveriti na DigiKey-u; MPN su delovi koji se tamo prodaju (osim gde piše 
 | N-MOSFET mali | 2N7002 (npr. onsemi 2N7002LT1G, SOT-23) | 2 | NRST, BOOT0 LED |
 | N-MOSFET buzzer | AOS AO3400A (SOT-23) | 1 | buzzer |
 | P-MOSFET polaritet | AOS AO3401A (SOT-23) | 1 | PWR_IN |
-| Schmitt invertor | TI SN74LVC14ADR (SOIC-14) | 1 | TX/RX LED |
 | Optokapler | Sharp PC817X1NSZ1B (DIP-4) | 1 | E-STOP |
 | Zener 8,2 V | Diodes BZT52C8V2 (SOD-123) | 1 | E-STOP |
-| Dioda signalna | 1N4148W (SOD-123) | 4 | E-STOP, buzzer, LED ×2 |
+| Dioda signalna | 1N4148W (SOD-123) | 2 | E-STOP, buzzer |
 | Schottky | B5819W (SOD-123) | 1 | 5V → ESP ploča |
 | TVS 5 V | Littelfuse SMBJ6.0A (SMB) | 1 | PWR_IN |
 | PTC | Bourns MF-MSMF200-2, MF-MSMF110-2, MF-MSMF050-2 (1812) | 1+1+1 | PWR_IN, lidar, EXP |
-| Buzzer | Same Sky CEM-1206S (pasivni) ili CMI-1275-05TH (aktivni) | 1 | tačka 5 |
+| Buzzer | Same Sky CEM-1206S (pasivni) | 1 | tačka 5 |
 | Enkoder | Bourns PEC11R-4220F-S0024 (20 mm osovina, taster) | 1 | |
 | Tasteri | Omron B3F-4055 (12 × 12) + kapice B32 u boji | 3 | |
-| Konektori | B2P-VH, B3B-PH-K-S ×2, B5B-PH-K-S ×2, B5B-XH-A, 302-S161, stezaljka 3 pina 3,5 mm | | tačka 8 |
+| Konektori | B2P-VH, B3B-XH-A ×2, B5B-PH-K-S ×2, B5B-XH-A, 302-S161, stezaljka 3 pina 3,5 mm | | tačka 8 |
 | Header | Sullins PPTC221LFBN-RC ×2, PPTC041LFBN-RC ×1 | | ESP, OLED |
-| Otpornici, kondenzatori, LED | 0805 (LED 0805 zeleni ×2, crveni/žuti/plavi) | | |
+| Otpornici, kondenzatori, LED | 0805 (LED zeleni ×2 za 5V/3V3, žuti ×1 za BOOT0) | | |
 
 ---
 
-## 13. Otvorena pitanja
+## 13. Otvorena pitanja (za raspored ploče)
 
-1. **Ekran:** 0,96" (SSD1306, radi sa sadašnjim kodom), 1,3" (obično SH1106: drugi drajver) ili 2,42"
-   (SSD1309, podrazumevano SPI, treba prelemiti na I2C i RES pin)? Kakav je redosled pinova na modulu?
-2. **Buzzer:** pasivni (CEM-1206S, preporuka) ili aktivni (CMI-1275-05TH)?
-3. **Nucleo strana:** koji konektor i tačan redosled (RX, GND, TX)? Treba i konektor za NRST/BOOT0 na toj strani.
-4. **Lidar kabl:** proveriti redosled na komadu (VCC, TX, RX, GND, MOTOCTL) i da li je baš XH.
-5. **Mesto ploče na robotu:** gornja ploča robota (dostupna za tastere, antena gore)? Ima li metala iznad ili
-   pored antene (npr. nosač bikona, lidar)?
-6. **Tasteri:** 12 × 12 mm na ploči sa kapicama, ili veći tasteri na panelu sa kablom?
+1. **Gde je ploča na robotu** i kako je okrenuta: gornja ploča, bočni panel? Koja strana gleda ka korisniku?
+2. **Gde treba da budu ekran, tasteri i enkoder** (npr. ekran gore levo, tasteri ispod) i koliko mesta zauzimaju
+   rupe za šasiju?
+3. **Odakle dolaze kablovi:** sa koje strane ploče su Nucleo, powerboard (5 V, baterija, E-STOP), lidar i senzori?
+4. **Šta je iznad i oko ploče** (lidar, nosač bikona, metal), zbog antene?
+5. Najveća visina delova (ESP na letvicama je ~20 mm, ekran ~12 mm, dugme enkodera ~25 mm)?
+6. Ako imate crtež ili fotografiju mesta u CAD-u (Onshape), pošaljite: raspored se onda crta po njemu.
 
 ---
 
@@ -377,4 +358,4 @@ Cene proveriti na DigiKey-u; MPN su delovi koji se tamo prodaju (osim gde piše 
 - DigiKey: [TPD4E1U06DBVR](https://www.digikey.com/en/products/detail/texas-instruments/TPD4E1U06DBVR/3929533),
   [CEM-1206S](https://www.digikey.ca/en/products/detail/same-sky-formerly-cui-devices/CEM-1206S/412414),
   [CMI-1275-05TH](https://www.digikey.com.au/en/products/detail/same-sky-formerly-cui-devices/CMI-1275-05TH/25577239)
-- STM32F401 datasheet (NRST filter), AN2606 (USART bootloader), PC817, 74LVC14, Bourns PEC11.
+- STM32F401 datasheet (NRST filter), AN2606 (USART bootloader), PC817, Bourns PEC11.

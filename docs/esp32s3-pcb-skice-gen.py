@@ -150,7 +150,7 @@ def schematic():
     o = ['<svg viewBox="0 0 760 500" role="img" aria-labelledby="f2t">',
          '<title id="f2t">Šema: NRST preko 2N7002, BOOT0 sa pull-down-om, UART sa rednim otpornicima, dva odvojena konektora sa GND u sredini</title>',
          '<text x="40" y="30" class="t11 c-muted b">ESP32-S3</text>',
-         '<text x="584" y="30" class="t11 c-muted b" text-anchor="middle">J_CTRL · PH-3</text>',
+         '<text x="584" y="30" class="t11 c-muted b" text-anchor="middle">J_CTRL · XH-3</text>',
          '<text x="640" y="30" class="t11 c-muted b">→ Nucleo</text>']
     o.append('<rect x="560" y="42" width="48" height="108" rx="3" class="conn"/>')
     for yy, n in ((60, "1 NRST"), (95, "2 GND"), (130, "3 BOOT0")):
@@ -177,7 +177,7 @@ def schematic():
     o.append('<text x="40" y="267" class="t9 c-muted">1 = bootloader (samo za flešovanje)</text>')
     o.append('<text x="40" y="284" class="t9 c-muted">Nucleo ima svoj ~10 kΩ → ≈ 3,0 V na BOOT0</text>')
     o.append('<line x1="40" y1="318" x2="720" y2="318" class="sep"/>')
-    o.append('<text x="584" y="340" class="t11 c-muted b" text-anchor="middle">J_UART · PH-3</text>')
+    o.append('<text x="584" y="340" class="t11 c-muted b" text-anchor="middle">J_UART · XH-3</text>')
     o.append('<rect x="560" y="352" width="48" height="108" rx="3" class="conn"/>')
     for yy, n in ((370, "1 TX"), (405, "2 GND"), (440, "3 RX")):
         o.append(f'<circle cx="560" cy="{yy}" r="3" class="pad"/>')
@@ -190,20 +190,18 @@ def schematic():
     o.append(wire("M118,370 H170") + res_h(170, 370, "R5 470 Ω") + wire("M210,370 H560"))
     o.append('<text x="40" y="444" class="t11 c-stm b">GPIO18 RX</text>')
     o.append(wire("M118,440 H170") + res_h(170, 440, "R6 470 Ω") + wire("M210,440 H560"))
-    o.append(dot(140, 370) + dot(140, 440) + wire("M140,370 V386") + wire("M140,440 V456"))
-    o.append('<text x="146" y="392" class="t9 c-muted">→ LED TX</text><text x="146" y="462" class="t9 c-muted">→ LED RX</text>')
     o.append('<rect x="488" y="355" width="30" height="100" rx="3" class="esd"/>')
     o.append('<text x="503" y="470" class="t9 c-esd" text-anchor="middle">U_ESD1</text>')
     o.append('<path d="M440,364 l10,6 l-10,6" class="wire"/>')
     o.append('<path d="M450,434 l-10,6 l10,6" class="wire"/>')
-    o.append('<text x="40" y="490" class="t9 c-muted">ESD (TPD4E1U06, sa NRST i BOOT0) odmah uz konektore; LED-ovi se uzimaju sa ESP strane otpornika (slika 3).</text>')
+    o.append('<text x="40" y="490" class="t9 c-muted">ESD (TPD4E1U06, isti čip štiti i NRST i BOOT0) odmah uz konektore, pre rednih otpornika.</text>')
     o.append('</svg>')
     return "\n".join(o)
 
 
 def schematic2():
-    o = ['<svg viewBox="0 0 760 470" role="img" aria-labelledby="f3t">',
-         '<title id="f3t">Šema: konektor baterije, delitelj za VBAT, E-STOP preko Zener-a i PC817, LED za TX/RX sa produživačem impulsa</title>',
+    o = ['<svg viewBox="0 0 760 300" role="img" aria-labelledby="f3t">',
+         '<title id="f3t">Šema: konektor baterije, delitelj za VBAT, E-STOP preko Zener-a i PC817</title>',
          '<text x="40" y="26" class="t11 c-muted b">BAT · stezaljka 3,5 mm</text>',
          '<rect x="30" y="38" width="320" height="182" rx="6" class="zone"/>',
          '<text x="190" y="214" class="t9 c-estop" text-anchor="middle">zona baterije · ≥ 2 mm do ostalog bakra</text>',
@@ -238,134 +236,10 @@ def schematic2():
     o.append(dot(530, 250) + cap_v(530, 250, "100 nF"))
     o.append('<text x="606" y="254" class="t11 c-estop b">GPIO7 · E-STOP</text>')
     o.append('<text x="606" y="270" class="t9 c-muted">0 = motori pod naponom</text><text x="606" y="282" class="t9 c-muted">1 = E-STOP ili prekinut kabl</text>')
-    # LED produživač
-    o.append('<line x1="40" y1="300" x2="720" y2="300" class="sep"/>')
-    o.append('<text x="40" y="322" class="t11 c-muted b">LED za TX ili RX (SN74LVC14, drugi kanal isti)</text>')
-    o.append('<text x="40" y="364" class="t10 c-stm b">linija UART</text><text x="40" y="377" class="t9 c-muted">(ESP strana R)</text>')
-    o.append(wire("M118,360 H170"))
-    o.append('<path d="M170,344 L170,376 L198,360 Z" class="sym"/><circle cx="202" cy="360" r="4" class="sym"/>')
-    o.append('<text x="184" y="338" class="t9 c-ink" text-anchor="middle">LVC14 A</text>')
-    o.append(wire("M206,360 H240"))
-    o.append('<path d="M240,350 L240,370 L258,360 Z M258,350 V370" class="wire"/>')
-    o.append('<text x="249" y="344" class="t9 c-ink" text-anchor="middle">1N4148W</text>')
-    o.append(wire("M258,360 H420"))
-    o.append(dot(310, 360) + cap_v(310, 360, "220 nF"))
-    o.append(dot(380, 360) + wire("M380,360 V372") + res_v(380, 372, "220 kΩ") + wire("M380,406 V414") + gnd(380, 414))
-    o.append('<path d="M420,344 L420,376 L448,360 Z" class="sym"/><circle cx="452" cy="360" r="4" class="sym"/>')
-    o.append('<text x="434" y="338" class="t9 c-ink" text-anchor="middle">LVC14 B</text>')
-    o.append(wire("M456,360 H500"))
-    o.append('<path d="M520,350 L520,370 L500,360 Z M500,350 V370" class="ledsym"/>')
-    o.append('<path d="M512,346 l6,-8 M518,348 l6,-8" class="wire"/>')
-    o.append(wire("M520,360 H560") + res_h(560, 360, "680 Ω") + wire("M600,360 H630"))
-    o.append('<text x="636" y="364" class="t10 c-ink">3V3</text>')
-    o.append('<text x="40" y="446" class="t9 c-muted">0 na liniji → A = 1 → C se puni → B = 0 → LED svetli; posle poslednjeg bajta</text>')
-    o.append('<text x="40" y="458" class="t9 c-muted">gasi se za ~50 ms (220 kΩ · 220 nF). Ulaz A: ~4 pF, &lt; 1 µA, liniju ne oseća.</text>')
     o.append('</svg>')
     return "\n".join(o)
 
 
-def layout():
-    X = lambda mm: 110 + 5 * mm
-    Y = lambda mm: 50 + 5 * mm
-    o = ['<svg viewBox="0 0 760 620" role="img" aria-labelledby="fat">',
-         '<title id="fat">Raspored ploče 100 × 100 mm: ESP ploča desno sa antenom na gornjoj ivici, ekran, tasteri i enkoder levo, konektori na donjoj ivici</title>',
-         '<defs>',
-         '<pattern id="hdrL" x="473" y="67.05" width="12.7" height="12.7" patternUnits="userSpaceOnUse"><circle cx="6.35" cy="6.35" r="2.4" class="padf"/></pattern>',
-         '<pattern id="hdrR" x="587.3" y="67.05" width="12.7" height="12.7" patternUnits="userSpaceOnUse"><circle cx="6.35" cy="6.35" r="2.4" class="padf"/></pattern>',
-         '<pattern id="exp2" x="110" y="379.2" width="45" height="12.7" patternUnits="userSpaceOnUse"><rect x="13" y="4" width="5" height="5" class="padf"/><rect x="26" y="4" width="5" height="5" class="padf"/></pattern>',
-         '</defs>',
-         '<rect x="110" y="50" width="500" height="500" rx="10" class="mask"/>',
-         f'<rect x="{X(65)}" y="50" width="{5 * 35}" height="80" class="keepout"/>',
-         f'<rect x="{X(78)}" y="{Y(63)}" width="75" height="{550 - Y(63)}" class="lane"/>',
-         f'<text x="{X(85.5)}" y="{Y(84)}" class="t9 c-silk" text-anchor="middle">prolaz</text><text x="{X(85.5)}" y="{Y(86.5)}" class="t9 c-silk" text-anchor="middle">za USB</text>',
-         f'<rect x="{X(75.5)}" y="46" width="98" height="44" class="cut"/>',
-         hole(X(4), Y(4)), hole(X(4), Y(96)), hole(X(96), Y(96)), hole(X(96), Y(70))]
-    # 5 V sabirnica
-    o.append('<path d="M330,465 H462 V327 H479 M440,465 V470 M235,450 V401" class="bus"/>')
-    # ekran
-    o.append(f'<rect x="{X(6)}" y="{Y(4)}" width="180" height="170" rx="4" class="reserve"/>')
-    o.append(f'<text x="{X(7)}" y="{Y(37)}" class="t9 c-silk">mesto za 1,3"</text>')
-    o.append(f'<rect x="{X(8)}" y="{Y(5)}" width="136.5" height="139" rx="3" class="oledpcb"/>')
-    o.append(f'<rect x="{X(9)}" y="{Y(11)}" width="126" height="76" rx="2" class="glass"/>')
-    o.append(f'<text x="{X(21.6)}" y="{Y(19)}" class="t11 c-oled" text-anchor="middle">OLED 0,96"</text><text x="{X(21.6)}" y="{Y(22.5)}" class="t9 c-oled" text-anchor="middle">u ženskom header-u</text>')
-    o.append(f'<rect x="{X(16.6)}" y="{Y(5.6)}" width="51" height="13" class="hdr"/>')
-    for k in range(4):
-        o.append(f'<circle cx="{X(17.87) + k * 12.7:.1f}" cy="{Y(6.9):.1f}" r="2.4" class="padf"/>')
-    for (a, b) in ((10, 7), (33.3, 7), (10, 30.8), (33.3, 30.8)):
-        o.append(f'<circle cx="{X(a):.1f}" cy="{Y(b):.1f}" r="5.5" class="drill"/>')
-    o.append(f'<text x="{X(21.6)}" y="{Y(34)}" class="t9 c-silk" text-anchor="middle">SJ1/SJ2: GND↔3V3</text>')
-    # STM konektori i blok
-    o.append(conn(X(44), 50, 40, 30) + conn(X(54), 50, 40, 30))
-    o.append(block(X(43), Y(8), 105, 22, ["U_ESD1 · 470Ω ×3"]))
-    o.append(block(X(43), Y(13.4), 105, 22, ["2N7002 · 10k · 1k"]))
-    o.append(block(X(43), Y(18.8), 105, 22, ["SN74LVC14 · RC"]))
-    for k, (cls, t) in enumerate((("ledg", "TX"), ("ledg", "RX"), ("ledy", "B0"))):
-        x = X(45 + 5 * k)
-        o.append(f'<rect x="{x}" y="{Y(24.6)}" width="10" height="6" rx="1" class="{cls}"/>')
-        o.append(f'<text x="{x + 5}" y="{Y(28.2)}" class="t9 c-silk" text-anchor="middle">{t}</text>')
-    o.append(block(X(43), Y(31), 118, 22, ["I2C0 2k2 · GPIO7 10k"]))
-    # tasteri i enkoder
-    for k, (cls, t) in enumerate((("f-estop", "STOP"), ("f-yel", "NAZAD"), ("f-btn", "OK"))):
-        x = X(3 + 15 * k)
-        o.append(f'<rect x="{x}" y="{Y(43)}" width="60" height="60" rx="3" class="btnbody"/>')
-        o.append(f'<circle cx="{x + 30}" cy="{Y(49)}" r="23" class="{cls}"/>')
-        o.append(f'<text x="{x + 30}" y="{Y(49) + 4}" class="t10 c-cap b" text-anchor="middle">{t}</text>')
-    o.append(f'<rect x="{X(51.8)}" y="{Y(42.3)}" width="62" height="67" rx="3" class="btnbody"/>')
-    o.append(f'<circle cx="{X(58)}" cy="{Y(49)}" r="50" class="knob"/><circle cx="{X(58)}" cy="{Y(49)}" r="34" class="knob2"/>')
-    o.append(f'<line x1="{X(58)}" y1="{Y(49) - 30}" x2="{X(58)}" y2="{Y(49) - 16}" class="knobmark"/>')
-    o.append(f'<text x="{X(58)}" y="{Y(49) + 4}" class="t10 c-ink b" text-anchor="middle">ENK.</text>')
-    o.append(block(X(3), Y(58.5), 210, 20, ["1k · 10k · 100nF ×3 · kućišta na GND"]))
-    o.append(block(X(49), Y(58.5), 90, 20, ["10k · 10nF ×2"]))
-    # dole levo
-    o.append(conn(110, Y(62), 45, 140, '<rect x="110" y="379.2" width="45" height="101.6" fill="url(#exp2)"/>'))
-    o.append(block(X(11), Y(63), 75, 36, ["U_ESD4/5", "PTC 0,5A"]))
-    o.append(f'<circle cx="{X(34)}" cy="{Y(72)}" r="30" class="buzz"/><circle cx="{X(34)}" cy="{Y(72)}" r="5" class="drill"/>')
-    o.append(f'<text x="{X(34)}" y="{Y(72) - 12}" class="t9 c-silk" text-anchor="middle">BUZZER</text>')
-    o.append(block(X(42), Y(68), 70, 30, ["AO3400A", "1N4148W"]))
-    # zona baterije, napajanje, konektori dole
-    o.append('<rect x="158" y="438" width="64" height="110" rx="4" class="zone"/>')
-    o.append('<text x="190" y="447" class="t9 c-estop" text-anchor="middle">zona bat.</text>')
-    o.append(block(X(10.5), Y(80), 56, 46, ["PC817", "Z8V2·1k5", "100k/18k"]))
-    o.append(block(X(23), Y(80), 105, 40, ["AO3401A · PTC 2A", "SMBJ6.0A · 100µF", "B5819W · LED 5V/3V3"]))
-    o.append(block(X(35), Y(88.5), 130, 18, ["U_ESD3 · 4k7 · 100nF"]))
-    o.append(block(X(63), Y(84), 74, 34, ["U_ESD2 · 470Ω", "PTC 1,1A"]))
-    o.append(conn(X(11), Y(92.4), 52.5, 38, '<circle cx="178" cy="531" r="5" class="screw"/><circle cx="191" cy="531" r="5" class="screw"/><circle cx="204" cy="531" r="5" class="screw"/>'))
-    o.append(conn(X(23), Y(90.2), 40, 49))
-    o.append(conn(X(35), Y(94), 60, 30) + conn(X(49), Y(94), 60, 30) + conn(X(63), Y(93), 74.5, 35))
-    # ESP ploča preko
-    o.append(f'<rect x="{X(72.6)}" y="50" width="127" height="313.5" rx="3" class="devkit"/>')
-    o.append('<rect x="473" y="67.05" width="12.7" height="279.4" class="hdr"/><rect x="473" y="67.05" width="12.7" height="279.4" fill="url(#hdrL)"/>')
-    o.append('<rect x="587.3" y="67.05" width="12.7" height="279.4" class="hdr"/><rect x="587.3" y="67.05" width="12.7" height="279.4" fill="url(#hdrR)"/>')
-    o.append(f'<rect x="{X(76.3)}" y="50" width="90" height="30" class="modpcb"/>')
-    o.append(f'<path d="M{X(76.3) + 8},74 h4 v-14 h9 v14 h9 v-14 h9 v14 h9 v-14 h9 v14 h9 v-14 h9 v14 h4" class="ant"/>')
-    o.append(f'<rect x="{X(76.3)}" y="80" width="90" height="97.5" rx="2" class="shield"/>')
-    o.append(f'<text x="{X(85.3)}" y="126" class="t9 c-ink" text-anchor="middle">ESP32-S3</text><text x="{X(85.3)}" y="139" class="t9 c-ink" text-anchor="middle">N16R8</text>')
-    o.append(f'<text x="{X(85.3)}" y="250" class="t10 c-silk" text-anchor="middle">ESP ploča</text><text x="{X(85.3)}" y="263" class="t9 c-silk" text-anchor="middle">na letvicama</text><text x="{X(85.3)}" y="276" class="t9 c-silk" text-anchor="middle">2 × 22</text>')
-    o.append(f'<circle cx="{X(88)}" cy="{Y(50)}" r="5" class="rgbled"/>')
-    o.append(f'<rect x="{X(80.8)}" y="{Y(61.2)}" width="45" height="18" rx="4" class="metal"/>')
-    # vazdušne veze
-    p1 = lambda i: 73.4 + (i - 1) * 12.7
-    xl, xr = 479.35, 593.65
-    for i, (tx, ty) in [(4, (335, 352)), (5, (335, 352)), (6, (335, 352)), (7, (215, 470)), (8, (430, 135)), (9, (430, 135)),
-                        (10, (430, 112)), (11, (430, 112)), (12, (430, 217)), (15, (430, 217)), (16, (215, 490)),
-                        (17, (445, 352)), (18, (445, 352)), (19, (445, 352)), (20, (390, 405))]:
-        o.append(air(xl, p1(i), tx, ty))
-    for i, (tx, ty) in [(4, (240, 375)), (5, (240, 375)), (6, (480, 470)), (7, (415, 500)), (8, (415, 500)), (9, (415, 500)),
-                        (16, (240, 390)), (17, (480, 470)), (18, (480, 470))]:
-        o.append(air(xr, p1(i), tx, ty))
-    # natpisi spolja
-    lab = [(350, 40, "J_UART", "middle"), (400, 40, "J_CTRL", "middle"), (104, 425, "PROŠIRENJE", "end"), (104, 438, "2×8", "end"),
-           (191, 568, "BAT", "middle"), (245, 568, "5V IN", "middle"), (315, 568, "SENS1", "middle"), (385, 568, "SENS2", "middle"),
-           (462, 568, "LIDAR", "middle")]
-    for x, y, t, a in lab:
-        o.append(f'<text x="{x}" y="{y}" class="t10 c-ink b" text-anchor="{a}">{E(t)}</text>')
-    o.append(f'<text x="{X(85.3)}" y="18" class="t10 c-muted" text-anchor="middle">antena · izrez · bez bakra</text>')
-    o.append(f'<line x1="{X(85.3)}" y1="23" x2="{X(85.3)}" y2="44" class="lead"/>')
-    o.append('<text x="537" y="568" class="t10 c-muted" text-anchor="middle">USB-C (hitno)</text>')
-    o.append('<path d="M110,585 V595 M610,585 V595 M110,590 H610" class="dim"/><text x="360" y="608" class="t10 c-muted" text-anchor="middle">100 mm</text>')
-    o.append('<path d="M640,50 H650 M640,550 H650 M645,50 V550" class="dim"/><text x="656" y="304" class="t10 c-muted">100 mm</text>')
-    o.append('</svg>')
-    return "\n".join(o)
 
 
 # ---------------------------------------------------------------- stil
@@ -545,14 +419,15 @@ def page():
 <style>{CSS}</style>
 <div class="wrap">
 <header>
-  <div class="eyebrow">Robot-2027 · ESP32 · verzija 2 · 9. 11. 2026</div>
+  <div class="eyebrow">Robot-2027 · ESP32 · verzija 3 · 9. 11. 2026</div>
   <h1>ESP32-S3 ploča: pinovi, konektori i raspored</h1>
-  <p class="lede">Ploča 100 × 100 mm sa ekranom, tasterima i enkoderom, ESP ploča Waveshare ESP32-S3-DEV-KIT-N16R8 na
-  letvicama, veza sa Nucleo-om, lidar RPLIDAR A2, E-STOP i baterija 4S. Verzija 2 uključuje odluke tima od 9. 11.
+  <p class="lede">Ploča manja od 100 × 100 mm sa ekranom, tasterima i enkoderom, ESP ploča Waveshare
+  ESP32-S3-DEV-KIT-N16R8 na letvicama, veza sa Nucleo-om, lidar RPLIDAR A2M8-R4, E-STOP i baterija 4S. Verzija 3:
+  bez LED-ova na TX/RX, XH 3 ka Nucleo-u, raspored ploče čeka mehaničke podatke.
   Ceo tekst sa obrazloženjima je u <code>docs/esp32s3-pcb-istrazivanje.md</code>.</p>
   <nav class="toc" aria-label="Sadržaj">
     <a href="#odluke">Odluke</a><a href="#kupovina">Kupovina</a><a href="#pinovi">Pinovi</a><a href="#nrst">NRST i UART</a>
-    <a href="#estop">E-STOP i LED</a><a href="#buzzer">Buzzer</a><a href="#esd">ESD</a><a href="#napajanje">Napajanje</a>
+    <a href="#estop">E-STOP i VBAT</a><a href="#buzzer">Buzzer</a><a href="#esd">ESD</a><a href="#napajanje">Napajanje</a>
     <a href="#konektori">Konektori</a><a href="#raspored">Raspored</a><a href="#delovi">Delovi</a><a href="#pitanja">Pitanja</a>
   </nav>
 </header>
@@ -573,10 +448,12 @@ def page():
     <thead><tr><th>Tema</th><th>Odluka</th></tr></thead>
     <tbody>
       <tr><td>NeoPixel</td><td>izbačen; status pokazuje RGB LED na ESP ploči (GPIO38, samo softver)</td></tr>
-      <tr><td>Lidar</td><td>RPLIDAR A2 na UART2 (TX GPIO47, RX GPIO21), MOTOCTL GPIO42, originalni XH-5 kabl direktno u ploču</td></tr>
-      <tr><td>TX/RX</td><td>LED-ovi preko SN74LVC14 sa produživačem impulsa (ne opterećuju liniju)</td></tr>
+      <tr><td>Lidar</td><td>RPLIDAR A2M8-R4 na UART2 (TX GPIO47, RX GPIO21), MOTOCTL GPIO42; XH 5 kao na adapteru: PWM, GND, TX, RX, 5V</td></tr>
+      <tr><td>LED-ovi</td><td>bez LED-ova na TX/RX; ostaju 5V, 3V3 i BOOT0</td></tr>
+      <tr><td>Ekran</td><td>0,96" SSD1306, testiran, radi sa sadašnjim kodom</td></tr>
+      <tr><td>Buzzer</td><td>pasivni, Same Sky CEM-1206S, PWM 2,4 kHz</td></tr>
       <tr><td>USB</td><td>samo za hitno flešovanje; prolaz za utikač bez visokih delova</td></tr>
-      <tr><td>Nucleo</td><td>posebna ploča, kabl &lt; 0,5 m; J_UART 1 TX, 2 GND, 3 RX (za kabl 1:1 do „RX, GND, TX")</td></tr>
+      <tr><td>Nucleo</td><td>posebna ploča, kabl &lt; 0,5 m; JST XH 3 i za UART i za NRST/BOOT0; J_UART 1 TX, 2 GND, 3 RX (kabl 1:1 do „RX, GND, TX")</td></tr>
       <tr><td>DC-DC</td><td>SiC417 na powerboard-u, izlaz podesiti na <b>5,2 V</b> (lidar traži ≥ 4,9 V)</td></tr>
       <tr><td>STOP taster</td><td>ostaje samo na ESP-u</td></tr>
     </tbody></table></div>
@@ -618,23 +495,22 @@ def page():
   <h2><span class="sec">04</span>NRST, BOOT0 i UART ka Nucleo-u</h2>
   <figure>
     <div class="fig">{schematic()}</div>
-    <figcaption><b>Slika 2.</b> Dva PH-3 konektora sa GND u sredini: obrnut ili zamenjen utikač ne kvari ništa.
+    <figcaption><b>Slika 2.</b> Dva XH-3 konektora sa GND u sredini: obrnut ili zamenjen utikač ne kvari ništa.
     GPIO15 = 1 → reset; kad se ESP restartuje ili nema napajanje, R2 drži Q1 ugašen i STM32 radi.</figcaption>
   </figure>
   <ul class="list">
     <li>Impuls od ~60 µs na GPIO15 pri uključenju ESP-a kroz MOSFET ne prolazi (u nulu je, a nula gasi Q1).</li>
     <li>Kabl &lt; 0,5 m na 921600 baud-a: 470 Ω × ~40 pF ≈ 20 ns, bit traje 1,08 µs.</li>
-    <li><b>Proveriti redosled na Nucleo strani</b> (RX, GND, TX) pre pravljenja kabla.</li>
+    <li>J_UART, J_CTRL i LIDAR su iste serije (XH): utikač XH 3 može da se gurne u XH 5 sa strane i dovede 5 V lidara na liniju ka Nucleo-u. Postaviti ih daleko jedan od drugog i obeležiti.</li>
   </ul>
 </section>
 
 <section id="estop">
-  <h2><span class="sec">05</span>E-STOP, VBAT i LED-ovi za TX/RX</h2>
+  <h2><span class="sec">05</span>E-STOP i VBAT</h2>
   <figure>
     <div class="fig">{schematic2()}</div>
     <figcaption><b>Slika 3.</b> Gore: konektor baterije (VBAT posle glavnog prekidača, VMOT posle E-STOP-a). Zener od 8,2 V
-    gasi optokapler čim napon motora padne ispod ~9,4 V. Dole: jedan kanal LED-a; SN74LVC14 ima 6 invertora, za TX i
-    RX trebaju 4, ulaze preostala dva vezati na GND.</figcaption>
+    gasi optokapler čim napon motora padne ispod ~9,4 V.</figcaption>
   </figure>
   <div class="tbl"><table>
     <thead><tr><th>Napon baterije</th><th>VBAT na GPIO10</th><th>Struja LED-a u PC817</th></tr></thead>
@@ -655,8 +531,8 @@ def page():
       <tr><td>Magnetni</td><td>kalem i membrana; glasan na 5 V</td><td colspan="2">treba tranzistor i diodu preko buzzera</td></tr>
       <tr><td>Piezo</td><td>kristal; skoro bez struje, tiši na 5 V</td><td colspan="2">bez diode, otpornik paralelno</td></tr>
     </tbody></table></div>
-  <p><b>Preporuka:</b> pasivni magnetni (CEM-1206S), PWM 2,4 kHz: potvrda, upozorenje i greška mogu različitim tonom.
-  Kolo (AO3400A, 100 Ω, 100 kΩ, 1N4148W) je isto i za aktivni, pa se odluka može promeniti i posle izrade.</p>
+  <p><b>Odluka:</b> pasivni magnetni (CEM-1206S), PWM 2,4 kHz: potvrda, upozorenje i greška različitim tonom.
+  Kolo: AO3400A, 100 Ω u gejtu, 100 kΩ gejt-GND, 1N4148W preko buzzera.</p>
 </section>
 
 <section id="esd">
@@ -718,12 +594,12 @@ flowchart LR
     <tbody>
       <tr><td>PWR_IN</td><td>JST VH 2 (B2P-VH)</td><td>1 +5V · 2 GND</td></tr>
       <tr><td>BAT</td><td>stezaljka 3,5 mm, 3 pina</td><td>1 GND · 2 VBAT · 3 VMOT</td></tr>
-      <tr><td>J_UART</td><td>JST PH 3 (B3B-PH-K-S)</td><td>1 TX→PA10 · 2 GND · 3 RX←PA9</td></tr>
-      <tr><td>J_CTRL</td><td>JST PH 3 (B3B-PH-K-S)</td><td>1 NRST · 2 GND · 3 BOOT0</td></tr>
-      <tr><td>LIDAR</td><td>JST XH 5 (B5B-XH-A)</td><td>kao kabl A2: 1 5V · 2 TX lidara · 3 RX lidara · 4 GND · 5 MOTOCTL</td></tr>
+      <tr><td>J_UART</td><td>JST XH 3 (B3B-XH-A)</td><td>1 TX→PA10 · 2 GND · 3 RX←PA9</td></tr>
+      <tr><td>J_CTRL</td><td>JST XH 3 (B3B-XH-A)</td><td>1 NRST · 2 GND · 3 BOOT0</td></tr>
+      <tr><td>LIDAR</td><td>JST XH 5 (B5B-XH-A)</td><td>kao adapter A2M8-R4: 1 PWM · 2 GND · 3 TX lidara (→ GPIO21) · 4 RX lidara (← GPIO47) · 5 5V; ista orijentacija kao na adapteru</td></tr>
       <tr><td>SENS1, SENS2</td><td>JST PH 5 (B5B-PH-K-S)</td><td>1 GND · 2 3V3 · 3 SCL1 · 4 SDA1 · 5 INT</td></tr>
       <tr><td>EXP</td><td>kutijasti 2×8 (302-S161)</td><td>vidi ispod</td></tr>
-      <tr><td>OLED</td><td>ženski 1×4 (PPTC041LFBN-RC)</td><td>SJ1/SJ2 biraju GND-VCC ili VCC-GND; rupe M2</td></tr>
+      <tr><td>OLED 0,96"</td><td>ženski 1×4 (PPTC041LFBN-RC)</td><td>redosled i rupe M2 sa testiranog modula</td></tr>
       <tr><td>ESP ploča</td><td>ženski 1×22 ×2 (PPTC221LFBN-RC)</td><td></td></tr>
     </tbody></table></div>
   <pre class="code"> EXP 2×8
@@ -738,22 +614,19 @@ flowchart LR
 </section>
 
 <section id="raspored">
-  <h2><span class="sec">10</span>Raspored ploče 100 × 100 mm</h2>
-  <figure>
-    <div class="fig">{layout()}</div>
-    <figcaption><b>Slika 5.</b> 5 px = 1 mm, pogled odozgo (gornja strana robota). Isprekidane linije su veze, a
-    pravougaonici sa isprekidanom ivicom grupe delova. Antena na gornjoj ivici iznad izreza; USB-C gleda u ploču, ispod
-    njega prolaz bez visokih delova.</figcaption>
-  </figure>
+  <h2><span class="sec">10</span>Raspored ploče</h2>
+  <div class="callout"><p>Skica iz verzije 2 je odbačena. Novi raspored se crta kad budu poznati mehanički podaci
+  (pitanja u bloku 13). Do tada važe samo ograničenja koja ne zavise od mehanike.</p></div>
   <ul class="list">
-    <li><b>ESP ploča</b> uz desnu ivicu, antena gore (WiFi je glavni put za programiranje). Bez bakra ~10 mm oko antene.</li>
-    <li><b>Gore levo ekran</b> (0,96", mesto za 1,3"); između ekrana i antene J_UART i J_CTRL sa ESD-om, MOSFET-om, LVC14 i LED-ovima TX, RX, BOOT0.</li>
-    <li><b>Sredina:</b> STOP (crveni), NAZAD (žuti), OK (zeleni) i enkoder, ~4 mm od letvice ESP-a.</li>
-    <li><b>Dole:</b> proširenje uspravno uz levu ivicu, buzzer, zona baterije, PWR_IN, SENS1, SENS2, LIDAR.</li>
-    <li><b>Rupe M3:</b> (4,4), (4,96), (96,96), (96,70). Gore desno nema rupe zbog antene.</li>
-    <li>Donji sloj ceo GND; 5 V ≥ 1,5 mm; merne tačke 5V, 3V3, GND, TX, RX, NRST, BOOT0, SDA0, SCL0, GPIO7, VBAT.</li>
+    <li><b>Antena ESP-a na ivici ploče</b>, bez bakra i vodova ~10 mm oko nje, izrez između letvica, ništa metalno iznad ni pored.</li>
+    <li><b>USB-C ESP-a dostupan</b> za hitno flešovanje: na ivici ili sa prolazom bez visokih delova.</li>
+    <li><b>Ekran, tasteri i enkoder</b> na strani ka korisniku; dugme enkodera (Ø ~20 mm) ne sme da udara u ESP ploču ni ekran.</li>
+    <li><b>ESD ≤ 5 mm od konektora</b>, redni otpornici odmah iza.</li>
+    <li><b>Zona baterije</b> u jednom uglu, ≥ 2 mm do ostalog bakra.</li>
+    <li><b>J_UART i J_CTRL daleko od LIDAR konektora</b> (ista serija XH).</li>
+    <li>Pinovi za tastere, E-STOP, STM32, ekran, enkoder i buzzer su na J1, za lidar, senzore i proširenje na J3: konektore staviti na odgovarajuću stranu ESP ploče.</li>
+    <li>Manje od 100 × 100 mm, 2 sloja, donji sloj ceo GND, 5 V ≥ 1,5 mm, rupe gde traži šasija.</li>
   </ul>
-  <p>Za v2 (posle sezone): ESP32-S3-WROOM-1-N16R8 zalemljen direktno, bez letvica; sopstveni 3V3 regulator i USB-C sa ESD-om.</p>
 </section>
 
 <section id="softver">
@@ -774,27 +647,26 @@ flowchart LR
       <tr><td>ESD 4 kanala</td><td>TI TPD4E1U06DBVR</td><td>5</td></tr>
       <tr><td>N-MOSFET</td><td>onsemi 2N7002LT1G · AOS AO3400A</td><td>2 · 1</td></tr>
       <tr><td>P-MOSFET</td><td>AOS AO3401A</td><td>1</td></tr>
-      <tr><td>Schmitt invertor</td><td>TI SN74LVC14ADR (SOIC-14)</td><td>1</td></tr>
       <tr><td>Optokapler</td><td>Sharp PC817X1NSZ1B</td><td>1</td></tr>
-      <tr><td>Zener, diode</td><td>BZT52C8V2 · 1N4148W ×4 · B5819W</td><td></td></tr>
+      <tr><td>Zener, diode</td><td>BZT52C8V2 · 1N4148W ×2 · B5819W</td><td></td></tr>
       <tr><td>TVS, PTC</td><td>Littelfuse SMBJ6.0A · Bourns MF-MSMF200-2, -110-2, -050-2</td><td></td></tr>
-      <tr><td>Buzzer</td><td>Same Sky CEM-1206S (ili CMI-1275-05TH)</td><td>1</td></tr>
+      <tr><td>Buzzer</td><td>Same Sky CEM-1206S</td><td>1</td></tr>
       <tr><td>Enkoder, tasteri</td><td>Bourns PEC11R-4220F-S0024 · Omron B3F-4055 + kapice B32</td><td>1 · 3</td></tr>
-      <tr><td>Konektori</td><td>B2P-VH · B3B-PH-K-S ×2 · B5B-PH-K-S ×2 · B5B-XH-A · 302-S161 · stezaljka 3,5 mm 3 pina</td><td></td></tr>
+      <tr><td>Konektori</td><td>B2P-VH · B3B-XH-A ×2 · B5B-PH-K-S ×2 · B5B-XH-A · 302-S161 · stezaljka 3,5 mm 3 pina</td><td></td></tr>
       <tr><td>Header-i</td><td>Sullins PPTC221LFBN-RC ×2 · PPTC041LFBN-RC</td><td></td></tr>
     </tbody></table></div>
-  <p>Otpornici, kondenzatori i LED-ovi u 0805. Cene proveriti na DigiKey-u.</p>
+  <p>Otpornici, kondenzatori i LED-ovi (5V, 3V3, BOOT0) u 0805. Cene proveriti na DigiKey-u.</p>
 </section>
 
 <section id="pitanja">
-  <h2><span class="sec">13</span>Pitanja</h2>
+  <h2><span class="sec">13</span>Pitanja za raspored ploče</h2>
   <ol class="list">
-    <li>Ekran: 0,96" (SSD1306, radi sa sadašnjim kodom), 1,3" (obično SH1106, drugi drajver) ili 2,42" (SSD1309, SPI)? Redosled pinova na modulu?</li>
-    <li>Buzzer: pasivni CEM-1206S (preporuka) ili aktivni CMI-1275-05TH?</li>
-    <li>Nucleo strana: koji konektor i tačan redosled (RX, GND, TX)? Gde ide NRST/BOOT0 kabl?</li>
-    <li>Lidar: proveriti redosled na komadu (VCC, TX, RX, GND, MOTOCTL) i da li je baš XH.</li>
-    <li>Mesto ploče: gornja ploča robota? Ima li metala pored antene (nosač bikona, lidar)?</li>
-    <li>Tasteri 12 × 12 mm na ploči ili veći tasteri na panelu?</li>
+    <li>Gde je ploča na robotu i kako je okrenuta? Koja strana gleda ka korisniku?</li>
+    <li>Gde treba da budu ekran, tasteri i enkoder, i gde su rupe za šasiju?</li>
+    <li>Sa koje strane dolaze kablovi za Nucleo, powerboard (5 V, baterija, E-STOP), lidar i senzore?</li>
+    <li>Šta je iznad i oko ploče (lidar, nosač bikona, metal), zbog antene?</li>
+    <li>Najveća dozvoljena visina delova (ESP na letvicama ~20 mm, ekran ~12 mm, dugme enkodera ~25 mm)?</li>
+    <li>Ako postoji crtež ili model mesta (Onshape), raspored se crta po njemu.</li>
   </ol>
 </section>
 
@@ -806,7 +678,7 @@ flowchart LR
     <li><a href="https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html">ESP32-S3-DevKitC-1 v1.1</a>, <a href="https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32s3/schematic-checklist.html">ESP32-S3 Schematic Checklist</a></li>
     <li><a href="https://www.st.com/resource/en/user_manual/um1724-stm32-nucleo64-boards-mb1136-stmicroelectronics.pdf">UM1724 Nucleo-64</a></li>
     <li><a href="https://cdn.robotshop.com/media/R/Rpk/RB-Rpk-27/pdf/rplidar-a2m8-360-laser-scanner-open-box-dimensional-drawing.pdf">RPLIDAR A2M8 crtež sa utikačem</a></li>
-    <li>DigiKey: <a href="https://www.digikey.com/en/products/detail/texas-instruments/TPD4E1U06DBVR/3929533">TPD4E1U06DBVR</a>, <a href="https://www.digikey.ca/en/products/detail/same-sky-formerly-cui-devices/CEM-1206S/412414">CEM-1206S</a>, <a href="https://www.digikey.com.au/en/products/detail/same-sky-formerly-cui-devices/CMI-1275-05TH/25577239">CMI-1275-05TH</a></li>
+    <li>DigiKey: <a href="https://www.digikey.com/en/products/detail/texas-instruments/TPD4E1U06DBVR/3929533">TPD4E1U06DBVR</a>, <a href="https://www.digikey.ca/en/products/detail/same-sky-formerly-cui-devices/CEM-1206S/412414">CEM-1206S</a></li>
     <li><a href="https://datasheet.chipsmall.com/SIC417CD-T1-E3/131889.pdf">SiC417 datasheet</a></li>
   </ul>
 </footer>
