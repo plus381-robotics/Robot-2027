@@ -106,7 +106,7 @@ Taktika je fajl u `ESP32/tactics/` (vidi `primer.py`, `sve_komande.py`, `kamenol
     goto(600, 1000, speed=300)  # True/False; deg=90 za završni ugao, reverse=True unazad
     turn_to(90)                 # apsolutni ugao terena;  turn_by(-45) relativno
     move(-200)                  # mm, minus = unazad
-    ir_off("F"); ir_on()        # IR senzori F1-F4 napred, B1-B4 nazad (iznad kutija); ir_sees("F2") (protokol v5)
+    ir_off("FD"); ir_on()       # IR: u svakom uglu donji D i gornji U (FLD FLU ... BRU); ir_sees("FU") (protokol v5)
     wait(1); wait_until(lambda: ..., 3); step("čekam"); log("..."); here(); remaining()
     actuator("hvataljka", 1)                  # čeka DONE sa STM32; imena u config.ACTUATORS
     h = actuator("lift", 300, wait=False)     # paralelno sa vožnjom...

@@ -285,9 +285,11 @@ export class FieldView {
       const dot = new THREE.Mesh(new THREE.CircleGeometry(0.012, 12), new THREE.MeshBasicMaterial({ color: 0xff4d4d, depthTest: false }));
       dot.position.set(x0, s, z); dot.visible = false; dot.renderOrder = 4;
       grp.add(line, dot);
-      const lbl = textSprite(sn.name, '#c8d0da', 0.025, 'rgba(0,0,0,0)');
-      lbl.position.set(x0 + d * 0.03, s, z + 0.01);
-      grp.add(lbl);
+      if (sn.z > 200) {                            // ime ugla jednom (gornji i donji su na istom mestu)
+        const lbl = textSprite(sn.name.slice(0, 2), '#c8d0da', 0.025, 'rgba(0,0,0,0)');
+        lbl.position.set(x0 + d * 0.03, s, z + 0.01);
+        grp.add(lbl);
+      }
       this.irRays.push({ line, dot, x0, d, s, z, range, name: sn.name });
     }
     this.irGroup = grp;

@@ -20,14 +20,14 @@
 #define STATE_MATCH_RUNNING 4
 #define STATE_MATCH_OVER 8
 
-#define IR_F1 1
-#define IR_F2 2
-#define IR_F3 4
-#define IR_F4 8
-#define IR_B1 16
-#define IR_B2 32
-#define IR_B3 64
-#define IR_B4 128
+#define IR_FLD 1
+#define IR_FLU 2
+#define IR_FRD 4
+#define IR_FRU 8
+#define IR_BLD 16
+#define IR_BLU 32
+#define IR_BRD 64
+#define IR_BRU 128
 
 #define RESETCAUSE_PIN 1
 #define RESETCAUSE_POWER 2

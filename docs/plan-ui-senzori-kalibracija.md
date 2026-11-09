@@ -231,3 +231,6 @@ K-sync (sada) -> K0 + K1 kad robot vozi (2-3 meseca). Odometrija: ručno izmeren
    se napravi i proveri na virtuelnom robotu sa namerno pogrešnim profilom.
 4. **Odometrija u firmveru:** ko menja prečnik i razmak u STM kodu kad čarobnjak izračuna nove (Lazar,
    Lea)? Čarobnjak može samo da ispiše brojeve.
+
+> Ispravka (posle U2): senzori su u uglovima, po dva (donji D i gornji U), imena FLD..BRU; slika crta u svakom
+> uglu veliki luk (gornji) i mali (donji), sa natpisom ugla (FL, FR, BL, BR). Skica iznad sa F1..B4 je zastarela.

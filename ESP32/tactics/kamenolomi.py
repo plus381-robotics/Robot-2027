@@ -1,8 +1,8 @@
 # Od kamenoloma do kamenoloma na našoj (žutoj) polovini, pa kući. Kamenolom = gomila od 3 kamena
 # (simulator/eurosim/field.py, QUARRIES). Piše se za žutu stranu; na plavoj se koordinate same ogledaju.
 #
-# IR senzori su iznad kutija (340 mm), pa kamenolome (330 mm) ne vide: robot prilazi do 4 cm, a protivnika
-# (350 mm) i dalje vidi. Primer ir_off: posle uzimanja nazad bez zadnjih senzora (iza je naš put, prazan).
+# IR: donji senzori (D) vide kamenolom, pa se za prilaz gase donji prednji (ir_off("FD")); gornji (U, iznad kutija)
+# i dalje vide protivnika. Posle uzimanja: nazad bez zadnjih senzora (iza je naš put, prazan).
 from gambit import *
 
 START = (250, 1000, 0)
@@ -20,6 +20,7 @@ def uzmi(ime):
 
 
 def odmakni():
+    ir_on()
     ir_off("B")                                        # nazad po putu kojim smo došli: zadnji senzori ne trebaju
     move(-NAZAD)
     ir_on()
@@ -27,6 +28,7 @@ def odmakni():
 
 def gore(x, ime):
     """Kamenolom uz gornju ivicu (y 1945, lice na 1890): prilaz odozdo, okrenut na 90°."""
+    ir_off("FD")                                       # donji napred vide kamenolom (domet 250 mm) već na ISPRED
     goto(x, 1890 - POLA - ISPRED, deg=90, name=ime)
     goto(x, 1890 - POLA - LICE, name=ime + " prilaz")
     uzmi(ime)
@@ -35,6 +37,7 @@ def gore(x, ime):
 
 def dole(x, ime):
     """Kamenolom uz donju ivicu (y 55, lice na 110): prilaz odozgo, okrenut na -90°."""
+    ir_off("FD")
     goto(x, 110 + POLA + ISPRED, deg=-90, name=ime)
     goto(x, 110 + POLA + LICE, name=ime + " prilaz")
     uzmi(ime)
@@ -47,6 +50,7 @@ try:
     goto(750, 1150, name="ka kamenolomu 2")
     goto(1250, 1150)
     gore(1250, "kamenolom 2")
+    ir_off("FD")
     goto(1445 - POLA - ISPRED, 1500, deg=0, timeout=6, name="kamenolom 9")   # srednji (1500, 1500), okrenut 90°
     goto(1445 - POLA - LICE, 1500, name="kamenolom 9 prilaz")
     uzmi("9")

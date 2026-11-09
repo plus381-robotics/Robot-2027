@@ -291,7 +291,7 @@ static void handle(const link_frame_t *f) {
 }
 
 /* ---------------- IR senzori (v5) ----------------
- * Kod koji čita IR senzore (GPIO, 1 kHz) javlja šta svaki vidi preko comm_ir_set(bitovi IR_F1..IR_B4) i
+ * Kod koji čita IR senzore (GPIO, 1 kHz) javlja šta svaki vidi preko comm_ir_set(bitovi IR_FLD..IR_BRU) i
  * zaustavlja robota kad comm_ir_obstacle() nije 0 (1 = napred, 2 = nazad). ESP bira koji senzori smeju da
  * zaustave robota (IR_MASK); ugašen senzor i dalje meri i ide u STATUS (ir_raw). Posle pokretanja: svi uključeni. */
 
@@ -305,7 +305,7 @@ uint8_t comm_ir_mask(void) {
 
 uint8_t comm_ir_obstacle(void) {
 	uint8_t on = ir_raw & ir_mask;
-	return ((on & (IR_F1 | IR_F2 | IR_F3 | IR_F4)) ? 1 : 0) | ((on & (IR_B1 | IR_B2 | IR_B3 | IR_B4)) ? 2 : 0);
+	return ((on & (IR_FLD | IR_FLU | IR_FRD | IR_FRU)) ? 1 : 0) | ((on & (IR_BLD | IR_BLU | IR_BRD | IR_BRU)) ? 2 : 0);
 }
 
 /* ---------------- STATUS ---------------- */

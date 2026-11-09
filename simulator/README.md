@@ -118,9 +118,10 @@ tada se zaglavi (BLOCKED). Zone bedema (kule, zidovi), kapije i štale su u `fie
 table** = po pravilima. **Save scenario / load scenario…** čuva kamenolome i protivnike u
 `simulator/scenarios/<ime>.json` (deli se kroz git). U snimku se vidi kako je kamenolom gurnut.
 
-**IR senzori** (`[ir]` u profilu): 4 napred (F1..F4) i 4 nazad (B1..B4), s leva na desno, na visini `z`.
-Taktika ih gasi i pali: `ir_off("F")`, `ir_on()`, `ir_sees("F2")` (protokol v5). Zraci na robotu imaju imena;
-isključeni su tamni, crveni vide nešto.
+**IR senzori** (`[ir]` u profilu): u svakom od 4 ugla po dva, donji D (`low_z`, 40 mm, vidi kamenolome) i gornji U
+(`high_z`, 340 mm, iznad kutija, vidi protivnika). Imena: F/B napred/nazad, L/R levo/desno, D/U: FLD FLU FRD FRU BLD
+BLU BRD BRU. Taktika ih gasi i pali po imenu ili grupi slova: `ir_off("FD")` (donji prednji), `ir_on()`,
+`ir_sees("FU")` (protokol v5). U panelu STATE: veliki luk = gornji, mali = donji; isključeni su tamni, crveni vide nešto.
 
 ### 3D model robota (CAD)
 

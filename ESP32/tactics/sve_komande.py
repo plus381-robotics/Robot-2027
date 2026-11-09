@@ -21,10 +21,10 @@ try:
     goto(500, 1200, deg=180, name="tacka B", next="nazad")   # do tačke i na kraju okret na 180°
     goto(700, 1000, reverse=True)                   # do tačke vožnjom unazad
     goto(700, 1300, deg=90)
-    ir_off("F")                                     # prednji IR ne zaustavljaju robota (i dalje mere)
+    ir_off("FD")                                    # donji prednji IR ne zaustavljaju robota (i dalje mere)
     move(100)
     ir_on()                                         # svi IR ponovo uključeni (i sami na kraju taktike)
-    if ir_sees("B"):                                # neki zadnji senzor sada vidi nešto
+    if ir_sees("BU"):                               # gornji zadnji senzor sada vidi nešto (protivnik?)
         log("nesto je iza")
     actuator("hvataljka", 1)                        # aktuator, čeka da završi (True/False)
     h2 = actuator("ruka_l", 50, wait=False)

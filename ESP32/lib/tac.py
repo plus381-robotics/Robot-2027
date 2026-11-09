@@ -23,9 +23,10 @@
 # Strana terena: taktika se piše za REF_SIDE ("zuta", leva strana stola, x 0..500 po pravilima 2027). Na drugoj strani se sve koordinate same
 # ogledaju (x -> 3000 - x, ugao -> 180° - ugao, relativni okret menja smer).
 # goto/turn_to/turn_by/move vraćaju True (DONE) ili False (FAIL, nema odgovora, isteklo vreme).
-# IR senzori (protokol v5): napred F1..F4, nazad B1..B4 (s leva na desno), iznad kutija. ir_off("F") gasi
-# prednje (ne zaustavljaju robota, ali i dalje mere), ir_on() pali sve, ir_sees("F2") = da li senzor sada vidi
-# nešto. Na kraju taktike i na STOP svi se pale. Na plavoj strani se levo/desno menjaju sami (F1 <-> F4).
+# IR senzori (protokol v5): u svakom uglu donji (D, ~40 mm) i gornji (U, iznad kutija); F/B napred/nazad, L/R
+# levo/desno: FLD FLU FRD FRU BLD BLU BRD BRU. ir_off("D") gasi donje (ne zaustavljaju robota, ali mere),
+# ir_on() pali sve, ir_sees("FU") = vidi li sada nešto. Na kraju taktike i na STOP svi se pale. Na plavoj strani
+# se levo i desno zamene sami (FL <-> FR).
 # Dok taktika čeka, glavna petlja radi dalje (ekran, PING, WiFi); taster STOP ili
 # `tools/tactic.py` Ctrl+C prekidaju taktiku i šalju STOP.
 from compat import ticks_ms, ticks_diff
@@ -504,34 +505,36 @@ def go_home(speed=600, name="KUCI", timeout=None):
 
 
 # ---------------- IR senzori (protokol v5) ----------------
+# U svakom uglu dva senzora: F/B napred/nazad, L/R levo/desno (gledano iz robota), D/U donji/gornji.
+# Ime je tačno jedan senzor ("FLU"), ili grupa slova: "F" svi prednji, "D" svi donji, "FD" donji napred,
+# "BL" oba zadnja leva. Bez imena: svi.
 
 IR_ALL = 0xFF
-_IR_GROUPS = {"F": 0x0F, "B": 0xF0, "ALL": 0xFF}
-_IR_MIRROR = {"F1": "F4", "F2": "F3", "F3": "F2", "F4": "F1", "B1": "B4", "B2": "B3", "B3": "B2", "B4": "B1"}
+_IR = ("FLD", "FLU", "FRD", "FRU", "BLD", "BLU", "BRD", "BRU")      # redosled = bitovi protocol.Ir
 
 
 def _ir_bits(names):
-    """Imena senzora (F1..F4, B1..B4) ili grupa (F, B, ALL) -> bitovi (protocol.Ir). Bez imena: svi.
-    Na plavoj strani se levo i desno zamene (taktika se piše za žutu)."""
+    """Imena ili grupe slova -> bitovi (protocol.Ir). Na plavoj strani se levo i desno zamene (L <-> R)."""
     if not names:
         return IR_ALL
     b = 0
     for n in names:
         n = str(n).upper()
-        if n in _IR_GROUPS:
-            b |= _IR_GROUPS[n]
+        if n == "ALL":
+            b |= IR_ALL
             continue
+        if not n or any(c not in "FBLRDU" for c in n):
+            raise Abort("nepoznat IR senzor %s (npr. FLU, BRD, ili grupa: F, B, D, U, FD)" % n)
         if _mirrored():
-            n = _IR_MIRROR.get(n, n)
-        bit = getattr(P.Ir, n, None)
-        if bit is None:
-            raise Abort("nepoznat IR senzor %s (F1-F4, B1-B4, F, B)" % n)
-        b |= bit
+            n = n.replace("L", "r").replace("R", "L").replace("r", "R")
+        for k, s in enumerate(_IR):
+            if all(c in s for c in n):
+                b |= 1 << k
     return b
 
 
 def _ir_names(mask):
-    return " ".join(n for n in ("F1", "F2", "F3", "F4", "B1", "B2", "B3", "B4") if mask & getattr(P.Ir, n)) or "-"
+    return " ".join(s for k, s in enumerate(_IR) if mask & (1 << k)) or "-"
 
 
 def _ir_set(mask):
@@ -554,18 +557,18 @@ def _ir_set(mask):
 
 
 def ir_off(*names):
-    """Isključi IR senzore (ne zaustavljaju robota, ali i dalje mere): ir_off("F") prednje, ir_off("F1", "F2"),
-    ir_off() sve. Na kraju taktike i na STOP se sami ponovo uključe."""
+    """Isključi IR senzore (ne zaustavljaju robota, ali i dalje mere): ir_off("D") sve donje, ir_off("FD") donje
+    napred, ir_off("FLU") jedan, ir_off() sve. Na kraju taktike i na STOP se sami ponovo uključe."""
     return _ir_set(getattr(app, "ir_want", IR_ALL) & ~_ir_bits(names))
 
 
 def ir_on(*names):
-    """Ponovo uključi IR senzore: ir_on() sve, ir_on("B") zadnje, ir_on("F4")."""
+    """Ponovo uključi IR senzore: ir_on() sve, ir_on("B") zadnje, ir_on("FRD")."""
     return _ir_set(getattr(app, "ir_want", IR_ALL) | _ir_bits(names))
 
 
 def ir_sees(*names):
-    """Da li neki od navedenih senzora sada vidi nešto (i kad je isključen). ir_sees("F") = bilo koji prednji.
+    """Da li neki od navedenih senzora sada vidi nešto (i kad je isključen). ir_sees("FU") = gornji napred.
     False kad STM32 ne šalje stanje senzora (v < 5)."""
     s = app.robot.status
     raw = s.get("ir_raw") if s else None

@@ -32,16 +32,17 @@ enums:
     MATCH_RUNNING: 4
     MATCH_OVER: 8
     # 16 je bio LINK_LOST (nikad postavljen); pad veze se vidi kao last_result = LINK
-  Ir:              # v5: IR senzori, bit po senzoru (IR_MASK.mask, STATUS.ir_raw/ir_mask). Napred F1..F4, nazad
-                   # B1..B4, s leva na desno gledano iz robota. Senzori su iznad kutija (vide protivnika).
-    F1: 1
-    F2: 2
-    F3: 4
-    F4: 8
-    B1: 16
-    B2: 32
-    B3: 64
-    B4: 128
+  Ir:              # v5: IR senzori, bit po senzoru (IR_MASK.mask, STATUS.ir_raw/ir_mask). U svakom uglu dva:
+                   # F/B = napred/nazad, L/R = levo/desno (gledano iz robota), D/U = donji (~40 mm) / gornji
+                   # (iznad kutija, ~340 mm: vidi protivnika i preko kutija).
+    FLD: 1
+    FLU: 2
+    FRD: 4
+    FRU: 8
+    BLD: 16
+    BLU: 32
+    BRD: 64
+    BRU: 128
   ResetCause:      # bitovi u PONG.reset_cause (RCC->CSR pri pokretanju STM32); 0 = nepoznato
     PIN: 1         # NRST (taster ili ESP)
     POWER: 2       # uključenje / pad napona (POR, BOR)

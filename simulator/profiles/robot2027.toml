@@ -76,13 +76,12 @@ default_ms = 300       # (P)
 # lift = 600
 
 [ir]
-# IR senzori (protokol v5): 4 napred (F1..F4) i 4 nazad (B1..B4), s leva na desno gledano iz robota, ravnomerno
-# po širini. Iznad kutija (kamen 110 mm x 3 = 330 mm): vide protivnika (350 mm) i preko kutija, kamenolome ne.
-# Taktika ih pali i gasi pojedinačno: ir_off("F"), ir_on(), ir_sees("F2").
+# IR senzori (protokol v5): u svakom od 4 ugla dva, donji (D) i gornji (U); napred F, nazad B, levo L, desno R:
+# FLD FLU FRD FRU BLD BLU BRD BRU. Gornji su iznad kutija (kamen 110 mm x 3 = 330 mm): vide protivnika (350 mm)
+# i preko kutija koje robot nosi; donji vide i kutije, kamenolome i PAMI. Taktika: ir_off("D"), ir_on(),
+# ir_sees("FU").
 range = 250            # (P) [mm] od ivice robota
-front = 4              # broj senzora napred
-back = 4               # broj senzora nazad
-z = 340                # (P) visina senzora [mm]
-spread = 240           # (P) razmak između krajnjeg levog i desnog [mm]
+low_z = 40             # visina donjih senzora (nije bitna, (P))
+high_z = 340           # (P) visina gornjih: iznad kutija
 see_walls = false
 see_elements = true    # (P) vide i kamenje u kamenolomima (330 mm visoko); false = samo protivnika

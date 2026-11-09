@@ -137,10 +137,8 @@ class Plant:
         ir = p.get("ir", {})
         self.ir_on = ir.get("enabled", True)
         self.ir_range = ir.get("range", 250) / 1000
-        # senzori (protokol v5): napred F1..F4 i nazad B1..B4, s leva na desno, ravnomerno po širini "spread"
-        self.ir_n = (int(ir.get("front", 4)), int(ir.get("back", 4)))
-        self.ir_zh = ir.get("z", 340)
-        self.ir_spread = ir.get("spread", self.width * 1000 - 60) / 1000
+        # senzori (protokol v5): u svakom uglu donji (D) i gornji (U); visine iz profila
+        self.ir_z = (ir.get("low_z", 40), ir.get("high_z", 340))
         self.ir_mask = 0xFF                    # uključeni (STM32 IR_MASK), samo za prikaz
         self.ir_walls = ir.get("see_walls", False)
         self.ir_elements = ir.get("see_elements", True)
@@ -157,7 +155,7 @@ class Plant:
         self.push_on = el.get("pushable", True)            # robot gura kamenolome (plan E3)
         self.push_resist = el.get("push_resist", 0.5)      # 0..1: koliko guranje usporava robota
         self.pushed = False                                # neki element je pomeren (za snimak)
-        self.ir = 0                             # bit po senzoru (protocol.Ir: F1=1 ... B4=128): šta vidi
+        self.ir = 0                             # bit po senzoru (protocol.Ir: FLD=1 ... BRU=128): šta vidi
         self.ir_hits = []                       # [(senzor, d_m)] za prikaz
 
     # ---------------- poza ----------------
@@ -275,19 +273,21 @@ class Plant:
     # ---------------- IR ----------------
 
     def sensor_layout(self):
-        """[(ime, x, y, smer, z)] u koordinatama robota (m; x napred, y levo; smer +1 napred, -1 nazad)."""
+        """[(ime, x, y, smer, z)] u koordinatama robota (m; x napred, y levo; smer +1 napred, -1 nazad).
+        U svakom uglu donji i gornji: FLD FLU FRD FRU BLD BLU BRD BRU (redosled = bitovi protocol.Ir)."""
         if getattr(self, "_layout", None):
             return self._layout
         out = self._layout = []
-        for pre, d, n in (("F", 1, self.ir_n[0]), ("B", -1, self.ir_n[1])):
-            x = d * self.length / 2 + self.offset          # prednja ili zadnja ivica tela
-            for k in range(n):
-                y = self.ir_spread / 2 - self.ir_spread * k / (n - 1) if n > 1 else 0.0
-                out.append(("%s%d" % (pre, k + 1), x, y, d, self.ir_zh))
+        hw = self.width / 2 - 0.01
+        for fb, d in (("F", 1), ("B", -1)):
+            x = d * self.length / 2 + self.offset             # prednja ili zadnja ivica tela
+            for lr, y in (("L", hw), ("R", -hw)):
+                for du, z in (("D", self.ir_z[0]), ("U", self.ir_z[1])):
+                    out.append((fb + lr + du, x, y, d, z))
         return out
 
     def sensors(self):
-        """Senzori na stolu: (ime, x, y, (dx, dy), z) u metrima. Redosled = bitovi protocol.Ir (F1..F4, B1..B4)."""
+        """Senzori na stolu: (ime, x, y, (dx, dy), z) u metrima. Redosled = bitovi protocol.Ir (FLD FLU FRD FRU BLD BLU BRD BRU)."""
         c, s = math.cos(self.th), math.sin(self.th)
         return [(name, self.x + a * c - b * s, self.y + a * s + b * c, (c * d, s * d), z)
                 for name, a, b, d, z in self.sensor_layout()]
@@ -321,6 +321,6 @@ class Plant:
                     best = d
             if best is not None:
                 hits.append((name, best))
-                bits |= 1 << k                    # protocol.Ir: F1=1, F2=2 ... B4=128
+                bits |= 1 << k                    # protocol.Ir: FLD=1, FLU=2 ... BRU=128
         self.ir, self.ir_hits = bits, hits
         return bits

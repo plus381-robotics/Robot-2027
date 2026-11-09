@@ -111,11 +111,18 @@ def test_elementi_igre_2027():
 
 
 def test_kamenolom_na_putu_blocked_a_bez_elemenata_stize(tmp_path):
-    # IR je iznad kamenoloma (340 > 330 mm) pa ga ne vidi; robot koji vozi u kamenolom se zaglavi (BLOCKED)
-    d = write(tmp_path, "t", "START = (250, 1000, 0)\nlog('rez %s' % goto(750, 1830, speed=400))\n")
+    # donji IR (D, 40 mm) vidi kamenolom i staje ispred; gornji (U, 340 > 330 mm) ga ne vide. Sa ir_off("FD") robot
+    # vozi u kamenolom i zaglavi se (BLOCKED); bez elemenata stiže
+    src = "START = (250, 1000, 0)\n{off}log('rez %s' % goto(750, 1830, speed=400))\n"
+    d = write(tmp_path, "t", src.format(off=""))
     r = simulate("t", tactics_dir=d, mode="mec")
     assert "rez False" in r.logs() and r.steps()[0][3] == "BLOCKED"       # kamenolom (750, 1945)
-    assert not any(f.get("irh") for f in r.frames)                         # IR ga nije video
+    seen = [f["irh"] for f in r.frames if f.get("irh")]                  # po senzoru FLD FLU FRD FRU BLD ...
+    assert seen and all(max(h[0], h[2]) >= 0 and h[1] < 0 and h[3] < 0 for h in seen)  # samo donji prednji
+    assert r.result["pose"][1] < 1890 - 82 - 20                           # stao pre kamenoloma
+    d = write(tmp_path, "t", src.format(off="ir_off('FD')\n"))
+    r1 = simulate("t", tactics_dir=d, mode="mec")
+    assert "rez False" in r1.logs() and r1.result["pose"][1] > r.result["pose"][1]   # vozio do sudara
     assert len(r.meta["elements"]) == 10 and r.meta["obstacles"] == []
     r2 = simulate("t", tactics_dir=d, mode="mec", elements=False)
     assert "rez True" in r2.logs()

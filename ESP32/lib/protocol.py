@@ -24,14 +24,14 @@ class State:
     MATCH_OVER = 8
 
 class Ir:
-    F1 = 1
-    F2 = 2
-    F3 = 4
-    F4 = 8
-    B1 = 16
-    B2 = 32
-    B3 = 64
-    B4 = 128
+    FLD = 1
+    FLU = 2
+    FRD = 4
+    FRU = 8
+    BLD = 16
+    BLU = 32
+    BRD = 64
+    BRU = 128
 
 class ResetCause:
     PIN = 1

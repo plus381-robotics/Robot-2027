@@ -38,7 +38,7 @@ void comm_tick_1ms(void);    /* 1 kHz prekid: provera heartbeat-a */
 uint8_t comm_esp_connected(void);   /* 1 = ESP se javio i veza je živa */
 uint8_t comm_motion_allowed(void);  /* 0 = veza sa ESP-om je pukla, motori treba da stoje */
 uint8_t comm_stop_reason(void);
-/* IR senzori (v5): IR kod javlja šta vidi svaki senzor (bitovi IR_F1..IR_B4 iz protocol.h) i zaustavlja robota
+/* IR senzori (v5): IR kod javlja šta vidi svaki senzor (bitovi IR_FLD..IR_BRU iz protocol.h) i zaustavlja robota
  * kad comm_ir_obstacle() nije 0 (1 = napred, 2 = nazad, samo uključeni senzori; ESP ih bira sa IR_MASK). */
 void comm_ir_set(uint8_t raw);
 uint8_t comm_ir_mask(void);

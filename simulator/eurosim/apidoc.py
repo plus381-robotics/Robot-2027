@@ -108,17 +108,18 @@ DOC = {
     "side": dict(group="Where is the robot", say="Which side we play on: \"zuta\" (yellow) or \"plava\" (blue).",
                  params=[], ret="\"zuta\" or \"plava\".", example="if side() == \"plava\":\n    log(\"blue\")"),
     "ir_off": dict(group="Sensors",
-                   say="Switch IR sensors off: they no longer stop the robot (they still measure). Front F1-F4, back "
-                       "B1-B4, from left to right; F = all front, B = all back. They switch back on at the end of the "
-                       "tactic and on STOP.",
+                   say="Switch IR sensors off: they no longer stop the robot (they still measure). In each corner there "
+                       "are two: lower D and upper U (over the boxes). Names: F/B front/back, L/R left/right, D/U: "
+                       "FLD, FLU, FRD, FRU, BLD, BLU, BRD, BRU. Groups of letters: D = all lower, FD = lower front, "
+                       "B = all back. They switch back on at the end of the tactic and on STOP.",
                    params=[], ret="True if the drive board confirmed it.",
-                   example="ir_off(\"F\")          # e.g. close to a quarry or after picking stones\ngoto(750, 1770)\nir_on()"),
+                   example="ir_off(\"FD\")         # lower front: they see the quarry we drive to\ngoto(750, 1768)\nir_on()"),
     "ir_on": dict(group="Sensors", say="Switch IR sensors back on. ir_on() = all of them.",
-                  params=[], ret="True if the drive board confirmed it.", example="ir_on()\nir_on(\"B\")"),
+                  params=[], ret="True if the drive board confirmed it.", example="ir_on()\nir_on(\"D\")"),
     "ir_sees": dict(group="Sensors",
                     say="Does one of these sensors see something right now (also when it is switched off)?",
                     params=[], ret="True / False.",
-                    example="if ir_sees(\"F2\", \"F3\"):\n    goto(1250, 1540)      # something in front: other plan"),
+                    example="if ir_sees(\"FU\"):        # upper front: the opponent\n    goto(1250, 1540)      # other plan"),
     "log": dict(group="Other", say="Write a line to the log (on the robot screen report and in the simulator).",
                 params=[["text", "any text"]], ret="Nothing.", example="log(\"got 3 stones\")"),
     "Abort": dict(group="Other", say="Stop the tactic on purpose: raise Abort(\"why\").",

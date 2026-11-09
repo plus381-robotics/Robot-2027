@@ -1,7 +1,7 @@
 # Plan: koraci na mapi, IR senzori, elementi igre, taktike protivnika
 
 Nacrt, 2026-11-08. **Stanje: E1-E4 urađeni (lokalni commit-i), E5 nije.** Odluke: `near` izbačen; samo gornji
-senzori (340 mm), imena F1-F4/B1-B4; guranje jednostavno (najčešće se kamen odmah hvata); jedan veliki
+senzori (340 mm), imena kratka; guranje jednostavno (najčešće se kamen odmah hvata); jedan veliki
 protivnik + PAMI-ji koji kreću u poslednjih 15 s. Ostatak teksta je plan kakav je bio pre rada. Posle odobrenja se radi po fazama, sa lokalnim
 commit-ima (na `main` tek kad kažeš). Izmene u `ESP32/`, `protocol/` i STM delu protokola tek posle "da" za
 tu fazu; ostali kod na Nucleo-u je Lein.
@@ -197,3 +197,11 @@ oko senzora na Nucleo-u. U simulatoru E2c može i pre STM-a (simulirani STM32 zn
 3. **Imena senzora u taktici:** engleski (`front_left_low`, `front`, `low`) kao ostale komande, ili srpski?
 4. **Elementi:** da li treba odmah i E5 (robot uzima kamenove), ili prvo samo ručno menjanje i guranje?
 5. **Protivnik:** koliko protivničkih robota najviše (2?), i da li treba PAMI (mali roboti)?
+
+## Ispravka rasporeda IR senzora (posle E2)
+
+Prvo je pogrešno napravljeno 4 napred + 4 nazad, svi na 340 mm. Stvarni raspored: **u svakom uglu po dva senzora,
+donji D (visina nebitna, npr. 40 mm) i gornji U (340 mm, iznad kutija)**. Imena: F/B napred/nazad, L/R levo/desno,
+D/U donji/gornji: FLD FLU FRD FRU BLD BLU BRD BRU (bitovi 1..128 tim redom, `protocol.Ir`). Grupe slova:
+`ir_off("D")` svi donji, `ir_off("FD")` donji prednji, `ir_off("BU")` gornji zadnji. Donji vide kamenolome, pa
+taktika `kamenolomi` pri prilazu gasi `FD`; gornji i dalje vide protivnika.

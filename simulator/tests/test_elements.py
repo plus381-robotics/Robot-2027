@@ -2,7 +2,7 @@
 from eurosim import field
 from eurosim.sim import simulate
 
-PUSH = ("from gambit import *\nSTART = (1093, 1500, 0)\n"
+PUSH = ("from gambit import *\nSTART = (1093, 1500, 0)\nir_off('FD')\n"   # donji prednji bi ga videli i stali
         "log('rez %s' % move(500, speed=300, timeout=8))\n")      # u srednji kamenolom (1500, 1500), okrenut 90°
 
 

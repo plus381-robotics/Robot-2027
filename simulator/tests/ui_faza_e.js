@@ -26,16 +26,16 @@ const { chromium } = require('playwright');
     if (!(e1.marks > 10 && e1.marks < e1.steps && e1.labels <= 1)) fail.push('E1: ' + JSON.stringify(e1));
     if ((await ev(() => fetch('/favicon.svg').then(r => r.status))) !== 200) fail.push('E1: favicon');
 
-    // E2: 8 senzora F1..B4 iz profila; kamenolomi ih ne zaustavljaju (taktika prošla), ir_off se vidi u snimku
+    // E2: 8 senzora (uglovi, donji D i gornji U) iz profila; taktika prošla uz ir_off, maska se vidi u snimku
     const e2 = await ev(() => ({ names: window.eurosim.view.irRays.map(r => r.name).join(' '),
-      off: (window.eurosim.run.cols.irm || []).some(m => m === 15) }));
-    if (e2.names !== 'F1 F2 F3 F4 B1 B2 B3 B4' || !e2.off) fail.push('E2: ' + JSON.stringify(e2));
-    // U2: slika IR senzora u STATE pokazuje isključene (kamenolomi: ir_off("B") posle uzimanja)
-    const tOff = await ev(() => { const c = window.eurosim.run.cols; return c.t[c.irm.findIndex(m => m === 15)] + 200; });
+      off: (window.eurosim.run.cols.irm || []).some(m => m === 0x0F) }));
+    if (e2.names !== 'FLD FLU FRD FRU BLD BLU BRD BRU' || !e2.off) fail.push('E2: ' + JSON.stringify(e2));
+    // U2: slika IR senzora u STATE pokazuje isključene (kamenolomi: ir_off("B") posle uzimanja = maska 0x0F)
+    const tOff = await ev(() => { const c = window.eurosim.run.cols; return c.t[c.irm.findIndex(m => m === 0x0F)] + 200; });
     await ev(t => { window.eurosim.play.playing = false; window.eurosim.play.t = t; }, tOff);
     await p.click('#nextFrame');
     const u2 = await ev(() => [document.getElementById('irText').textContent, document.querySelectorAll('#irSvg .ir-s.off').length]);
-    if (!/off: B1 B2 B3 B4/.test(u2[0]) || u2[1] !== 4) fail.push('U2: ' + JSON.stringify(u2));
+    if (!/off: BLD BLU BRD BRU/.test(u2[0]) || u2[1] !== 4) fail.push('U2: ' + JSON.stringify(u2));
 
     // E3: klik na kamenolom (projekcija iz 3D prikaza), jedan kamen manje, simulacija sa izmenjenim stolom
     const xy = await ev(() => { const v = window.eurosim.view, g = v.elGroup.children[0];
@@ -53,7 +53,10 @@ const { chromium } = require('playwright');
     await p.fill('#oppX', '2750'); await p.dispatchEvent('#oppX', 'change');
     await p.selectOption('#oppTac', 'patrola');
     await p.click('#addPami');
-    await p.click('#tabSim'); await p.click('#run'); await result();
+    await p.click('#tabSim'); await p.click('#run');
+    // čeka snimak sa oba protivnika i taktikom (raniji automatski run, dok se protivnik podešava, nije taj)
+    await p.waitForFunction(() => { const r = window.eurosim.run, o = r && r.cols.opp;
+      return o && o.length > 1 && o[0].length === 2 && o[o.length - 1][0][0] !== o[0][0][0]; }, null, { timeout: 30000 }).catch(() => {});
     const e4 = await ev(() => { const c = window.eurosim.run.cols; const o = c.opp || [];
       return { n: o.length && o[0].length, moved: o.length > 1 && o[o.length - 1][0][0] !== o[0][0][0] }; });
     if (e4.n !== 2 || !e4.moved) fail.push('E4: ' + JSON.stringify(e4));
