@@ -60,16 +60,16 @@ float PI_regulator(float error, float dt) {
 	} else if (output < 0) {
 		output = 0;
 	}
-
 	return output;
 }
+
 float anti_windup(float error, float dt) {
 	integral_new = integral + error * dt;
 	output_new = Kp * error + Ki * integral_new;
 	if (output_new > 100 && error > 0) {
 		return integral;
 	}
-	if (output_new < 0 && error < 0) {
+	if (output_new < -100 && error < 0) {
 		return integral;
 	}
 	return integral_new;
