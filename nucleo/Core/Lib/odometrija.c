@@ -31,8 +31,8 @@ volatile float w_right;
 
 void update_odometrija(float dt) {
 	//moracu da imam flag kad krenem kretnje da radim da vidim da li se radnja zavrsila neka ako jeste s cu postavljati na 0
-	w_left = encoder_speed_left(dt);
-	w_right = encoder_speed_right(dt);
+	w_left = get_speed_left();
+	w_right = get_speed_right();
 	v_left = w_left * (d_left / 2);
 	v_right = w_right * (d_right / 2);
 
