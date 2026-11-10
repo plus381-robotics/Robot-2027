@@ -9,7 +9,7 @@
 #define INC_REGULACIJA_H_
 
 void position_control_loop();
-void velocity_control_loop();
-void PID_parametri();
+void velocity_control_loop(float dt);
+float PI_regulator(float error, float dt);
 
 #endif /* INC_REGULACIJA_H_ */
