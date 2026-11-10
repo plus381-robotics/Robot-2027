@@ -44,11 +44,13 @@ void velocity_control_loop(float dt) {
 	err_v = ref_lin_v - lin_v;
 	//err_w = ref_ang_v - ang_v;
 	output = PI_regulator(err_v, dt);
+
 	//prosledjuje mi gresku u pid
 	//iz pida dobijam upravljanje linearne i ugaone brzine u odnosu na err
 	//na osnovu upravljanja lin + ug brzina = desni motor
 	//lin - ug = levi
 }
+
 float PI_regulator(float error, float dt) {
 	P = Kp * error;
 	integral = anti_windup(error, dt);
@@ -57,14 +59,20 @@ float PI_regulator(float error, float dt) {
 
 	if (output > 100) {
 		output = 100;
-	} else if (output < 0) {
-		output = 0;
+	} else if (output < -100) {
+		output = -100;
 	}
+
 	return output;
 }
 
-float anti_windup(float error, float dt) {
+float integral_calculation(float error, float dt) {
 	integral_new = integral + error * dt;
+	return integral_new;
+}
+
+float anti_windup(float error, float dt) {
+	integral_new = integral_calculation(error, dt);
 	output_new = Kp * error + Ki * integral_new;
 	if (output_new > 100 && error > 0) {
 		return integral;
