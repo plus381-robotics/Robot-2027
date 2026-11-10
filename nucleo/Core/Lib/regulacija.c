@@ -76,16 +76,14 @@ float D_regulator(PID_t *pid, float *error, float dt) {
 	return pid-> D;
 }
 
-
-
 float anti_windup(PID_t *pid, float *error, float dt)
 {
-	pid -> integral_new = pid -> integral + *error * dt;
+    pid->integral_new = pid->integral + (*error) * dt;
 
-	pid -> output_new =  pid->Ki * pid->integral_new;
+    pid->I_new = pid->Ki * pid->integral_new;
 
-    if ((pid->output_new > 100 && *error > 0) ||
-        (pid->output_new < -100 && *error < 0))
+    if ((pid->I_new > 100 && *error > 0) ||
+        (pid->I_new < -100 && *error < 0))
     {
         return pid->integral;
     }
@@ -100,7 +98,10 @@ void reset_PID(PID_t *pid, float *error){
 	pid -> error_prev = 0;
 	pid -> integral_new = 0;
 	pid -> output = 0;
-	pid -> output_new = 0;
+	pid->P = 0;
+	pid->I = 0;
+	pid->D = 0;
+	pid -> I_new = 0;
 	*error = 0;
 }
 

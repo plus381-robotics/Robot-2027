@@ -78,7 +78,7 @@ float error_right(float ideal_distance) //idealna distanca je ovo sto je zadato 
 	return ideal_distance - get_s_right(); //vraca u svakom momentu gresku
 }
 float error_D(float ideal_angle) {
-	return ideal_angle - get_phi1();
+	return ogranicenje_phi(ideal_angle) - ogranicenje_phi(get_phi1());
 }
 
 //da lakse racunam a ne mucim se
@@ -98,16 +98,7 @@ float new_D(float ideal_angle) {
 
 
 //PETRE DA LI SI SIG DA OCES OVO OVDE? Ovo ti nema veze sa pozicijama
-void set_pose(float x_m, float y_m, float phi_rad) {
-	__disable_irq();
-	x = x_m;
-	y = y_m;
-	phi = phi_rad;
-	phi1 = phi_rad;
-	__enable_irq();
-}
 
-//potrebne promenljive koje ce mi dalje trebati da baratam sa njima u kodu
 float get_x_pos_rob() {
 	return x;
 }
@@ -117,7 +108,6 @@ float get_y_pos_rob() {
 float get_phi_pos_rob() {
 	return phi;
 }
-
 float get_linear_velocity() {
 	return linear_velocity;
 }
@@ -125,3 +115,12 @@ float get_angular_velocity() {
 	return angular_velocity;
 }
 
+
+void set_pose(float x_m, float y_m, float phi_rad) {
+	__disable_irq();
+	x = x_m;
+	y = y_m;
+	phi = phi_rad;
+	phi1 = phi_rad;
+	__enable_irq();
+}

@@ -22,9 +22,9 @@ typedef struct
     float P;
     float I;
     float D;
+    float I_new;
 
     float output;
-    float output_new;
 
 } PID_t;
 

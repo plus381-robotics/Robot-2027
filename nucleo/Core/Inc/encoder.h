@@ -2,7 +2,7 @@
  * encoder.h
  *
  *  Created on: Oct 23, 2026
- *      Author: Dell
+ *      Author: Lea
  */
 
 #ifndef INC_ENCODER_H_
