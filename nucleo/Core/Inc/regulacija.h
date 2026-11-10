@@ -36,6 +36,7 @@ float PID_regulator(PID_t *pid, float *error, float dt);
 float integral_calculation(PID_t *pid, float *error, float dt);
 float D_regulator(PID_t *pid, float *error, float dt);
 float anti_windup(PID_t *pid, float *error, float dt);
+void reset_PID(PID_t *pid, float *error);
 
 #endif
 
