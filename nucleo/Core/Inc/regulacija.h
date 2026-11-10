@@ -10,5 +10,6 @@
 
 void position_control_loop();
 void velocity_control_loop();
+void PID_parametri();
 
 #endif /* INC_REGULACIJA_H_ */

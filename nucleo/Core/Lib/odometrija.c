@@ -28,7 +28,6 @@ volatile float s_right = 0;
 volatile float w_left;
 volatile float w_right;
 
-
 void update_odometrija(float dt) {
 	//moracu da imam flag kad krenem kretnje da radim da vidim da li se radnja zavrsila neka ako jeste s cu postavljati na 0
 	w_left = encoder_speed_left(dt);
@@ -39,28 +38,32 @@ void update_odometrija(float dt) {
 	linear_velocity = (v_left + v_right) / 2;
 	angular_velocity = (v_right - v_left) / D;
 
-	// LEA, IMAS BUG OVDE (performanse u prekidu od 1 kHz):
-	// cos(), sin() i fabs() rade u double preciznosti, a FPU na STM32F401 zna samo float.
-	// Zato se double racuna softverski, sporo, 1000 puta u sekundi u prekidu TIM10.
-	// Isto vazi za konstante bez "f" (2.0 * M_PI je double).
-	// Popravka: cosf(), sinf(), fabsf() i float konstante, npr. 2.0f * (float) M_PI
 	x += linear_velocity * cos(phi + (angular_velocity * dt) / 2) * dt;
 	y += linear_velocity * sin(phi + (angular_velocity * dt) / 2) * dt;
 
 	phi1 += angular_velocity * dt; //u bilo kom opsegu vraca
-	phi = remainderf(phi1, 2.0f * M_PI); //proveriti da li ova funkcija zaista vraca iz -1.57 do 1.57
+	phi = ogranicenje_phi(phi1);
 
 	s_left += fabs(v_left * dt); //sabira predjeni put
 	s_right += fabs(v_right * dt);
 }
 
-float get_s_left(){
+float ogranicenje_phi(float phi) {
+	if (phi < -M_PI)
+		phi = +2 * M_PI;
+
+	else if (phi > M_PI)
+		phi = -2 * M_PI;
+	return phi;
+}
+
+float get_s_left() {
 	return s_left;
 }
-float get_s_right(){
+float get_s_right() {
 	return s_right;
 }
-float get_phi1(){
+float get_phi1() {
 	return phi1;
 }
 
@@ -73,29 +76,27 @@ float error_right(float ideal_distance) //idealna distanca je ovo sto je zadato 
 {
 	return ideal_distance - get_s_right(); //vraca u svakom momentu gresku
 }
-float error_D(float ideal_angle)
-{
-    return ideal_angle - get_phi1();
+float error_D(float ideal_angle) {
+	return ideal_angle - get_phi1();
 }
 
 //da lakse racunam a ne mucim se
-float new_d_left(float ideal_distance)
-{
-    return d_left * (ideal_distance/ get_s_left());
+float new_d_left(float ideal_distance) {
+	return d_left * (ideal_distance / get_s_left());
 }
 
-float new_d_right(float ideal_distance)
-{
-    return d_right * (ideal_distance/ get_s_right());
+float new_d_right(float ideal_distance) {
+	return d_right * (ideal_distance / get_s_right());
 }
-float new_D(float ideal_angle)
-{
-    return D*(get_phi1()/ideal_angle);
+float new_D(float ideal_angle) {
+	return D * (get_phi1() / ideal_angle);
 }
-
 
 // Dodato za protokol sa ESP-om (komanda SET_POSE): postavlja trenutnu poziciju robota.
 // x, y u metrima, phi u radijanima. Poziva se iz glavne petlje, zato se prekid nakratko gasi.
+
+
+//PETRE DA LI SI SIG DA OCES OVO OVDE? Ovo ti nema veze sa pozicijama
 void set_pose(float x_m, float y_m, float phi_rad) {
 	__disable_irq();
 	x = x_m;
@@ -116,10 +117,10 @@ float get_phi_pos_rob() {
 	return phi;
 }
 
-float get_linear_velocity(){
+float get_linear_velocity() {
 	return linear_velocity;
 }
-float get_angular_velocity(){
+float get_angular_velocity() {
 	return angular_velocity;
 }
 
