@@ -25,6 +25,7 @@ volatile float phi1 = 0;
 
 volatile float s_left = 0; //od pocetka jednog kretanja ukupan predjeni put (za sada samo za linearno kretanje)
 volatile float s_right = 0;
+
 volatile float w_left;
 volatile float w_right;
 

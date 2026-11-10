@@ -18,6 +18,9 @@ volatile int16_t encoder_right_poc = 0;
 volatile int16_t delta_left = 0;
 volatile int16_t delta_right = 0;
 
+volatile int16_t speed_left = 0;
+volatile int16_t speed_right = 0;
+
 const static uint16_t incr_total = 8192;
 static float inc2rad;
 
@@ -49,4 +52,9 @@ int32_t get_left_encoder() {
 
 int32_t get_right_encoder() {
 	return encoder_value_right;
+}
+void encoder_update(float dt)
+{
+    speed_left = encoder_speed_left(dt);
+    speed_right = encoder_speed_right(dt);
 }

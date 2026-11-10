@@ -17,7 +17,7 @@ volatile float w_r, w_l;
 
 void timer10_isr() {
 	time_ms++;
-	time_s = time_ms / 1000.0;
+	time_s = time_ms * 0.001;
 	chinch_read();
 	chinch_debounce_counter(chinch_time, dt);
 
@@ -25,6 +25,7 @@ void timer10_isr() {
 		match_time += 0.001;
 	}
 	update_odometrija(dt);
+	encoder_update(dt);
 	velocity_control_loop(dt);
 }
 
