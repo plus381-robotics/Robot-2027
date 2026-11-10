@@ -30,7 +30,6 @@ void encoder_init(void) {
 float encoder_speed_left(float dt) {
 	encoder_value_left = (int16_t) __HAL_TIM_GET_COUNTER(&htim2);
 	delta_left = (int16_t) (encoder_value_left - encoder_left_poc);
-
 	encoder_left_poc = encoder_value_left;
 
 	return delta_left * inc2rad / dt;
