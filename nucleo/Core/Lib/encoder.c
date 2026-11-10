@@ -12,11 +12,11 @@
 volatile int32_t encoder_value_left = 0;
 volatile int32_t encoder_value_right = 0;
 
-volatile float delta_left = 0;
-volatile float delta_right = 0;
+volatile int16_t encoder_left_poc = 0;
+volatile int16_t encoder_right_poc = 0;
 
-volatile int32_t encoder_left_poc = 0;
-volatile int32_t encoder_right_poc = 0;
+volatile int16_t delta_left = 0;
+volatile int16_t delta_right = 0;
 
 const static uint16_t incr_total = 8192;
 static float inc2rad;
@@ -28,31 +28,19 @@ void encoder_init(void) {
 }
 
 float encoder_speed_left(float dt) {
-	// LEA, IMAS BUG OVDE (enkoder, prelaz preko granice brojaca):
-	// brojac je 16-bitni (Period = 65535), a razlika se racuna u int32_t.
-	// Kad brojac predje sa 32767 na -32768, delta ispadne oko -65535 umesto +1,
-	// pa odometrija "skoci" otprilike na svaka 4 kruga tocka (8192 inkrementa po krugu).
-	// Popravka: razliku racunati kao int16_t, ona se sama ispravno "prelije":
-	//     int16_t cnt = __HAL_TIM_GET_COUNTER(&htim2);
-	//     int16_t delta = (int16_t)(cnt - encoder_left_poc);
-	//     encoder_left_poc = cnt;
 	encoder_value_left = (int16_t) __HAL_TIM_GET_COUNTER(&htim2);
-	delta_left = encoder_value_left - encoder_left_poc;
+	delta_left = (int16_t) (encoder_value_left - encoder_left_poc);
+
 	encoder_left_poc = encoder_value_left;
+
 	return delta_left * inc2rad / dt;
 }
 float encoder_speed_right(float dt) {
-	// LEA, IMAS ISTI BUG OVDE (desni enkoder, prelaz preko granice brojaca):
-	// brojac je 16-bitni (Period = 65535), a razlika se racuna u int32_t.
-	// Kad brojac predje sa 32767 na -32768, delta ispadne oko -65535 umesto +1,
-	// pa odometrija "skoci" otprilike na svaka 4 kruga tocka (8192 inkrementa po krugu).
-	// Popravka: razliku racunati kao int16_t, ona se sama ispravno "prelije":
-	//     int16_t cnt = __HAL_TIM_GET_COUNTER(&htim5);
-	//     int16_t delta = (int16_t)(cnt - encoder_right_poc);
-	//     encoder_right_poc = cnt;
 	encoder_value_right = (int16_t) __HAL_TIM_GET_COUNTER(&htim5);
-	delta_right = encoder_value_right - encoder_right_poc;
+	delta_right = (int16_t) (encoder_value_right - encoder_right_poc);
+
 	encoder_right_poc = encoder_value_right;
+
 	return delta_right * inc2rad / dt;
 }
 

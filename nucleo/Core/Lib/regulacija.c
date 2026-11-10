@@ -38,3 +38,6 @@ void velocity_control_loop() {
 	//na osnovu upravljanja lin + ug brzina = desni motor
 	//lin - ug = levi
 }
+void PID_parametri(){
+
+}
