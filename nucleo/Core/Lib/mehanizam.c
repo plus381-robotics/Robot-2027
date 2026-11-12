@@ -7,13 +7,13 @@
 #include "main.h"
 
 void front_mechanism() {
-	ax_move(4, 30, 500);//malo podigne
-	HAL_Delay(1500);
 
-	ax_move(2, 30, 500);//zakrene
+	ax_move(2, 503, 500);//zakrene
 	HAL_Delay(1500);
+	ax_move(2, 827, 500);//zakrene
+		HAL_Delay(1500);
 
-	ax_move(3, 30, 500);//ostavi desnu
+	/*ax_move(3, 30, 500);//ostavi desnu
 	HAL_Delay(1500);
 
 	//ostavi srednju
@@ -24,10 +24,7 @@ void front_mechanism() {
 	ax_move(4, 30, 500);//malo vise podigne
 	HAL_Delay(1500);
 
-	//ostavi levu
-
-
-
+	//ostavi levu*/
 }
 void back_mechanism() {
 

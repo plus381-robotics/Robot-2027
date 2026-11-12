@@ -44,12 +44,13 @@ ax_move (uint8_t id, uint16_t angle, uint16_t speed)
 	HAL_Delay (6);
 }
 
-void ax_init (){
-	torque_enable(1); //front levi
-	torque_enable(2); //front zakretni
-	torque_enable(3); //front desni
-	torque_enable(4); //front lift
 
+void ax_init (){
+	torque_enable(1); //front levi //uglovi kad je ravno 147.66 kad je kao pod 242.58
+	torque_enable(2); //front zakretni //ravno je 150, kad je zakrenut je 241.11
+	torque_enable(3); //front desni //150, inace na 60
+
+	torque_enable(4); //front lift
 	torque_enable(5); //back levi
 	torque_enable(6); //back zakretni
 	torque_enable(7); //back desni

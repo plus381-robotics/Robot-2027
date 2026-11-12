@@ -138,6 +138,7 @@ int main(void) {
 		phi_main = get_phi_pos_rob();
 		erl = error_left(id_dis);
 		err = error_right(id_dis);
+		front_mechanism();
 	}
 	/* USER CODE END 3 */
 }

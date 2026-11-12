@@ -9,7 +9,6 @@
 #include "odometrija.h"
 #include "regulacija.h"
 
-
 float lin_v = 0;
 float ang_w = 0;
 
@@ -22,18 +21,9 @@ float ref_ang_w = 0;
 float output_v = 0;
 float output_w = 0;
 
-PID_t PID_linearni = {
-    .Kp = 1,
-    .Ki = 1,
-    .Kd = 1
-};
+PID_t PID_linearni = { .Kp = 1, .Ki = 1, .Kd = 0 };
 
-PID_t PID_ugao = {
-    .Kp = 1.5,
-    .Ki = 1.5,
-    .Kd = 1.5
-};
-
+PID_t PID_ugao = { .Kp = 1.5, .Ki = 1.5, .Kd = 1.5 };
 
 void position_control_loop() {
 	/*
@@ -55,11 +45,11 @@ void velocity_control_loop(float dt) {
 
 float PID_regulator(PID_t *pid, float *error, float dt) {
 
-	pid-> P = pid -> Kp * *error;
-	pid-> D = pid -> Kd * D_regulator(pid, error, dt);
-	pid -> I = pid ->Ki * anti_windup(pid, error, dt);
+	pid->P = pid->Kp * *error;
+	pid->D = pid->Kd * D_regulator(pid, error, dt);
+	pid->I = pid->Ki * anti_windup(pid, error, dt);
 
-	pid->output = pid-> P + pid-> I + pid-> D;
+	pid->output = pid->P + pid->I + pid->D;
 
 	if (pid->output > 100) {
 		pid->output = 100;
@@ -71,37 +61,34 @@ float PID_regulator(PID_t *pid, float *error, float dt) {
 }
 
 float D_regulator(PID_t *pid, float *error, float dt) {
-	pid-> D = (*error - pid-> error_prev) / dt;
-	pid-> error_prev = *error;
-	return pid-> D;
+	pid->D = (*error - pid->error_prev) / dt;
+	pid->error_prev = *error;
+	return pid->D;
 }
 
-float anti_windup(PID_t *pid, float *error, float dt)
-{
-    pid->integral_new = pid->integral + (*error) * dt;
+float anti_windup(PID_t *pid, float *error, float dt) {
+	pid->integral_new = pid->integral + (*error) * dt;
 
-    pid->I_new = pid->Ki * pid->integral_new;
+	pid->I_new = pid->Ki * pid->integral_new;
 
-    if ((pid->I_new > 100 && *error > 0) ||
-        (pid->I_new < -100 && *error < 0))
-    {
+	if ((pid->I_new > 100 && *error > 0) || (pid->I_new < -100 && *error < 0)) {
 		return pid->integral;
 	}
 
-    pid->integral = pid->integral_new;
+	pid->integral = pid->integral_new;
 
-    return pid->integral;
+	return pid->integral;
 }
 
-void reset_PID(PID_t *pid, float *error){
-	pid -> integral = 0;
-	pid -> error_prev = 0;
-	pid -> integral_new = 0;
-	pid -> output = 0;
+void reset_PID(PID_t *pid, float *error) {
+	pid->integral = 0;
+	pid->error_prev = 0;
+	pid->integral_new = 0;
+	pid->output = 0;
 	pid->P = 0;
 	pid->I = 0;
 	pid->D = 0;
-	pid -> I_new = 0;
+	pid->I_new = 0;
 	*error = 0;
 }
 
