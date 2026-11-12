@@ -26,7 +26,7 @@ void timer10_isr() {
 	}
 	encoder_update(dt);
 	update_odometrija(dt);
-	velocity_control_loop(dt);
+	//velocity_control_loop(dt);
 }
 
 void time_start() {

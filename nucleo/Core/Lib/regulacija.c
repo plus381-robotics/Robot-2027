@@ -85,8 +85,8 @@ float anti_windup(PID_t *pid, float *error, float dt)
     if ((pid->I_new > 100 && *error > 0) ||
         (pid->I_new < -100 && *error < 0))
     {
-        return pid->integral;
-    }
+		return pid->integral;
+	}
 
     pid->integral = pid->integral_new;
 

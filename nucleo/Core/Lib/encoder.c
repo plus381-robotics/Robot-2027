@@ -31,14 +31,14 @@ void encoder_init(void) {
 }
 
 float encoder_speed_left(float dt) {
-	encoder_value_left = (int16_t) __HAL_TIM_GET_COUNTER(&htim2);
+	encoder_value_left = (int16_t) __HAL_TIM_GET_COUNTER(&htim5);
 	delta_left = (int16_t) (encoder_value_left - encoder_left_poc);
 	encoder_left_poc = encoder_value_left;
 
 	return delta_left * inc2rad / dt;
 }
 float encoder_speed_right(float dt) {
-	encoder_value_right = (int16_t) __HAL_TIM_GET_COUNTER(&htim5);
+	encoder_value_right = (int16_t) __HAL_TIM_GET_COUNTER(&htim2);
 	delta_right = (int16_t) (encoder_value_right - encoder_right_poc);
 
 	encoder_right_poc = encoder_value_right;

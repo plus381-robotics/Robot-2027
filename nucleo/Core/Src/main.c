@@ -57,6 +57,12 @@
 volatile uint16_t ax_position = 55;
 volatile uint16_t ax_speed = 200;
 volatile uint8_t id = 0;
+volatile float x_main=0;
+volatile float y_main=0;
+volatile float phi_main=0;
+float id_dis = 2.0;
+float erl = 0;
+float err = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -64,6 +70,7 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
+
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
@@ -112,6 +119,7 @@ int main(void) {
 	encoder_init();
 	pwm_init();
 	ax_init ();
+
 	comm_init();      // ESP na USART1; bez ESP-a Nucleo radi isto kao ranije
 	watchdog_init();  // poslednje, posle sporih inicijalizacija
 
@@ -123,10 +131,13 @@ int main(void) {
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
-
 		comm_poll();
 		watchdog_feed();
-		ax_move(id, ax_position, ax_speed);
+		x_main = get_x_pos_rob();
+		y_main = get_y_pos_rob();
+		phi_main = get_phi_pos_rob();
+		erl = error_left(id_dis);
+		err = error_right(id_dis);
 	}
 	/* USER CODE END 3 */
 }

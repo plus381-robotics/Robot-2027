@@ -8,9 +8,9 @@
 #include "tim.h"
 #include "encoder.h"
 
-float D = 0.3; //razmak izmedju tockova
-float d_left = 0.07; //precnik levog
-float d_right = 0.07; //precnik desnog
+float D = 0.166; //razmak izmedju tockova
+float d_left = 0.0766; //precnik levog
+float d_right = 0.0767; //precnik desnog
 
 volatile float v_left;
 volatile float v_right;
@@ -33,6 +33,7 @@ void update_odometrija(float dt) {
 	//moracu da imam flag kad krenem kretnje da radim da vidim da li se radnja zavrsila neka ako jeste s cu postavljati na 0
 	w_left = get_speed_left();
 	w_right = get_speed_right();
+
 	v_left = w_left * (d_left / 2);
 	v_right = w_right * (d_right / 2);
 
@@ -72,6 +73,7 @@ float get_phi1() {
 float error_left(float ideal_distance) //idealna distanca je ovo sto je zadato realna je ono sto je presao, dok funkcija sluzi za racunanje greske zarad lakseg podesavanje parametra
 {
 	return ideal_distance - get_s_left(); //vraca u svakom momentu gresku
+
 }
 float error_right(float ideal_distance) //idealna distanca je ovo sto je zadato realna je ono sto je presao, dok funkcija sluzi za racunanje greske zarad lakseg podesavanje parametra
 {
