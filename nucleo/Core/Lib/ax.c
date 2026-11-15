@@ -51,6 +51,7 @@ void ax_init (){
 	torque_enable(3); //front desni //150, inace na 60
 
 	torque_enable(4); //front lift
+
 	torque_enable(5); //back levi
 	torque_enable(6); //back zakretni
 	torque_enable(7); //back desni
