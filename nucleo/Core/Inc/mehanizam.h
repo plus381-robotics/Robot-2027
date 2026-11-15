@@ -8,6 +8,7 @@
 #ifndef INC_MEHANIZAM_H_
 #define INC_MEHANIZAM_H_
 
+
 void front_pocetna();
 void front_mechanism();
 
