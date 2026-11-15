@@ -124,7 +124,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-		comm_poll();
+		//comm_poll();
 		//watchdog_feed();
 		front_pocetna();
 		front_mechanism();

@@ -31,13 +31,7 @@ void ax_move(uint8_t id, uint16_t angle, uint16_t speed) {
 			angle_high, speed_low, speed_high, checksum };
 
 	HAL_UART_Transmit(&huart6, ax_move, 11, 100);
-	HAL_Delay(8);
-	HAL_UART_Transmit(&huart6, ax_move, 11, 100);
-	HAL_Delay(8);
-	HAL_UART_Transmit(&huart6, ax_move, 11, 100);
-	HAL_Delay(8);
-	HAL_UART_Transmit(&huart6, ax_move, 11, 100);
-	HAL_Delay(6);
+	HAL_Delay(10);
 }
 
 void ax_init() {
