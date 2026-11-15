@@ -8,9 +8,9 @@
 #include "tim.h"
 #include "encoder.h"
 
-float D = 0.166; //razmak izmedju tockova
-float d_left = 0.0766; //precnik levog
-float d_right = 0.0767; //precnik desnog
+float D = 166; //razmak izmedju tockova iz fusiona treba videti
+float d_left = 76.6; //precnik levog izmereno uzivo sa velikim o ringovima
+float d_right = 76.7; //precnik desnog -||-
 
 volatile float v_left;
 volatile float v_right;
@@ -52,10 +52,10 @@ void update_odometrija(float dt) {
 
 float ogranicenje_phi(float phi) {
 	if (phi < -M_PI)
-		phi = +2 * M_PI;
+		phi += 2.0 * M_PI;
 
 	else if (phi > M_PI)
-		phi = -2 * M_PI;
+		phi -= 2.0 * M_PI;
 	return phi;
 }
 
@@ -80,7 +80,7 @@ float error_right(float ideal_distance) //idealna distanca je ovo sto je zadato 
 	return ideal_distance - get_s_right(); //vraca u svakom momentu gresku
 }
 float error_D(float ideal_angle) {
-	return ogranicenje_phi(ideal_angle) - ogranicenje_phi(get_phi1());
+	return ogranicenje_phi(ideal_angle - get_phi1());
 }
 
 //da lakse racunam a ne mucim se
@@ -96,11 +96,7 @@ float new_D(float ideal_angle) {
 }
 
 // Dodato za protokol sa ESP-om (komanda SET_POSE): postavlja trenutnu poziciju robota.
-// x, y u metrima, phi u radijanima. Poziva se iz glavne petlje, zato se prekid nakratko gasi.
-
-
-//PETRE DA LI SI SIG DA OCES OVO OVDE? Ovo ti nema veze sa pozicijama
-
+// x, y u MILIMETRIMA, phi u radijanima. Poziva se iz glavne petlje, zato se prekid nakratko gasi.
 float get_x_pos_rob() {
 	return x;
 }
@@ -117,11 +113,11 @@ float get_angular_velocity() {
 	return angular_velocity;
 }
 
-
-void set_pose(float x_m, float y_m, float phi_rad) {
+//PETRE DA LI SI SIG DA OCES OVO OVDE? Ovo ti nema veze sa pozicijama
+void set_pose(float x_mm, float y_mm, float phi_rad) {
 	__disable_irq();
-	x = x_m;
-	y = y_m;
+	x = x_mm;
+	y = y_mm;
 	phi = phi_rad;
 	phi1 = phi_rad;
 	__enable_irq();
