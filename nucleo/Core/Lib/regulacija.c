@@ -21,12 +21,9 @@ float ref_ang_w = 0;
 float output_v = 0;
 float output_w = 0;
 
-float left = 0;
-float right = 0;
-
 PID_t PID_linearni = { .Kp = 1, .Ki = 1, .Kd = 0 };
 
-PID_t PID_ugao = { .Kp = 1.5, .Ki = 1.5, .Kd = 0.0 };
+PID_t PID_ugao = { .Kp = 1.5, .Ki = 1.5, .Kd = 1.5 };
 
 void position_control_loop() {
 	/*
@@ -44,17 +41,6 @@ void velocity_control_loop(float dt) {
 
 	output_v = PID_regulator(&PID_linearni, &err_v, dt);
 	output_w = PID_regulator(&PID_ugao, &err_w, dt);
-	left = output_v - output_w;
-	right = output_v + output_w;
-	if (left > 100)
-		left = 100;
-	if (left < -100)
-		left = -100;
-	if (right > 100)
-		right = 100;
-	if (right < -100)
-		right = -100;
-	motori_set(left, right);
 }
 
 float PID_regulator(PID_t *pid, float *error, float dt) {
@@ -88,6 +74,11 @@ float anti_windup(PID_t *pid, float *error, float dt) {
 	if ((pid->I_new > 100 && *error > 0) || (pid->I_new < -100 && *error < 0)) {
 		return pid->integral;
 	}
+    if ((pid->I_new > 100 && *error > 0) ||
+        (pid->I_new < -100 && *error < 0))
+    {
+        return pid->integral;
+    }
 
 	pid->integral = pid->integral_new;
 

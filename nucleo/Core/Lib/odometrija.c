@@ -15,8 +15,8 @@ float d_right = 76.7; //precnik desnog -||-
 volatile float v_left;
 volatile float v_right;
 
-volatile float linear_velocity = 0;
-volatile float angular_velocity = 0;
+volatile float linear_velocity = 1;
+volatile float angular_velocity = 1;
 
 volatile float x = 0; //trenutna pozicija x, y, phi
 volatile float y = 0;
@@ -40,14 +40,14 @@ void update_odometrija(float dt) {
 	linear_velocity = (v_left + v_right) / 2;
 	angular_velocity = (v_right - v_left) / D;
 
-	x += linear_velocity * cosf(phi + (angular_velocity * dt) / 2) * dt;
-	y += linear_velocity * sinf(phi + (angular_velocity * dt) / 2) * dt;
+	x += linear_velocity * cos(phi + (angular_velocity * dt) / 2) * dt;
+	y += linear_velocity * sin(phi + (angular_velocity * dt) / 2) * dt;
 
 	phi1 += angular_velocity * dt; //u bilo kom opsegu vraca
-	phi = ogranicenje_phi(phi + angular_velocity * dt);
+	phi = ogranicenje_phi(phi1);
 
-	s_left += fabsf(v_left * dt); //sabira predjeni put
-	s_right += fabsf(v_right * dt);
+	s_left += fabs(v_left * dt); //sabira predjeni put
+	s_right += fabs(v_right * dt);
 }
 
 float ogranicenje_phi(float phi) {

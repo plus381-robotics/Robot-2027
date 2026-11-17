@@ -9,7 +9,6 @@
 #define INC_PWM_H_
 
 void pwm_init();
-void motori_set(float motor_left, float motor_right);
-void pwm_set(float motor_left, int8_t smer_l, float motor_right, int8_t smer_r);
+void pwm_set(uint8_t motor_left, uint8_t motor_right);
 
 #endif /* INC_PWM_H_ */

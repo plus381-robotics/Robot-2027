@@ -112,7 +112,7 @@ int main(void)
 	encoder_init();
 	pwm_init();
 	ax_init ();
-	//comm_init();      // ESP na USART1; bez ESP-a Nucleo radi isto kao ranije
+	comm_init();      // ESP na USART1; bez ESP-a Nucleo radi isto kao ranije
 	//watchdog_init();  // poslednje, posle sporih inicijalizacija
 
   /* USER CODE END 2 */
@@ -126,6 +126,8 @@ int main(void)
 
 		//comm_poll();
 		//watchdog_feed();
+		front_pocetna();
+		front_mechanism();
 
 	}
   /* USER CODE END 3 */
