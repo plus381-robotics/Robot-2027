@@ -170,7 +170,7 @@ __weak uint8_t comm_hook_actuator(uint8_t seq, uint8_t id, int16_t value) {
 	return REASON_INVALID;
 }
 __weak void comm_hook_stop(void) {
-	pwm_set(0, 0);
+	pwm_set(0, 1, 0, 1);
 }
 
 /* ---------------- obrada komandi ---------------- */
