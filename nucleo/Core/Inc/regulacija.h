@@ -30,7 +30,7 @@ typedef struct
 
 
 
-void position_control_loop(void);
+void position_control_loop(float dt);
 void velocity_control_loop(float dt);
 float PID_regulator(PID_t *pid, float *error, float dt);
 float integral_calculation(PID_t *pid, float *error, float dt);

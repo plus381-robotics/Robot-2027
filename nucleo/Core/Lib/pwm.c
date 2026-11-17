@@ -4,6 +4,7 @@
  *  Created on: Oct 31, 2026
  *      Author: Lea
  */
+
 #include "main.h"
 #include "tim.h"
 #include "pwm.h"
@@ -35,10 +36,7 @@ void motori_set(float motor_left, float motor_right) {
 
 void pwm_set(float motor_left, int8_t smer_l, float motor_right, int8_t smer_r) {
 	//TODO smer motora
-	if (motor_left > 100)
-		motor_left = 100;
-	if (motor_right > 100)
-		motor_right = 100;
+	// Ne pozivati direktno! koristiti motori_set() petre tebi pricam
 	arr = __HAL_TIM_GET_AUTORELOAD(&htim3);
 
 	ccr1 = (arr + 1) * motor_left / 100; //formula za ccr je (arr+1) * duty cycle / 100

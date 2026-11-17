@@ -6,8 +6,8 @@
  */
 
 #include "main.h"
-#include "odometrija.h"
-#include "regulacija.h"
+
+
 
 float lin_v = 0;
 float ang_w = 0;
@@ -24,15 +24,13 @@ float output_w = 0;
 float left = 0;
 float right = 0;
 
+
 PID_t PID_linearni = { .Kp = 1, .Ki = 1, .Kd = 0 };
 
 PID_t PID_ugao = { .Kp = 1.5, .Ki = 1.5, .Kd = 0.0 };
 
-void position_control_loop() {
-	/*
-	 * Ovde kasnije racunamo referentnu
-	 * linearnu brzinu na osnovu pozicije.
-	 */
+void position_control_loop(float dt) {
+	err_distance =  ref
 }
 
 void velocity_control_loop(float dt) {

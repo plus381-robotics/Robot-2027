@@ -26,6 +26,9 @@ float get_x_pos_rob();
 float get_y_pos_rob();
 float get_phi_pos_rob();
 
+float get_distance();
+void reset_s();
+
 float get_linear_velocity();
 float get_angular_velocity();
 

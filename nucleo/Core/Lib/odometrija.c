@@ -6,7 +6,7 @@
  */
 #include "main.h"
 #include "tim.h"
-#include "encoder.h"
+
 
 float D = 166; //razmak izmedju tockova iz fusiona treba videti
 float d_left = 76.6; //precnik levog izmereno uzivo sa velikim o ringovima
@@ -25,6 +25,10 @@ volatile float phi1 = 0;
 
 volatile float s_left = 0; //od pocetka jednog kretanja ukupan predjeni put (za sada samo za linearno kretanje)
 volatile float s_right = 0;
+
+volatile float s_pos_l = 0;
+volatile float s_pos_r = 0;
+volatile float distance = 0;
 
 volatile float w_left;
 volatile float w_right;
@@ -46,8 +50,12 @@ void update_odometrija(float dt) {
 	phi1 += angular_velocity * dt; //u bilo kom opsegu vraca
 	phi = ogranicenje_phi(phi + angular_velocity * dt);
 
-	s_left += fabsf(v_left * dt); //sabira predjeni put
+	s_left += fabsf(v_left * dt); //sabira predjeni put SAMO ZA KALIBRACIJU ZA KRETANJE NE SLUZE K jer sabira vrednosti samo
 	s_right += fabsf(v_right * dt);
+
+	s_pos_l += v_left * dt;
+	s_pos_r += v_right * dt;
+	distance = (s_pos_l + s_pos_r) / 2;
 }
 
 float ogranicenje_phi(float phi) {
@@ -111,6 +119,16 @@ float get_linear_velocity() {
 }
 float get_angular_velocity() {
 	return angular_velocity;
+}
+
+float get_distance(){
+	return distance;
+}
+
+void reset_s(){
+	s_pos_l = 0;
+	s_pos_r = 0;
+	distance = 0;
 }
 
 //PETRE DA LI SI SIG DA OCES OVO OVDE? Ovo ti nema veze sa pozicijama
