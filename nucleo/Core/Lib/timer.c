@@ -14,6 +14,7 @@ uint8_t match_started = 0;
 float chinch_time = 0.2;
 const float dt = 0.001;
 volatile float w_r, w_l;
+uint8_t position_loop = 0;
 
 void timer10_isr() {
 	time_ms++;
@@ -27,6 +28,10 @@ void timer10_isr() {
 	encoder_update(dt);
 	update_odometrija(dt);
 	velocity_control_loop(dt);
+	if(time_ms % 10 == 0){
+		//position_control_loop(dt, ref distance);
+	}
+
 }
 
 void time_start() {

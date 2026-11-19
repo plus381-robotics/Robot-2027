@@ -7,7 +7,7 @@
 
 #include "main.h"
 
-
+#define tolerancija 1
 
 float lin_v = 0;
 float ang_w = 0;
@@ -24,15 +24,21 @@ float output_w = 0;
 float left = 0;
 float right = 0;
 
+float err_distance = 0;
+float movement_completed = 0;
 
 PID_t PID_linearni = { .Kp = 1, .Ki = 1, .Kd = 0 };
 
 PID_t PID_ugao = { .Kp = 1.5, .Ki = 1.5, .Kd = 0.0 };
 
-void position_control_loop(float dt) {
-	err_distance =  ref
+void position_control_loop(float dt, float ref_distance) {
+	err_distance = ref_distance - get_distance();
+	ref_lin_v = PID_regulator(&PID_linearni, &err_distance, dt);
+	if (err_distance <= tolerancija)
+		movement_completed = 1;
+	else
+		movement_completed = 0;
 }
-
 void velocity_control_loop(float dt) {
 	lin_v = get_linear_velocity();
 	ang_w = get_angular_velocity();

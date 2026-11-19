@@ -8,7 +8,7 @@
 #include "tim.h"
 
 
-float D = 166; //razmak izmedju tockova iz fusiona treba videti
+float D = 320; //razmak izmedju tockova iz fusiona treba videti
 float d_left = 76.6; //precnik levog izmereno uzivo sa velikim o ringovima
 float d_right = 76.7; //precnik desnog -||-
 
