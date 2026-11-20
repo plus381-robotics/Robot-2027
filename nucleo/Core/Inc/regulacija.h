@@ -28,19 +28,21 @@ typedef struct
 
 } PID_t;
 
+float get_distance(float ref_x, float ref_y);
 void stop(float dt);
-void start_stop();
 void rotacija(float dt);
 void move_to_xy(float dt);
 void krivolinijsko(float dt);
 
 void position_control_loop(float dt);
 void velocity_control_loop(float dt);
+
 float PID_regulator(PID_t *pid, float *error, float dt);
 float integral_calculation(PID_t *pid, float *error, float dt);
 float D_regulator(PID_t *pid, float *error, float dt);
 float anti_windup(PID_t *pid, float *error, float dt);
-void reset_PID(PID_t *pid, float *error);
 
+void reset_PID(PID_t *pid, float *error);
+void reset_PIDs();
 #endif
 

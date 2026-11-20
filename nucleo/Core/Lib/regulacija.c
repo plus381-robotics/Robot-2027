@@ -7,7 +7,7 @@
 
 #include "main.h"
 
-#define tolerancija 1 //videti
+#define TOLERANCIJA_MM 1 //videti
 #define TOLERANCIJA_RAD 1 //videti
 #define STOP 0
 #define ROTACIJA 1
@@ -37,10 +37,11 @@ float err_distance = 0;
 float err_ang = 0;
 float movement_completed = 0;
 
-PID_t PID_linearni = { .Kp = 1, .Ki = 1, .Kd = 0 };
-PID_t PID_ugao = { .Kp = 1.5, .Ki = 1.5, .Kd = 0.0 };
-PID_t PID_pozicija = { .Kp = 1, .Ki = 0, .Kd = 0 }; // mm  -> mm/s
-PID_t PID_rotacija = { .Kp = 1, .Ki = 0, .Kd = 0 };   // rad -> rad/s
+PID_t PID_v = { .Kp = 1, .Ki = 1, .Kd = 0 };
+PID_t PID_w = { .Kp = 1.5, .Ki = 1.5, .Kd = 0.0 };
+
+PID_t PID_distanca = { .Kp = 1, .Ki = 0, .Kd = 0 };
+PID_t PID_ang = { .Kp = 1, .Ki = 0, .Kd = 0 };
 
 void position_control_loop(float dt) {
 	switch (tip_kretnje) {
@@ -65,8 +66,18 @@ void position_control_loop(float dt) {
 void stop(float dt) {
 		ref_lin_v = 0;
 		ref_ang_w = 0;
-		reset_PID(&PID_pozicija, &err_distance);
-		reset_PID(&PID_rotacija, &err_ang);
+		reset_PIDs();
+}
+
+void rotacija(float dt) {
+	err_ang = ogranicenje_phi(ref_ang) - get_phi_pos_rob(); //videti da li automatski ide u +-pi
+	err_ang = ogranicenje_phi(err_ang);
+	ref_ang_w = PID_regulator(&PID_ang, &err_ang, dt);
+	ref_lin_v = 0;
+	if (fabsf(err_ang) < TOLERANCIJA_RAD) {
+		movement_completed = 1;
+		tip_kretnje = STOP;
+	}
 }
 
 void velocity_control_loop(float dt) {
@@ -76,8 +87,8 @@ void velocity_control_loop(float dt) {
 	err_v = ref_lin_v - lin_v;
 	err_w = ref_ang_w - ang_w;
 
-	output_v = PID_regulator(&PID_linearni, &err_v, dt);
-	output_w = PID_regulator(&PID_ugao, &err_w, dt);
+	output_v = PID_regulator(&PID_v, &err_v, dt);
+	output_w = PID_regulator(&PID_w, &err_w, dt);
 	left = output_v - output_w;
 	right = output_v + output_w;
 	if (left > 100)
@@ -89,6 +100,11 @@ void velocity_control_loop(float dt) {
 	if (right < -100)
 		right = -100;
 	motori_set(left, right);
+}
+float get_distance(float ref_x, float ref_y){
+	float dx = get_x_pos_rob() - ref_x;
+	float dy = get_y_pos_rob() - ref_y;
+	return sqrtf(dx * dx + dy * dy);
 }
 
 float PID_regulator(PID_t *pid, float *error, float dt) {
@@ -139,4 +155,9 @@ void reset_PID(PID_t *pid, float *error) {
 	pid->I_new = 0;
 	*error = 0;
 }
-
+void reset_PIDs() {
+	reset_PID(&PID_v, &err_v);
+	reset_PID(&PID_w, &err_w);
+	reset_PID(&PID_distanca, &err_distance);
+	reset_PID(&PID_ang, &err_ang);
+}

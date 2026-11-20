@@ -35,6 +35,7 @@ volatile float w_right;
 
 void update_odometrija(float dt) {
 	//moracu da imam flag kad krenem kretnje da radim da vidim da li se radnja zavrsila neka ako jeste s cu postavljati na 0
+
 	w_left = get_speed_left();
 	w_right = get_speed_right();
 
@@ -53,9 +54,6 @@ void update_odometrija(float dt) {
 	s_left += fabsf(v_left * dt); //sabira predjeni put SAMO ZA KALIBRACIJU ZA KRETANJE NE SLUZE K jer sabira vrednosti samo
 	s_right += fabsf(v_right * dt);
 
-	s_pos_l += v_left * dt;
-	s_pos_r += v_right * dt;
-	distance = (s_pos_l + s_pos_r) / 2;
 }
 
 float ogranicenje_phi(float phi) {
@@ -103,6 +101,7 @@ float new_D(float ideal_angle) {
 	return D * (get_phi1() / ideal_angle);
 }
 
+
 // Dodato za protokol sa ESP-om (komanda SET_POSE): postavlja trenutnu poziciju robota.
 // x, y u MILIMETRIMA, phi u radijanima. Poziva se iz glavne petlje, zato se prekid nakratko gasi.
 float get_x_pos_rob() {
@@ -121,15 +120,6 @@ float get_angular_velocity() {
 	return angular_velocity;
 }
 
-float get_distance(){
-	return distance;
-}
-
-void reset_s(){
-	s_pos_l = 0;
-	s_pos_r = 0;
-	distance = 0;
-}
 
 //PETRE DA LI SI SIG DA OCES OVO OVDE? Ovo ti nema veze sa pozicijama
 void set_pose(float x_mm, float y_mm, float phi_rad) {
