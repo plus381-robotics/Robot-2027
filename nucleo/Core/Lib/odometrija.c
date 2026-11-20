@@ -108,7 +108,7 @@ float get_y_pos_rob() {
 	return y;
 }
 float get_phi_pos_rob() {
-	return phi;
+	return ogranicenje_phi(phi);
 }
 float get_linear_velocity() {
 	return linear_velocity;

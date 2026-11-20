@@ -4,6 +4,7 @@
  *  Created on: Oct 23, 2026
  *      Author: Lea
  */
+
 #include "main.h"
 
 volatile int32_t encoder_value_left = 0;
@@ -21,7 +22,7 @@ volatile float speed_right = 0;
 const static uint16_t incr_total = 8192;
 static float inc2rad;
 
-void encoder_init(void) {
+void encoder_init() {
 	HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
 	HAL_TIM_Encoder_Start(&htim5, TIM_CHANNEL_ALL);
 	inc2rad = 2 * M_PI / incr_total;

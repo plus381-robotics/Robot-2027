@@ -29,9 +29,14 @@ typedef struct
 } PID_t;
 
 float get_distance(float ref_x, float ref_y);
+float get_ugao_ka_cilju(float ref_x, float ref_y);
+
 void stop(float dt);
+
 void rotacija(float dt);
 void move_to_xy(float dt);
+uint8_t rotacija_to_xy(float dt);
+
 void krivolinijsko(float dt);
 
 void position_control_loop(float dt);
@@ -43,5 +48,6 @@ float anti_windup(PID_t *pid, float *error, float dt);
 
 void reset_PID(PID_t *pid, float *error);
 void reset_PIDs();
+
 #endif
 

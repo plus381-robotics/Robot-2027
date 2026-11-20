@@ -7,14 +7,16 @@
 
 #include "main.h"
 
-#define TOLERANCIJA_MM 1 //videti
-#define TOLERANCIJA_RAD 1 //videti
+#define TOLERANCIJA_MM 1 //mm videti
+#define TOLERANCIJA_RAD 0.1 //rad videti
+#define OGRANICENJE_UGLA_PRILIKOM_XY 15 //mm
 #define STOP 0
 #define ROTACIJA 1
 #define MOVE_TO_XY 2
 #define KRIVOLINIJSKO 3
 
-uint8_t tip_kretnje;
+volatile uint8_t tip_kretnje;
+volatile uint8_t okrenuta = 1;
 
 float lin_v = 0;
 float ang_w = 0;
@@ -31,15 +33,15 @@ float output_w = 0;
 float left = 0;
 float right = 0;
 
-float ref_distance;
-float ref_ang;
+volatile float ref_ang;
 float err_distance = 0;
 float err_ang = 0;
-float movement_completed = 0;
+volatile float movement_completed = 0;
+volatile float ref_x = 0;
+volatile float ref_y = 0;
 
 PID_t PID_v = { .Kp = 1, .Ki = 1, .Kd = 0 };
 PID_t PID_w = { .Kp = 1.5, .Ki = 1.5, .Kd = 0.0 };
-
 PID_t PID_distanca = { .Kp = 1, .Ki = 0, .Kd = 0 };
 PID_t PID_ang = { .Kp = 1, .Ki = 0, .Kd = 0 };
 
@@ -64,13 +66,12 @@ void position_control_loop(float dt) {
 }
 
 void stop(float dt) {
-		ref_lin_v = 0;
-		ref_ang_w = 0;
-		reset_PIDs();
+	ref_lin_v = 0;
+	ref_ang_w = 0;
+	reset_PIDs();
 }
-
 void rotacija(float dt) {
-	err_ang = ogranicenje_phi(ref_ang) - get_phi_pos_rob(); //videti da li automatski ide u +-pi
+	err_ang = ogranicenje_phi(ref_ang) - get_phi_pos_rob();
 	err_ang = ogranicenje_phi(err_ang);
 	ref_ang_w = PID_regulator(&PID_ang, &err_ang, dt);
 	ref_lin_v = 0;
@@ -79,11 +80,51 @@ void rotacija(float dt) {
 		tip_kretnje = STOP;
 	}
 }
-void move_to_xy(float dt){
-
+uint8_t rotacija_to_xy(float dt) {
+	err_ang = ogranicenje_phi(
+			get_ugao_ka_cilju(ref_x, ref_y) - get_phi_pos_rob());
+	if (fabsf(err_ang) < TOLERANCIJA_RAD) {
+		return 1;
+	}
+	ref_ang_w = PID_regulator(&PID_ang, &err_ang, dt);
+	ref_lin_v = 0;
+	return 0;
 }
-void krivolinijsko(float dt){
 
+void move_to_xy(float dt) {
+	err_distance = get_distance(ref_x, ref_y);
+
+	if (err_distance < TOLERANCIJA_MM) { //provera da li je stigao ako jeste izadje
+		movement_completed = 1;
+		tip_kretnje = STOP;
+	}
+
+	else {
+		okrenuta = 1;
+		if (err_distance > OGRANICENJE_UGLA_PRILIKOM_XY) { //ako je unutar r = OGRANICENJE_UGLA_PRILIKOM_XY da se ne okrece da ne bi podivljao ali treba videti da se smanjuje to na sto manje
+			okrenuta = rotacija_to_xy(dt);
+		}
+		if (okrenuta == 1) {
+			err_ang = get_ugao_ka_cilju(ref_x, ref_y) - get_phi_pos_rob();
+			err_ang = ogranicenje_phi(err_ang);
+
+			if (fabsf(err_ang) > M_PI / 2) { //preslo je koordinatu ako je vece od pi/2 ugao tj to znaci da je ugao 90 do 180 ili -180 do -90
+				err_distance = -err_distance; // negativna je distanca jer je preko logiiiiiccc
+				err_ang = ogranicenje_phi(err_ang + M_PI); //ugao merimo u odnosu na zadnji deo robota
+			}
+
+			if (fabsf(err_distance) < OGRANICENJE_UGLA_PRILIKOM_XY) {
+				err_ang = 0;
+			}
+
+			ref_lin_v = PID_regulator(&PID_distanca, &err_distance, dt);
+			ref_ang_w = PID_regulator(&PID_ang, &err_ang, dt);
+		}
+	}
+}
+
+void krivolinijsko(float dt) {
+	stop(dt);
 }
 
 void velocity_control_loop(float dt) {
@@ -95,6 +136,7 @@ void velocity_control_loop(float dt) {
 
 	output_v = PID_regulator(&PID_v, &err_v, dt);
 	output_w = PID_regulator(&PID_w, &err_w, dt);
+
 	left = output_v - output_w;
 	right = output_v + output_w;
 	if (left > 100)
@@ -107,10 +149,15 @@ void velocity_control_loop(float dt) {
 		right = -100;
 	motori_set(left, right);
 }
-float get_distance(float ref_x, float ref_y){
+float get_distance(float ref_x, float ref_y) {
 	float dx = get_x_pos_rob() - ref_x;
 	float dy = get_y_pos_rob() - ref_y;
 	return sqrtf(dx * dx + dy * dy);
+}
+float get_ugao_ka_cilju(float ref_x, float ref_y) {
+	float dx = ref_x - get_x_pos_rob();
+	float dy = ref_y - get_y_pos_rob();
+	return atan2f(dy, dx);
 }
 float PID_regulator(PID_t *pid, float *error, float dt) {
 
