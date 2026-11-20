@@ -4,10 +4,7 @@
  *  Created on: Oct 23, 2026
  *      Author: Lea
  */
-
 #include "main.h"
-#include "tim.h"
-#include "encoder.h"
 
 volatile int32_t encoder_value_left = 0;
 volatile int32_t encoder_value_right = 0;
@@ -37,6 +34,7 @@ float encoder_speed_left(float dt) {
 
 	return delta_left * inc2rad / dt;
 }
+
 float encoder_speed_right(float dt) {
 	encoder_value_right = (int16_t) __HAL_TIM_GET_COUNTER(&htim5);
 	delta_right = (int16_t) (encoder_value_right - encoder_right_poc);
@@ -46,24 +44,23 @@ float encoder_speed_right(float dt) {
 	return delta_right * inc2rad / dt;
 }
 
-float get_left_encoder() {
+int32_t get_left_encoder() { //citam u live expressionu obrisati funkciju nakon sto se sredi odometrija skroz
 	return encoder_value_left;
 }
 
-float get_right_encoder() {
+int32_t get_right_encoder() { //citam u live expressionu obrisati funkciju nakon sto se sredi odometrija skroz
 	return encoder_value_right;
 }
-void encoder_update(float dt)
-{
-    speed_left = encoder_speed_left(dt);
-    speed_right = encoder_speed_right(dt);
-}
-float get_speed_left(void)
-{
-    return speed_left;
+
+void encoder_update(float dt) {
+	speed_left = encoder_speed_left(dt);
+	speed_right = encoder_speed_right(dt);
 }
 
-float get_speed_right(void)
-{
-    return speed_right;
+float get_speed_left() {
+	return speed_left;
+}
+
+float get_speed_right() {
+	return speed_right;
 }

@@ -13,8 +13,6 @@ float match_time;
 uint8_t match_started = 0;
 float chinch_time = 0.2;
 const float dt = 0.001;
-volatile float w_r, w_l;
-uint8_t position_loop = 0;
 
 void timer10_isr() {
 	time_ms++;

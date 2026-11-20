@@ -33,6 +33,9 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 #include <stdint.h>
 #include <math.h>
+#include "watchdog.h"
+#include "comm.h"
+#include "tim.h"
 #include "timer.h"
 #include "chinch.h"
 #include "encoder.h"

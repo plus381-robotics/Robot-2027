@@ -6,8 +6,6 @@
  */
 
 #include "main.h"
-#include "tim.h"
-#include "pwm.h"
 
 uint32_t arr;
 uint32_t ccr1 = 0;

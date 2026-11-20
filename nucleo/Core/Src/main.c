@@ -26,14 +26,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-#include "chinch.h"
-#include "encoder.h"
-#include "timer.h"
-#include "pwm.h"
-#include "odometrija.h"
-#include "ax.h"
-//#include "comm.h"
-//#include "watchdog.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -54,9 +46,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-volatile uint16_t ax_position = 55;
-volatile uint16_t ax_speed = 200;
-volatile uint8_t id = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/

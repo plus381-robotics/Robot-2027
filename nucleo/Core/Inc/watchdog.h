@@ -10,7 +10,7 @@
 #ifndef INC_WATCHDOG_H_
 #define INC_WATCHDOG_H_
 
-#include <stdint.h>
+
 
 #define WATCHDOG_ENABLE      1
 /* Mora biti duže od najdužeg blokiranja glavne petlje. Sada je to front_mechanism()

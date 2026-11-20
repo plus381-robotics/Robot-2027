@@ -4,8 +4,7 @@
  *      Author: Lea
  */
 #include "main.h"
-#include "tim.h"
-#include "chinch.h"
+
 
 volatile uint32_t chinch_cnt = 0;
 volatile uint8_t chinch = 1; // ima cinca

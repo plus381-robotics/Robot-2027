@@ -79,6 +79,12 @@ void rotacija(float dt) {
 		tip_kretnje = STOP;
 	}
 }
+void move_to_xy(float dt){
+
+}
+void krivolinijsko(float dt){
+
+}
 
 void velocity_control_loop(float dt) {
 	lin_v = get_linear_velocity();
@@ -106,7 +112,6 @@ float get_distance(float ref_x, float ref_y){
 	float dy = get_y_pos_rob() - ref_y;
 	return sqrtf(dx * dx + dy * dy);
 }
-
 float PID_regulator(PID_t *pid, float *error, float dt) {
 
 	pid->P = pid->Kp * *error;

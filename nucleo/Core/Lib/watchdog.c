@@ -6,7 +6,6 @@
  * LSI nije precizan (17..47 kHz), pa je stvarno vreme 5.6 .. 15 s za maksimum.
  */
 #include "main.h"
-#include "watchdog.h"
 
 static uint8_t was_reset;
 

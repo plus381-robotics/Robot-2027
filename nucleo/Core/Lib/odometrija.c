@@ -26,10 +26,6 @@ volatile float phi1 = 0;
 volatile float s_left = 0; //od pocetka jednog kretanja ukupan predjeni put (za sada samo za linearno kretanje)
 volatile float s_right = 0;
 
-volatile float s_pos_l = 0;
-volatile float s_pos_r = 0;
-volatile float distance = 0;
-
 volatile float w_left;
 volatile float w_right;
 
@@ -90,6 +86,7 @@ float error_D(float ideal_angle) {
 }
 
 //da lakse racunam a ne mucim se
+//citam u live expressionu obrisati funkciju nakon sto se sredi odometrija skroz
 float new_d_left(float ideal_distance) {
 	return d_left * (ideal_distance / get_s_left());
 }
@@ -103,7 +100,7 @@ float new_D(float ideal_angle) {
 
 
 // Dodato za protokol sa ESP-om (komanda SET_POSE): postavlja trenutnu poziciju robota.
-// x, y u MILIMETRIMA, phi u radijanima. Poziva se iz glavne petlje, zato se prekid nakratko gasi.
+// x, y u MILIMETRIMA, phi u radijanima. Poziva se iz glavne petlje
 float get_x_pos_rob() {
 	return x;
 }
