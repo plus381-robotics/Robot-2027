@@ -7,7 +7,14 @@
 
 #include "main.h"
 
-#define tolerancija 1
+#define tolerancija 1 //videti
+#define TOLERANCIJA_RAD 1 //videti
+#define STOP 0
+#define ROTACIJA 1
+#define MOVE_TO_XY 2
+#define KRIVOLINIJSKO 3
+
+uint8_t tip_kretnje;
 
 float lin_v = 0;
 float ang_w = 0;
@@ -24,21 +31,44 @@ float output_w = 0;
 float left = 0;
 float right = 0;
 
+float ref_distance;
+float ref_ang;
 float err_distance = 0;
+float err_ang = 0;
 float movement_completed = 0;
 
 PID_t PID_linearni = { .Kp = 1, .Ki = 1, .Kd = 0 };
-
 PID_t PID_ugao = { .Kp = 1.5, .Ki = 1.5, .Kd = 0.0 };
+PID_t PID_pozicija = { .Kp = 1, .Ki = 0, .Kd = 0 }; // mm  -> mm/s
+PID_t PID_rotacija = { .Kp = 1, .Ki = 0, .Kd = 0 };   // rad -> rad/s
 
-void position_control_loop(float dt, float ref_distance) {
-	err_distance = ref_distance - get_distance();
-	ref_lin_v = PID_regulator(&PID_linearni, &err_distance, dt);
-	if (err_distance <= tolerancija)
-		movement_completed = 1;
-	else
-		movement_completed = 0;
+void position_control_loop(float dt) {
+	switch (tip_kretnje) {
+	case STOP:
+		stop(dt);
+		break;
+	case ROTACIJA:
+		rotacija(dt);
+		break;
+	case MOVE_TO_XY:
+		move_to_xy(dt);
+		break;
+	case KRIVOLINIJSKO:
+		krivolinijsko(dt);
+		break;
+	default:
+		stop(dt);
+		break;
+	}
 }
+
+void stop(float dt) {
+		ref_lin_v = 0;
+		ref_ang_w = 0;
+		reset_PID(&PID_pozicija, &err_distance);
+		reset_PID(&PID_rotacija, &err_ang);
+}
+
 void velocity_control_loop(float dt) {
 	lin_v = get_linear_velocity();
 	ang_w = get_angular_velocity();

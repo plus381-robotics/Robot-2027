@@ -41,6 +41,7 @@ extern "C" {
 #include "ax.h"
 #include "regulacija.h"
 #include "mehanizam.h"
+#include "taktike.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
