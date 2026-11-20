@@ -5,8 +5,6 @@
  *      Author: Lea
  */
 #include "main.h"
-#include "tim.h"
-
 
 float D = 320; //razmak izmedju tockova iz fusiona treba videti
 float d_left = 76.6; //precnik levog izmereno uzivo sa velikim o ringovima

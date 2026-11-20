@@ -5,31 +5,34 @@
  *      Author: Lea
  */
 #include "main.h"
-#include "tim.h"
 
 uint32_t time_ms;
-float time_s;
-float match_time;
 uint8_t match_started = 0;
+uint32_t match_time = 0;
+
 float chinch_time = 0.2;
 const float dt = 0.001;
 
 void timer10_isr() {
 	time_ms++;
-	time_s = time_ms * 0.001;
 	chinch_read();
 	chinch_debounce_counter(chinch_time, dt);
-
 	if (match_started == 1) {
-		match_time += 0.001;
+		match_time++;
 	}
 	encoder_update(dt);
 	update_odometrija(dt);
-	velocity_control_loop(dt);
-	if(time_ms % 10 == 0){
-		//position_control_loop(dt, ref distance);
+
+	if (match_time >= 100000) {
+		motori_set(0, 0);
 	}
 
+	else {
+		if (time_ms % 10 == 0) {
+			position_control_loop(dt);
+		}
+		velocity_control_loop(dt);
+	}
 }
 
 void time_start() {
@@ -45,7 +48,7 @@ uint8_t timer_delay(uint32_t *start_time, uint32_t delay) {
 		*start_time = time_ms;
 	}
 	if (*start_time + delay <= time_ms) {
-		*start_time = 0xFFFF;
+		*start_time = 0xFFFFFFFF;
 		return 1;
 	}
 	return 0;

@@ -10,6 +10,7 @@
 #define TOLERANCIJA_MM 1 //mm videti
 #define TOLERANCIJA_RAD 0.1 //rad videti
 #define OGRANICENJE_UGLA_PRILIKOM_XY 15 //mm
+
 #define STOP 0
 #define ROTACIJA 1
 #define MOVE_TO_XY 2
@@ -40,10 +41,10 @@ volatile float movement_completed = 0;
 volatile float ref_x = 0;
 volatile float ref_y = 0;
 
-PID_t PID_v = { .Kp = 1, .Ki = 1, .Kd = 0 };
-PID_t PID_w = { .Kp = 1.5, .Ki = 1.5, .Kd = 0.0 };
-PID_t PID_distanca = { .Kp = 1, .Ki = 0, .Kd = 0 };
-PID_t PID_ang = { .Kp = 1, .Ki = 0, .Kd = 0 };
+PID_t PID_v = { .Kp = 1.0, .Ki = 1.0, .Kd = 0.0, .max_output = 100 };
+PID_t PID_w = { .Kp = 1.5, .Ki = 1.5, .Kd = 0.0, .max_output = 100 };
+PID_t PID_distanca = { .Kp = 1, .Ki = 0, .Kd = 0, .max_output = 500 };
+PID_t PID_ang = { .Kp = 1, .Ki = 0, .Kd = 0, .max_output = 3 };
 
 void position_control_loop(float dt) {
 	switch (tip_kretnje) {
@@ -81,8 +82,8 @@ void rotacija(float dt) {
 	}
 }
 uint8_t rotacija_to_xy(float dt) {
-	err_ang = ogranicenje_phi(
-			get_ugao_ka_cilju(ref_x, ref_y) - get_phi_pos_rob());
+	err_ang = get_ugao_ka_cilju(ref_x, ref_y) - get_phi_pos_rob();
+	err_ang = ogranicenje_phi(err_ang);
 	if (fabsf(err_ang) < TOLERANCIJA_RAD) {
 		return 1;
 	}
@@ -167,10 +168,10 @@ float PID_regulator(PID_t *pid, float *error, float dt) {
 
 	pid->output = pid->P + pid->I + pid->D;
 
-	if (pid->output > 100) {
-		pid->output = 100;
-	} else if (pid->output < -100) {
-		pid->output = -100;
+	if (pid->output > pid->max_output) {
+		pid->output = pid->max_output;
+	} else if (pid->output < -pid->max_output) {
+		pid->output = -pid->max_output;
 	}
 
 	return pid->output;
@@ -187,7 +188,7 @@ float anti_windup(PID_t *pid, float *error, float dt) {
 
 	pid->I_new = pid->Ki * pid->integral_new;
 
-	if ((pid->I_new > 100 && *error > 0) || (pid->I_new < -100 && *error < 0)) {
+	if ((pid->I_new > pid->max_output && *error > 0) || (pid->I_new < -pid->max_output && *error < 0)) {
 		return pid->integral;
 	}
 
@@ -207,6 +208,7 @@ void reset_PID(PID_t *pid, float *error) {
 	pid->I_new = 0;
 	*error = 0;
 }
+
 void reset_PIDs() {
 	reset_PID(&PID_v, &err_v);
 	reset_PID(&PID_w, &err_w);

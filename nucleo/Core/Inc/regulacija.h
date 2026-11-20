@@ -14,6 +14,7 @@ typedef struct
     float Kp;
     float Ki;
     float Kd;
+    float max_output;
 
     float integral;
     float error_prev;
