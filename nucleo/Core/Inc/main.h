@@ -70,6 +70,14 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define DIR_M_L_Pin GPIO_PIN_0
+#define DIR_M_L_GPIO_Port GPIOC
+#define DIR_M_R_Pin GPIO_PIN_2
+#define DIR_M_R_GPIO_Port GPIOC
+#define EN_M_R_Pin GPIO_PIN_3
+#define EN_M_R_GPIO_Port GPIOC
+#define EN_M_L_Pin GPIO_PIN_4
+#define EN_M_L_GPIO_Port GPIOA
 #define Chinch_GPIO_Pin GPIO_PIN_12
 #define Chinch_GPIO_GPIO_Port GPIOA
 
