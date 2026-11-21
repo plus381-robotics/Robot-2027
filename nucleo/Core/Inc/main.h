@@ -72,14 +72,44 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define DIR_M_L_Pin GPIO_PIN_0
 #define DIR_M_L_GPIO_Port GPIOC
+#define Val3_Pin GPIO_PIN_1
+#define Val3_GPIO_Port GPIOC
 #define DIR_M_R_Pin GPIO_PIN_2
 #define DIR_M_R_GPIO_Port GPIOC
 #define EN_M_R_Pin GPIO_PIN_3
 #define EN_M_R_GPIO_Port GPIOC
 #define EN_M_L_Pin GPIO_PIN_4
 #define EN_M_L_GPIO_Port GPIOA
+#define Val4_Pin GPIO_PIN_4
+#define Val4_GPIO_Port GPIOC
+#define OUT_IR_7_Pin GPIO_PIN_5
+#define OUT_IR_7_GPIO_Port GPIOC
+#define Val1_Pin GPIO_PIN_10
+#define Val1_GPIO_Port GPIOB
+#define Vac3_Pin GPIO_PIN_13
+#define Vac3_GPIO_Port GPIOB
+#define Vac2_Pin GPIO_PIN_14
+#define Vac2_GPIO_Port GPIOB
+#define Vac1_Pin GPIO_PIN_15
+#define Vac1_GPIO_Port GPIOB
+#define OUT_IR_4_Pin GPIO_PIN_8
+#define OUT_IR_4_GPIO_Port GPIOC
+#define OUT_IR_5_Pin GPIO_PIN_9
+#define OUT_IR_5_GPIO_Port GPIOC
+#define OUT_IR_1_Pin GPIO_PIN_12
+#define OUT_IR_1_GPIO_Port GPIOA
+#define Val2_Pin GPIO_PIN_15
+#define Val2_GPIO_Port GPIOA
+#define OUT_MSW_1_Pin GPIO_PIN_10
+#define OUT_MSW_1_GPIO_Port GPIOC
+#define OUT_MSW_2_Pin GPIO_PIN_11
+#define OUT_MSW_2_GPIO_Port GPIOC
 #define Chinch_GPIO_Pin GPIO_PIN_12
-#define Chinch_GPIO_GPIO_Port GPIOA
+#define Chinch_GPIO_GPIO_Port GPIOC
+#define Val6_Pin GPIO_PIN_4
+#define Val6_GPIO_Port GPIOB
+#define Val5_Pin GPIO_PIN_5
+#define Val5_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

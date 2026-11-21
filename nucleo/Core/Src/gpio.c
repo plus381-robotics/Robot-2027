@@ -45,24 +45,54 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, DIR_M_L_Pin|DIR_M_R_Pin|EN_M_R_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, DIR_M_L_Pin|Val3_Pin|DIR_M_R_Pin|EN_M_R_Pin
+                          |Val4_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(EN_M_L_GPIO_Port, EN_M_L_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, EN_M_L_Pin|Val2_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : DIR_M_L_Pin DIR_M_R_Pin EN_M_R_Pin */
-  GPIO_InitStruct.Pin = DIR_M_L_Pin|DIR_M_R_Pin|EN_M_R_Pin;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, Val1_Pin|Vac3_Pin|Vac2_Pin|Vac1_Pin
+                          |Val6_Pin|Val5_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : DIR_M_L_Pin Val3_Pin DIR_M_R_Pin EN_M_R_Pin
+                           Val4_Pin */
+  GPIO_InitStruct.Pin = DIR_M_L_Pin|Val3_Pin|DIR_M_R_Pin|EN_M_R_Pin
+                          |Val4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : EN_M_L_Pin */
-  GPIO_InitStruct.Pin = EN_M_L_Pin;
+  /*Configure GPIO pins : EN_M_L_Pin Val2_Pin */
+  GPIO_InitStruct.Pin = EN_M_L_Pin|Val2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(EN_M_L_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : OUT_IR_7_Pin OUT_IR_4_Pin OUT_IR_5_Pin OUT_MSW_1_Pin
+                           OUT_MSW_2_Pin */
+  GPIO_InitStruct.Pin = OUT_IR_7_Pin|OUT_IR_4_Pin|OUT_IR_5_Pin|OUT_MSW_1_Pin
+                          |OUT_MSW_2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : Val1_Pin Vac3_Pin Vac2_Pin Vac1_Pin
+                           Val6_Pin Val5_Pin */
+  GPIO_InitStruct.Pin = Val1_Pin|Vac3_Pin|Vac2_Pin|Vac1_Pin
+                          |Val6_Pin|Val5_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : OUT_IR_1_Pin */
+  GPIO_InitStruct.Pin = OUT_IR_1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(OUT_IR_1_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : Chinch_GPIO_Pin */
   GPIO_InitStruct.Pin = Chinch_GPIO_Pin;
