@@ -44,7 +44,10 @@ extern "C" {
 #include "ax.h"
 #include "regulacija.h"
 #include "mehanizam.h"
+#include "pneumatika.h"
+#include "ir_senzori.h"
 #include "taktike.h"
+
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -96,6 +99,8 @@ void Error_Handler(void);
 #define OUT_IR_4_GPIO_Port GPIOC
 #define OUT_IR_5_Pin GPIO_PIN_9
 #define OUT_IR_5_GPIO_Port GPIOC
+#define UART_AX_3V3_Pin GPIO_PIN_11
+#define UART_AX_3V3_GPIO_Port GPIOA
 #define OUT_IR_1_Pin GPIO_PIN_12
 #define OUT_IR_1_GPIO_Port GPIOA
 #define Val2_Pin GPIO_PIN_15
