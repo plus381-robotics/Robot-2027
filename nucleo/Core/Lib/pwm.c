@@ -8,8 +8,8 @@
 #include "main.h"
 /* Smer motora - ako test pokaze da neki tocak ide pogresno,
  * zameni SET i RESET SAMO OVDE za taj motor */
-#define LEVI_NAPRED    GPIO_PIN_RESET   // DIR pin = 0 V -> drajver vrti levi motor napred
-#define LEVI_NAZAD     GPIO_PIN_SET     // DIR pin = 3.3 V -> drajver vrti levi motor nazad
+#define LEVI_NAPRED    GPIO_PIN_SET   // DIR pin = 0 V -> drajver vrti levi motor napred
+#define LEVI_NAZAD     GPIO_PIN_RESET     // DIR pin = 3.3 V -> drajver vrti levi motor nazad
 
 #define DESNI_NAPRED   GPIO_PIN_RESET
 #define DESNI_NAZAD    GPIO_PIN_SET

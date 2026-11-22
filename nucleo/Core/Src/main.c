@@ -73,8 +73,7 @@ int main(void)
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. *  HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -97,12 +96,11 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
-
 	time_start();
-	encoder_init();
+	//encoder_init();
 	pwm_init();
-	ax_init ();
-	pneumatika_init();
+	//ax_init ();
+	//pneumatika_init();
 	//comm_init();      // ESP na USART1; bez ESP-a Nucleo radi isto kao ranije
 	//watchdog_init();  // poslednje, posle sporih inicijalizacija
 
@@ -117,7 +115,7 @@ int main(void)
 
 		//comm_poll();
 		//watchdog_feed();
-
+		motori_set(100, -100);
 	}
   /* USER CODE END 3 */
 }

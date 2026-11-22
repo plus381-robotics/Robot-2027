@@ -148,7 +148,6 @@ void velocity_control_loop(float dt) {
 		right = 100;
 	if (right < -100)
 		right = -100;
-	motori_set(left, right);
 }
 float get_distance(float ref_x, float ref_y) {
 	float dx = get_x_pos_rob() - ref_x;

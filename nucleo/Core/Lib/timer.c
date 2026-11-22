@@ -27,12 +27,12 @@ void timer10_isr() {
 		motori_set(0, 0);
 	}
 
-	else {
+	/*else {
 		if (time_ms % 10 == 0) {
 			position_control_loop(dt);
 		}
 		velocity_control_loop(dt);
-	}
+	}*/
 }
 
 void time_start() {
