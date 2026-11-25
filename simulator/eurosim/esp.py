@@ -69,9 +69,8 @@ class Esp:
     def __init__(self, make_stm, tactics_dir, workdir, screen=False, loop_extra_ms=5, inputs=False, nrst=None):
         """nrst = (pin NRST, pin BOOT0): kao config.STM_NRST/STM_BOOT0 (ESP može da resetuje STM32)."""
         fresh_import()
-        if nrst:
-            import config
-            config.STM_NRST, config.STM_BOOT0 = nrst
+        import config                            # profil odlučuje, ne board fajl (S3 ima NRST, BlackPill nema)
+        config.STM_NRST, config.STM_BOOT0 = nrst or (None, None)
         import compat
         compat.fake = [EPOCH_MS]
         self.compat = compat

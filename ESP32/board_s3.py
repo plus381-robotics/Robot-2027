@@ -16,14 +16,16 @@ BTN_BACK, BTN_OK, BTN_STOP = 18, 11, 17
 # rotacioni enkoder, J5: ENC_A = 10, ENC_B = 9, ENC_BTN = 8
 ENC_A, ENC_B, ENC_SW = 10, 9, 8
 
-# STM32 NRST = 15, BOOT0 = 16 (konektor J2).
-# Isključeno dok se kod ne prilagodi: NRST na ploči ide preko N-MOSFET-a Q1, pa je obrnut
-# (1 na ESP pinu = STM32 u resetu), a lib/match.py i lib/stmflash.py ga vode kao open-drain (0 = reset).
-STM_NRST, STM_BOOT0 = None, None
+# STM32 NRST = 15, BOOT0 = 16 (konektor J2). NRST ide preko N-MOSFET-a Q1, pa je obrnut:
+# 1 na ESP pinu = STM32 u resetu (lib/nrst.py).
+STM_NRST, STM_BOOT0 = 15, 16
+STM_NRST_INV = True
+
+# RGB LED (WS2812) na Waveshare ploči, stanje robota (lib/led.py); isti pin izlazi i na J4
+NEOPIXEL = 38
 
 # --- još ne koristi kod (pinovi su rezervisani na ploči) ---
 BUZZER = 13                      # PWM_BUZZ, J5
-NEOPIXEL = 38                    # RGB LED (WS2812) na Waveshare ploči; isti pin izlazi i na J4
 I2C_PB_ID, I2C_PB_SDA, I2C_PB_SCL = 1, 7, 6    # I2C ka PowerBoard-u (INA3221), J8
 ADC_VBAT, ADC_VMOT = 4, 5        # VBAT_SENSE, VMOT_SENSE (ADC1, radi i uz WiFi), J8
 # LIDAR na UART2, konektor J3: TX_LIDAR = 21, RX_LIDAR = 47, MOTOCTL_LIDAR = 48

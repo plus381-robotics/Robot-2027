@@ -33,11 +33,12 @@ INMATCH = P.State.MATCH_RUNNING | P.State.MATCH_OVER
 
 
 class StmReset:
-    """NRST (open-drain) i BOOT0 sa ESP-a, bez blokiranja petlje: pulse() pa poll() u svakom krugu."""
+    """NRST (lib/nrst.py) i BOOT0 sa ESP-a, bez blokiranja petlje: pulse() pa poll() u svakom krugu."""
 
     def __init__(self, cfg):
         from machine import Pin
-        self.nrst = Pin(cfg.STM_NRST, Pin.OPEN_DRAIN, value=1)
+        from nrst import Nrst
+        self.nrst = Nrst(cfg)
         self.boot0 = Pin(cfg.STM_BOOT0, Pin.OUT, value=0) if getattr(cfg, "STM_BOOT0", None) is not None else None
         self.t = None                  # kad je NRST spušten (None = pušten)
         self.t_last = None             # poslednji impuls
@@ -45,12 +46,12 @@ class StmReset:
     def pulse(self):
         if self.boot0:
             self.boot0.value(0)        # normalan start (ne bootloader)
-        self.nrst.value(0)
+        self.nrst.hold(True)
         self.t = self.t_last = ticks_ms()
 
     def poll(self):
         if self.t is not None and ticks_diff(ticks_ms(), self.t) >= NRST_LOW_MS:
-            self.nrst.value(1)
+            self.nrst.hold(False)
             self.t = None
 
     def since(self):

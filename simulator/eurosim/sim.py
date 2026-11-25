@@ -195,12 +195,15 @@ class Sim:
         return tuple(p) if p else None
 
     def _watch_nrst(self):
-        """NRST nizak (lažni machine.Pin) = STM32 u resetu; kad se pusti, STM32 kreće ispočetka."""
+        """NRST aktivan (lažni machine.Pin) = STM32 u resetu; kad se pusti, STM32 kreće ispočetka.
+        Aktivan je 0, a 1 ako je config.STM_NRST_INV (ESP32_Main: NRST preko MOSFET-a)."""
         pins = self._nrst_pins()
         if not pins:
             return
+        import config
         import machine
-        low = machine.Pin.levels.get(pins[0], 1) == 0
+        active = 1 if getattr(config, "STM_NRST_INV", False) else 0
+        low = machine.Pin.levels.get(pins[0], 1 - active) == active
         if low and not self._nrst_low:
             self.stm.on = False
         elif not low and self._nrst_low:

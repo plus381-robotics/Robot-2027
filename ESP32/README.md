@@ -45,9 +45,26 @@ i svakih 50 ms šalje STATUS. Komanda se ponavlja do 3 puta ako ACK ne stigne za
 | taster OK | 11 | 26 | |
 | taster STOP | 17 | 27 | šalje STOP odmah, i kad je ekran ugašen |
 
-Na S3 su rezervisani i pinovi koje kod još ne koristi (buzzer, RGB LED, I2C ka PowerBoard-u, ADC za
-bateriju i motore, lidar): vidi `board_s3.py`. STM32 NRST/BOOT0 (15/16) su za sada isključeni, jer je NRST
-na ploči obrnut (MOSFET), a kod ga vodi kao open-drain.
+STM32 NRST / BOOT0 na S3: 15 / 16. NRST na ESP32_Main ide preko MOSFET-a, pa je obrnut (1 = reset,
+`STM_NRST_INV` u `board_s3.py`, `lib/nrst.py`). Na S3 su rezervisani i pinovi koje kod još ne koristi
+(buzzer, I2C ka PowerBoard-u, ADC za bateriju i motore, lidar): vidi `board_s3.py`.
+
+### RGB LED (S3, GPIO38, `lib/led.py`)
+Stanje robota se vidi i bez ekrana (prvo pravilo koje važi):
+
+| Boja | Značenje |
+|---|---|
+| crveno, brzo trepće | alarm na ekranu (STOP, VEZA...), čeka OK |
+| ljubičasto, trepće | STM32 se restartuje |
+| žuto, stalno | NAORUZAN, čeka se činč |
+| žuto, brzo trepće | robot BLOKIRAN (meč ili test) |
+| belo, diše | meč traje |
+| plavo, diše | test taktika (bez meča) |
+| zeleno, sporo trepće | meč gotov (do kraja 100 s) |
+| zeleno, stalno | PROVERA prolazi, može da se naoružava |
+| crveno, stalno | PROVERA ne prolazi (nema STM32, nije izabrana taktika ili strana...) |
+
+Svetlina: Meni → LED (iskl / slabo / srednje / jako).
 
 Pinovi su u `board_s3.py` i `board_wroom32.py`, a ploča se bira u `config.py`. Ako enkoder pravi 2 koraka po kliku (ili 1 na 2 klika), promeni `ENC_STEPS`.
 

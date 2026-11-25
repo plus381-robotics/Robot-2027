@@ -51,8 +51,12 @@ def main():
         gui.hold(inp.hold_ms)
 
     telem = Telem(app)                         # UDP 8268: tools/watch.py
-    loop = Loop([("net", net.poll), ("upload", upload.poll), ("telem", telem.poll), ("robot", app.update),
-                 ("ulaz", handle_inputs), ("ekran", gui.tick)], sleep_ms,
+    services = [("net", net.poll), ("upload", upload.poll), ("telem", telem.poll), ("robot", app.update),
+                ("ulaz", handle_inputs), ("ekran", gui.tick)]
+    if getattr(cfg, "NEOPIXEL", None) is not None:    # RGB LED: stanje robota (lib/led.py)
+        from led import Led
+        services.append(("led", Led(app, cfg.NEOPIXEL).tick))
+    loop = Loop(services, sleep_ms,
                 on_error=lambda faza, tekst: app.error("%s: %s" % (faza, tekst)))
     app.pump = loop.step                       # taktika ga zove dok čeka (tac.py)
     app.loop = loop

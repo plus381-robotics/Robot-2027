@@ -16,12 +16,12 @@ arhitektonskog pregleda ESP koda (vidi `docs/plan-esp.md`) i pregleda ekrana.
       ostane spor: keš sha256 u fajlu (preživi restart) i LIST samo za `/lib` i `/tactics`.
 - [ ] Enkoder: hard IRQ je uveden; na S3 probati i PCNT (`machine.Encoder`/`esp32.PCNT`) ako postoji u firmveru.
 - [ ] STM32 NRST/BOOT0 sa ESP-a (Nucleo): `config.STM_NRST`, `config.STM_BOOT0` (kod u `stmflash.py`
-      postoji). Na ESP32_Main je NRST obrnut (ide preko N-MOSFET-a Q1: 1 = reset), a kod ga vodi kao
-      open-drain (0 = reset); zato je u `board_s3.py` za sada `None`. stavka „Resetuj STM32“ u meniju, sa držanjem OK, zaključana od NAORUZAN do kraja meča.
+      postoji). Na ESP32_Main je NRST obrnut (ide preko N-MOSFET-a Q1: 1 = reset): `STM_NRST_INV = True`
+      u `board_s3.py`, pin vodi `lib/nrst.py` (urađeno, nije probano sa Nucleom). stavka „Resetuj STM32“ u meniju, sa držanjem OK, zaključana od NAORUZAN do kraja meča.
 - [ ] E-STOP signal na GPIO7: samo prikaz i prekid taktike (pravi E-STOP hardverski prekida motore, R-5).
 
 ## Svetlo i zvuk (iz pregleda ekrana, K-1, K-2)
-- [ ] **K-1** NeoPixel (GPIO21): jedna tabela boja po stanju (ljubičasto sto, plavo izbor, crveno
+- [x] **K-1** NeoPixel (GPIO38 na Waveshare ploči, `lib/led.py`; tabela boja u ESP32/README): jedna tabela boja po stanju (ljubičasto sto, plavo izbor, crveno
       provera ne prolazi, žuto naoružan, zeleno spreman, belo puls meč, žuto treptanje blokiran, crveno
       treptanje STOP/greška, zeleno treptanje gotovo). Upis samo pri promeni stanja; svetlina u podešavanjima.
 - [ ] **K-2** Buzzer (GPIO14): 1 kratak = potvrda, 2 = upozorenje, 3 = greška, dug = slaba baterija.

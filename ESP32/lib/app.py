@@ -455,6 +455,8 @@ class App:
                    lambda: st["screen_match"], lambda v: st.set("screen_match", v)),
             Number("kontrast", lambda: st["contrast"], lambda v: (st.set("contrast", v), self.apply_display()),
                    0, 255, 15, preview=lambda v: self.apply_display(v)),
+            Choice("LED", [(0, "iskl"), (8, "slabo"), (32, "srednje"), (128, "jako")],
+                   lambda: st["led"], lambda v: st.set("led", v)),
             Toggle("okreni 180", lambda: st["flip"], flip),
             Toggle("obrni enk.", lambda: st["enc_rev"], lambda v: st.set("enc_rev", v)),
             Choice("spavanje", [(0, "nikad"), (60, "1min"), (300, "5min")],

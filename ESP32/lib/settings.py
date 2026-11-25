@@ -4,6 +4,7 @@ import json
 FILE = "settings.json"
 DEFAULTS = {
     "contrast": 200,      # 0..255
+    "led": 32,            # svetlina RGB LED-a 0..255 (0 = ugašen), lib/led.py
     "flip": False,        # ekran okrenut za 180°
     "enc_rev": False,     # obrnut smer enkodera
     "sleep_s": 0,         # gašenje ekrana posle N s bez dodira (0 = nikad)
