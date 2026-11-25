@@ -4,20 +4,20 @@ Ostavljeno za kad stignu ESP32-S3-DevKitC-1 N16R8 i lidar (RPLIDAR A2). Oznake s
 arhitektonskog pregleda ESP koda (vidi `docs/plan-esp.md`) i pregleda ekrana.
 
 ## Prelazak na ESP32-S3
-- [ ] **S-1** `config.py` razdvojiti na pinove ploče (`board_wroom32.py`, `board_s3.py`) i ponašanje;
-      izbor ploče jednim redom (`BOARD = "s3"`). Plan pinova za S3: UART1 17/18 (STM32), I2C 8/9,
-      tasteri 4/5/6, enkoder 11/12/13, buzzer 14, NeoPixel 21, STM32 NRST 15 / BOOT0 16,
-      E-STOP preko optokaplera 7, dodatni UART2 47/48 (lidar).
+- [x] **S-1** `config.py` razdvojen na pinove ploče (`ESP32/board_wroom32.py`, `ESP32/board_s3.py`) i
+      ponašanje; izbor ploče jednim redom (`BOARD = "s3"`). Pinovi za S3 su po šemi ESP32_Main
+      (Robot-elektronika-2027), ne po starom planu: vidi `board_s3.py`.
 - [ ] **S-2** PSRAM menja ponašanje GC-a (veći heap, duže sakupljanje): izmeriti `gc.collect()` i krug
       petlje (STAT), po potrebi ručni `gc.collect()` u mirnim trenucima i `gc.threshold()`.
-- [ ] MicroPython firmver za S3 (ESP32_GENERIC_S3, SPIRAM_OCT), ista verzija kao na WROOM-u (1.29) da
-      `mpy-cross` u CI-ju ostane isti.
+- [x] MicroPython firmver za S3 (ESP32_GENERIC_S3, SPIRAM_OCT), ista verzija kao na WROOM-u (1.29) da
+      `mpy-cross` u CI-ju ostane isti. Flešovano: `ESP32_GENERIC_S3-SPIRAM_OCT-20260824-v1.29.0.bin`.
 - [ ] USB na S3 (nativni USB-CDC): proveriti `mpremote` i Ctrl+C; `/dev/ttyACM*` umesto `/dev/ttyUSB0`.
 - [ ] Fajl sistem: na WROOM-32 je spor (listdir ~380 ms, stat ~55 ms, open ~30 ms). Izmeriti na S3; ako
       ostane spor: keš sha256 u fajlu (preživi restart) i LIST samo za `/lib` i `/tactics`.
 - [ ] Enkoder: hard IRQ je uveden; na S3 probati i PCNT (`machine.Encoder`/`esp32.PCNT`) ako postoji u firmveru.
 - [ ] STM32 NRST/BOOT0 sa ESP-a (Nucleo): `config.STM_NRST`, `config.STM_BOOT0` (kod u `stmflash.py`
-      postoji); stavka „Resetuj STM32“ u meniju, sa držanjem OK, zaključana od NAORUZAN do kraja meča.
+      postoji). Na ESP32_Main je NRST obrnut (ide preko N-MOSFET-a Q1: 1 = reset), a kod ga vodi kao
+      open-drain (0 = reset); zato je u `board_s3.py` za sada `None`. stavka „Resetuj STM32“ u meniju, sa držanjem OK, zaključana od NAORUZAN do kraja meča.
 - [ ] E-STOP signal na GPIO7: samo prikaz i prekid taktike (pravi E-STOP hardverski prekida motore, R-5).
 
 ## Svetlo i zvuk (iz pregleda ekrana, K-1, K-2)

@@ -30,7 +30,8 @@ BUSY_OK = ("LOG", "STOP", "STAT")
 RESCUE_OK = ("PUT", "STAGE", "COMMIT", "DEL", "LIST", "RESET", "LOG")
 DATA_CMDS = ("PUT", "STAGE", "FLASH")
 NEW = "/.new"
-ALLOWED_ROOT = ("main.py", "config.py", "boot.py", "secrets.py", "webrepl_cfg.py", "version.txt")
+ALLOWED_ROOT = ("main.py", "config.py", "board_s3.py", "board_wroom32.py", "boot.py", "secrets.py",
+                "webrepl_cfg.py", "version.txt")
 ALLOWED_DIRS = ("lib", "tactics")
 LIST_MS = 20                            # LIST radi najviše ovoliko po krugu petlje (fajl sistem je spor:
                                         # na WROOM-32 listdir ~380 ms, stat ~55 ms, open ~30 ms)

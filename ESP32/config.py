@@ -1,28 +1,19 @@
-# Pinovi za ESP32 DevKit (WROOM-32). Za ESP32-S3 se menja samo ovaj fajl.
-BOARD = "wroom32"
+# Podešavanja ESP-a. Pinovi su u board_<ploča>.py; ploča se bira ovde jednim redom.
+BOARD = "s3"                    # "s3" (ESP32-S3 N16R8, ESP32_Main) ili "wroom32" (test ploča)
+if BOARD == "s3":
+    from board_s3 import *      # noqa: F401,F403
+else:
+    from board_wroom32 import *  # noqa: F401,F403
+
 HOSTNAME = "eurokik"            # dostupan kao eurokik.local
-
-# UART2 ka STM32 (BlackPill sada, Nucleo na novom robotu)
-UART_ID, UART_TX, UART_RX = 2, 17, 16
 UART_BAUD = 115200              # na 921600 tek kad sve radi
+ENC_STEPS = 4                   # prelaza enkodera po kliku (4 ili 2)
 
-# I2C ekran (SSD1306 128x64)
-I2C_ID, I2C_SDA, I2C_SCL = 0, 21, 22
-
-# tasteri na GND (interni pull-up): nazad (dugo = početni ekran), OK, STOP (šalje STOP odmah)
-BTN_BACK, BTN_OK, BTN_STOP = 25, 26, 27
-
-# rotacioni enkoder: A, B, taster (None = nije povezan). STEPS: prelaza po kliku (4 ili 2).
-ENC_A, ENC_B, ENC_SW = 32, 33, 14
-ENC_STEPS = 4
-
-# STM32 NRST (open-drain) i BOOT0 za flešovanje kad softverski ulazak u bootloader ne radi.
-# None = nije povezano (vidi dijagram povezivanja: 18 = NRST, 19 = BOOT0).
-# STM32 sa protokolom v4 ESP restartuje komandom RESET (pri naoružavanju, ako je ostao u starom meču);
-# NRST je potreban samo kad se STM32 zaglavi i ne prima komande (u meču: reset pa obnova poze, lib/match.py)
-# i kao rezerva ako RESET ne uspe. Stari STM32 (v1-v3) bez NRST-a: naoružavanje se odbija.
-# ESP32-S3 (plan, docs/faza4-esp32s3-lidar.md): NRST 15, BOOT0 16.
-STM_NRST, STM_BOOT0 = None, None
+# STM32 NRST i BOOT0 (STM_NRST, STM_BOOT0 u board fajlu) služe za flešovanje kad softverski ulazak
+# u bootloader ne radi. STM32 sa protokolom v4 ESP restartuje komandom RESET (pri naoružavanju, ako je
+# ostao u starom meču); NRST je potreban samo kad se STM32 zaglavi i ne prima komande (u meču: reset pa
+# obnova poze, lib/match.py) i kao rezerva ako RESET ne uspe. Stari STM32 (v1-v3) bez NRST-a: naoružavanje
+# se odbija.
 
 # Aktuatori na STM32 (komanda ACTUATOR id, value): ime -> id. Taktika piše actuator("hvataljka", 1).
 # ACTUATOR_MIRROR: na drugoj strani terena (ogledanje) se levi i desni zamenjuju.

@@ -1,10 +1,21 @@
 # ESP (eurokik)
 
 ## Prvi put (preko USB-a)
-    mpremote connect /dev/ttyUSB0 mip install ssd1306
-    mpremote connect /dev/ttyUSB0 fs cp -r lib :
-    mpremote connect /dev/ttyUSB0 fs cp config.py secrets.py webrepl_cfg.py boot.py main.py :
-    mpremote connect /dev/ttyUSB0 reset
+Na Waveshare ESP32-S3 ploči (jedan USB-C) se vide dva porta: `/dev/ttyACM1` je UART preko CH343
+(REPL, esptool), `/dev/ttyACM0` je nativni USB. Na WROOM-32 je port `/dev/ttyUSB0`.
+
+Firmver (jednom): `ESP32_GENERIC_S3-SPIRAM_OCT-20260824-v1.29.0.bin` sa micropython.org
+(ista verzija kao `mpy-cross`):
+
+    esptool --chip esp32s3 --port /dev/ttyACM1 erase-flash
+    esptool --chip esp32s3 --port /dev/ttyACM1 --baud 921600 write-flash 0 ESP32_GENERIC_S3-SPIRAM_OCT-20260824-v1.29.0.bin
+
+Kod (ploča se bira u `config.py`, `BOARD = "s3"` ili `"wroom32"`):
+
+    mpremote connect /dev/ttyACM1 mip install ssd1306
+    mpremote connect /dev/ttyACM1 fs cp -r lib :
+    mpremote connect /dev/ttyACM1 fs cp config.py board_s3.py board_wroom32.py secrets.py webrepl_cfg.py boot.py main.py :
+    mpremote connect /dev/ttyACM1 reset
 
 Ekran treba da pokaže `eurokik.local`, IP adresu i na koju mrežu se povezao.
 Mreže su u `secrets.py` (YU.net kod kuće, `.` u labu). Ako ne nađe nijednu, pravi svoju mrežu `eurokik`.
@@ -16,23 +27,29 @@ Mreže su u `secrets.py` (YU.net kod kuće, `.` u labu). Ako ne nađe nijednu, p
 - Ako ruter nije dostupan: poveži laptop na mrežu `eurokik`, ESP je na `192.168.4.1`.
 
 ## Ako mpremote javi "could not enter raw repl"
-Ploča je zauzeta (radi main.py). Pokreni `mpremote connect /dev/ttyUSB0 repl`, pritisni Ctrl+C,
+Ploča je zauzeta (radi main.py). Pokreni `mpremote connect /dev/ttyACM1 repl`, pritisni Ctrl+C,
 izađi sa Ctrl+] i odmah ponovi komandu.
 
 ## main.py: meni + veza sa STM32
 ESP svakih 150 ms šalje PING (heartbeat), a STM32 (Nucleo ili BlackPill) odgovara sa PONG
 i svakih 50 ms šalje STATUS. Komanda se ponavlja do 3 puta ako ACK ne stigne za 60 ms.
 
-### Povezivanje (WROOM-32, sve na GND sa internim pull-up)
-| Šta | ESP pin | Napomena |
-|---|---|---|
-| enkoder A / B | 32 / 33 | ako se okreće naopako: Podešavanja → obrni smer |
-| taster enkodera | 14 | klik = OK |
-| taster NAZAD | 25 | nazad; dugi (≥ 0,6 s) = meni (zaključan dok je robot naoružan ili meč traje) |
-| taster OK | 26 | |
-| taster STOP | 27 | šalje STOP odmah, i kad je ekran ugašen |
+### Povezivanje (ESP32-S3 na ESP32_Main, sve na GND sa internim pull-up)
+| Šta | ESP32-S3 | WROOM-32 | Napomena |
+|---|---|---|---|
+| UART ka STM32 TX / RX | 40 / 39 | 17 / 16 | S3: UART1, konektor J6 |
+| ekran SDA / SCL | 12 / 14 | 21 / 22 | |
+| enkoder A / B | 10 / 9 | 32 / 33 | ako se okreće naopako: Podešavanja → obrni smer |
+| taster enkodera | 8 | 14 | klik = OK |
+| taster NAZAD | 18 | 25 | nazad; dugi (≥ 0,6 s) = meni (zaključan dok je robot naoružan ili meč traje) |
+| taster OK | 11 | 26 | |
+| taster STOP | 17 | 27 | šalje STOP odmah, i kad je ekran ugašen |
 
-Pinovi su u `config.py`. Ako enkoder pravi 2 koraka po kliku (ili 1 na 2 klika), promeni `ENC_STEPS`.
+Na S3 su rezervisani i pinovi koje kod još ne koristi (buzzer, RGB LED, I2C ka PowerBoard-u, ADC za
+bateriju i motore, lidar): vidi `board_s3.py`. STM32 NRST/BOOT0 (15/16) su za sada isključeni, jer je NRST
+na ploči obrnut (MOSFET), a kod ga vodi kao open-drain.
+
+Pinovi su u `board_s3.py` i `board_wroom32.py`, a ploča se bira u `config.py`. Ako enkoder pravi 2 koraka po kliku (ili 1 na 2 klika), promeni `ENC_STEPS`.
 
 ### Ekran (telemetrija na robotu)
 Okret enkodera menja stranicu; crta ispod naslova pokazuje na kojoj si.
@@ -60,7 +77,7 @@ Taktike javljaju korake preko `lib/tactic.py`:
 Posle povezivanja ESP jednom pošalje SET_POSE iz `config.START_POSE` (250, 1000, 0°);
 isključuje se u Podešavanjima → auto poza.
 
-Ako na početnom ekranu piše `cekam STM32...`: proveri TX/RX (ESP 17 → PA10, ESP 16 ← PA9),
+Ako na početnom ekranu piše `cekam STM32...`: proveri TX/RX (WROOM: ESP 17 → PA10, ESP 16 ← PA9; S3: 40 / 39),
 zajednički GND, i da je na STM32 flešovan kod sa comm.c. Oba su na 115200 baud-a.
 
 ## Prvo podešavanje
@@ -68,10 +85,10 @@ Kopiraj `secrets_example.py` u `secrets.py` i `webrepl_cfg_example.py` u `webrep
 pa upiši prave mreže i lozinke. Ta dva fajla se ne commit-uju.
 
 ## Probna vožnja (POKREĆE MOTORE)
-    mpremote connect /dev/ttyUSB0 run tests/goto_test.py
+    mpremote connect /dev/ttyACM1 run tests/goto_test.py
 Postavi pozu na (0, 0, 0) i pošalje GOTO 300 mm napred na 200 mm/s; ispisuje STATUS dok ne stigne
 DONE/FAIL. Ctrl+C, 10 s bez završetka ili pad veze šalju STOP. Pre pokretanja: slobodno ispred robota,
-ruka na prekidaču za motore. Posle testa `mpremote connect /dev/ttyUSB0 reset` vraća ekran.
+ruka na prekidaču za motore. Posle testa `mpremote connect /dev/ttyACM1 reset` vraća ekran.
 
 ## Bez kabla (WiFi)
 Na ESP-u radi upload server (TCP 8267; prijava izazovom, lozinka iz `webrepl_cfg.py` se ne šalje)

@@ -28,7 +28,8 @@ ESP = ROOT / "ESP32"
 def local_files(args):
     if args:
         return [(ROOT / f).resolve() for f in args]
-    return [ESP / "main.py", ESP / "config.py"] + sorted((ESP / "lib").glob("*.py")) \
+    return [ESP / "main.py", ESP / "config.py"] + sorted(ESP.glob("board_*.py")) \
+        + sorted((ESP / "lib").glob("*.py")) \
         + sorted((ESP / "tactics").glob("*.py"))
 
 
