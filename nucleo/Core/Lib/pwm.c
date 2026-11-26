@@ -21,9 +21,6 @@ int8_t motor_right_sign = 0;
 void pwm_init() {
 	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
 	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
-
-	HAL_GPIO_WritePin(ENC_B_L_GPIO_Port, ENC_B_L_Pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(ENC_A_L_GPIO_Port, ENC_B_R_Pin, GPIO_PIN_SET);
 }
 void motori_set(float motor_left, float motor_right) {
 	if (motor_left < 0) { //treba da ize nazad u ovoj petlji
