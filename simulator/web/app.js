@@ -1024,14 +1024,14 @@ function liveData(m) {                          // shared by Live and Robot: app
   if (m.frames.length) { L.raw.frames.push(...m.frames); L.dirty = true; }
   if (m.events.length) {
     L.raw.events.push(...m.events); L.dirty = true;
-    for (const e of m.events) if (e[1] === 'lidar') L.lidar = { t: e[0], ...e[2] };   // lidar pravog robota
+    for (const e of m.events) if (e[1] === 'lidar') { L.lidar = { t: e[0], ...e[2] }; L.lidarWall = performance.now(); }   // lidar pravog robota
   }
   const f = m.frames[m.frames.length - 1];
   if (L.follow && f) view.setPose(f);
   if (f) L.tLast = f.t;                         // vreme robota (telemetrija); lidar stao = nema novog kruga
-  if (L.follow) {                               // bez frame-ova (STM32 nije povezan) staro merimo po samom lidaru
-    const lt = L.lidar && (L.tLast != null ? L.tLast : L.lidar.t);
-    view.setLidar(L.lidar && lt - L.lidar.t <= 2 * LIDAR_HOLD_MS ? L.lidar : null);
+  if (L.follow) {                               // bez frame-ova (STM32 nije povezan) nema vremena robota: staro po satu
+    const age = L.tLast != null ? L.tLast - L.lidar?.t : performance.now() - L.lidarWall;
+    view.setLidar(L.lidar && age <= 2 * LIDAR_HOLD_MS ? L.lidar : null);
   }
   return f;
 }
