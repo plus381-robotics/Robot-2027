@@ -29,8 +29,8 @@ float ref_lin_v = 100;
 float ref_ang_w = 20;
 //TODO PROVERITI LEVI I DESNI SADA SA OVIME
 
-float output_v = 0;
-float output_w = 0;
+float output_v = 50;
+float output_w = 20;
 
 float left = 0;
 float right = 0;
@@ -142,8 +142,11 @@ void velocity_control_loop(float dt) {
 	output_v = PID_regulator(&PID_v, &err_v, dt);
 	output_w = PID_regulator(&PID_w, &err_w, dt);
 
-	left = output_v - output_w;
-	right = output_v + output_w;
+	//left = output_v - output_w;
+	//right = output_v + output_w;
+	left = 30;
+	right = 60;
+
 	if (left > 100)
 		left = 100;
 	if (left < -100)

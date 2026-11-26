@@ -99,10 +99,10 @@ void Error_Handler(void);
 #define Vac2_GPIO_Port GPIOB
 #define Vac1_Pin GPIO_PIN_15
 #define Vac1_GPIO_Port GPIOB
-#define ENC_A_R_Pin GPIO_PIN_6
-#define ENC_A_R_GPIO_Port GPIOC
-#define ENC_B_R_Pin GPIO_PIN_7
+#define ENC_B_R_Pin GPIO_PIN_6
 #define ENC_B_R_GPIO_Port GPIOC
+#define ENC_A_R_Pin GPIO_PIN_7
+#define ENC_A_R_GPIO_Port GPIOC
 #define OUT_IR_4_Pin GPIO_PIN_8
 #define OUT_IR_4_GPIO_Port GPIOC
 #define OUT_IR_5_Pin GPIO_PIN_9
