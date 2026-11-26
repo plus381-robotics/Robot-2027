@@ -1,10 +1,21 @@
 # ESP (eurokik)
 
 ## Prvi put (preko USB-a)
-    mpremote connect /dev/ttyUSB0 mip install ssd1306
-    mpremote connect /dev/ttyUSB0 fs cp -r lib :
-    mpremote connect /dev/ttyUSB0 fs cp config.py secrets.py webrepl_cfg.py boot.py main.py :
-    mpremote connect /dev/ttyUSB0 reset
+Na Waveshare ESP32-S3 ploči (jedan USB-C) se vide dva porta: `/dev/ttyACM1` je UART preko CH343
+(REPL, esptool), `/dev/ttyACM0` je nativni USB. Na WROOM-32 je port `/dev/ttyUSB0`.
+
+Firmver (jednom): `ESP32_GENERIC_S3-SPIRAM_OCT-20260824-v1.29.0.bin` sa micropython.org
+(ista verzija kao `mpy-cross`):
+
+    esptool --chip esp32s3 --port /dev/ttyACM1 erase-flash
+    esptool --chip esp32s3 --port /dev/ttyACM1 --baud 921600 write-flash 0 ESP32_GENERIC_S3-SPIRAM_OCT-20260824-v1.29.0.bin
+
+Kod (ploča se bira u `config.py`, `BOARD = "s3"` ili `"wroom32"`):
+
+    mpremote connect /dev/ttyACM1 mip install ssd1306
+    mpremote connect /dev/ttyACM1 fs cp -r lib :
+    mpremote connect /dev/ttyACM1 fs cp config.py board_s3.py board_wroom32.py secrets.py webrepl_cfg.py boot.py main.py :
+    mpremote connect /dev/ttyACM1 reset
 
 Ekran treba da pokaže `eurokik.local`, IP adresu i na koju mrežu se povezao.
 Mreže su u `secrets.py` (YU.net kod kuće, `.` u labu). Ako ne nađe nijednu, pravi svoju mrežu `eurokik`.
@@ -16,23 +27,81 @@ Mreže su u `secrets.py` (YU.net kod kuće, `.` u labu). Ako ne nađe nijednu, p
 - Ako ruter nije dostupan: poveži laptop na mrežu `eurokik`, ESP je na `192.168.4.1`.
 
 ## Ako mpremote javi "could not enter raw repl"
-Ploča je zauzeta (radi main.py). Pokreni `mpremote connect /dev/ttyUSB0 repl`, pritisni Ctrl+C,
+Ploča je zauzeta (radi main.py). Pokreni `mpremote connect /dev/ttyACM1 repl`, pritisni Ctrl+C,
 izađi sa Ctrl+] i odmah ponovi komandu.
 
 ## main.py: meni + veza sa STM32
 ESP svakih 150 ms šalje PING (heartbeat), a STM32 (Nucleo ili BlackPill) odgovara sa PONG
 i svakih 50 ms šalje STATUS. Komanda se ponavlja do 3 puta ako ACK ne stigne za 60 ms.
 
-### Povezivanje (WROOM-32, sve na GND sa internim pull-up)
-| Šta | ESP pin | Napomena |
-|---|---|---|
-| enkoder A / B | 32 / 33 | ako se okreće naopako: Podešavanja → obrni smer |
-| taster enkodera | 14 | klik = OK |
-| taster NAZAD | 25 | nazad; dugi (≥ 0,6 s) = meni (zaključan dok je robot naoružan ili meč traje) |
-| taster OK | 26 | |
-| taster STOP | 27 | šalje STOP odmah, i kad je ekran ugašen |
+### Povezivanje (ESP32-S3 na ESP32_Main, sve na GND sa internim pull-up)
+| Šta | ESP32-S3 | WROOM-32 | Napomena |
+|---|---|---|---|
+| UART ka STM32 TX / RX | 40 / 39 | 17 / 16 | S3: UART1, konektor J6 |
+| ekran SDA / SCL | 12 / 14 | 21 / 22 | |
+| enkoder A / B | 10 / 9 | 32 / 33 | ako se okreće naopako: Podešavanja → obrni smer |
+| taster enkodera | 8 | 14 | klik = OK |
+| taster NAZAD | 18 | 25 | nazad; dugi (≥ 0,6 s) = meni (zaključan dok je robot naoružan ili meč traje) |
+| taster OK | 11 | 26 | |
+| taster STOP | 17 | 27 | šalje STOP odmah, i kad je ekran ugašen |
+| buzzer (pasivni, PWM) | 13 | - | `lib/buzzer.py`, zvuci (RTTTL) u `config.SOUNDS` |
+| lidar TX / RX / MOTOCTL | 47 / 21 / 48 | - | S3: UART2, konektor J3, RPLIDAR A2M8 na 115200; `lib/lidar.py` |
 
-Pinovi su u `config.py`. Ako enkoder pravi 2 koraka po kliku (ili 1 na 2 klika), promeni `ENC_STEPS`.
+STM32 NRST / BOOT0 na S3: 15 / 16. NRST na ESP32_Main ide preko MOSFET-a, pa je obrnut (1 = reset,
+`STM_NRST_INV` u `board_s3.py`, `lib/nrst.py`). Na S3 su rezervisani i pinovi koje kod još ne koristi
+(buzzer, I2C ka PowerBoard-u, ADC za bateriju i motore, lidar): vidi `board_s3.py`.
+
+### RGB LED (S3, GPIO38, `lib/led.py`)
+Stanje robota se vidi i bez ekrana (prvo pravilo koje važi):
+
+| Boja | Značenje |
+|---|---|
+| crveno, brzo trepće | alarm na ekranu (STOP, VEZA...), čeka OK |
+| ljubičasto, trepće | STM32 se restartuje |
+| žuto, stalno | NAORUZAN, čeka se činč |
+| žuto, brzo trepće | robot BLOKIRAN (meč ili test) |
+| belo, diše | meč traje |
+| plavo, diše | test taktika (bez meča) |
+| zeleno, sporo trepće | meč gotov (do kraja 100 s) |
+| zeleno, stalno | PROVERA prolazi, može da se naoružava |
+| crveno, stalno | PROVERA ne prolazi (nema STM32, nije izabrana taktika ili strana...) |
+
+Svetlina: Meni → LED (iskl / slabo / srednje / jako).
+
+### Buzzer (S3, GPIO13, `lib/buzzer.py`)
+Pasivni buzzer, PWM bez blokiranja petlje (servis "zvuk"). Svi zvuci su melodije u **RTTTL** formatu u
+`config.SOUNDS` (ime → tekst), pa se menjaju bez diranja koda; parser je `lib/rtttl.py`.
+
+| Ime | Zvuk | Kada |
+|---|---|---|
+| `ok` | 1 kratak | naoružan; potvrđena radnja (drži OK) |
+| `upoz` | 2 kratka | greška u dnevniku (korak nije uspeo van meča, greška servisa) |
+| `greska` | 3 kratka | prekid preko celog ekrana: STOP, VEZA, PREKID taktike |
+| `baterija` | 1 dug | slaba baterija (kad bude merenja) |
+| `boot` | melodija | ESP pokrenut |
+| `start` | melodija | činč izvučen, meč kreće |
+| `kraj` | melodija | 100 s od činča (jednom po meču) |
+| `gotovo` | melodija | test taktika završena bez greške |
+
+RTTTL: `"ime:d=8,o=6,b=180:c,e,g,4c7"`: `d` podrazumevano trajanje (1/2/4/8/16/32 = deo cele note),
+`o` oktava, `b` tempo (četvrtina nota u minuti); nota = `[trajanje]slovo[#][.][oktava]`, `p` = pauza,
+tačka = 1,5 puta duže. Buzzer (CEM-1206S) je najglasniji oko 2,4 kHz: oktave 6 i 7 (ispod ~1 kHz se jedva čuje).
+
+Meni → zvuk: iskl / greske (samo `greska` i `baterija`) / sve. U meču (POZA, MEC) se čuju samo `greska`,
+`start`, `kraj` i zvuk iz taktike. Važniji zvuk prekida manje važan (greška prekida melodiju), obrnuto ne.
+Meni → test zvuka pušta svaki zvuk iz `SOUNDS` (i kad je zvuk isključen). Iz taktike: `play(...)`.
+
+### Lidar test (S3, `lib/lidar.py`, `lib/lidar_test.py`)
+Meni → **Lidar test**: pali motor (PWM na MOTOCTL), pita lidar GET_INFO i GET_HEALTH, pa pokreće SCAN.
+Izlaz (NAZAD, ili kad taktika krene) gasi skeniranje i motor; van ovog ekrana lidar ne radi.
+- **mapa**: poslednji krug odozgo, robot u sredini, napred = gore; okret enkodera menja razmeru
+  (0,5 / 1 / 2 / 4 m do gornje ivice), krstić = najbliža tačka (udaljenost dole desno).
+- **info** (OK): model, firmver, zdravlje, krugova/s i tačaka po krugu, najbliža tačka (ugao robota:
+  0° napred, + levo), odbačeni bajtovi (`losi B`, smetnje na liniji) i ponovna pokretanja (`rst`).
+- `nema odgovora`: proveri TX/RX (lidar TX → ESP 21, ESP 47 → lidar RX), 5 V i GND; `nema tacaka`: motor se ne vrti.
+- Ako lidar nije okrenut napred: `LIDAR_MOUNT_DEG` u `board_s3.py`. Brzina motora: `LIDAR_MOTOR_DUTY` (%).
+
+Pinovi su u `board_s3.py` i `board_wroom32.py`, a ploča se bira u `config.py`. Ako enkoder pravi 2 koraka po kliku (ili 1 na 2 klika), promeni `ENC_STEPS`.
 
 ### Ekran (telemetrija na robotu)
 Okret enkodera menja stranicu; crta ispod naslova pokazuje na kojoj si.
@@ -43,7 +112,9 @@ Okret enkodera menja stranicu; crta ispod naslova pokazuje na kojoj si.
 - **ROBOT**: x, y (mm), ugao (°), v (mm/s), stanje (`VOZI`, `BLOK`, `MEC`...) i starost STATUS-a.
 - **VEZA**: STM32 i verzija, okvira/s, CRC greške, ponavljanja, komande bez odgovora, IP.
 - Gore desno: preostalo vreme meča (inverzno poslednjih 10 s), WiFi i veza sa STM32 (trepće `x` kad nema).
-- Dugi NAZAD: meni (Podešavanja: kontrast, okretanje 180°, smer enkodera, gašenje, auto SET_POSE,
+- Na S3 je ekran montiran naopako: slika je okrenuta po difoltu (`DISPLAY_ROT180` u `board_s3.py`);
+  Meni → "okreni 180" je okreće još jednom.
+- Dugi NAZAD: meni (Podešavanja: kontrast, okretanje 180°, zvuk, test zvuka, Lidar test, smer enkodera, gašenje, auto SET_POSE,
   "test od START", "WDT mec*" (važi do restarta), **demo taktika** = lažni koraci samo za prikaz).
 - ROBOT, izveštaj i dnevnik su u koordinatama **naše strane** (kao taktika); telemetrija (tools/watch.py)
   u koordinatama terena.
@@ -60,7 +131,7 @@ Taktike javljaju korake preko `lib/tactic.py`:
 Posle povezivanja ESP jednom pošalje SET_POSE iz `config.START_POSE` (250, 1000, 0°);
 isključuje se u Podešavanjima → auto poza.
 
-Ako na početnom ekranu piše `cekam STM32...`: proveri TX/RX (ESP 17 → PA10, ESP 16 ← PA9),
+Ako na početnom ekranu piše `cekam STM32...`: proveri TX/RX (WROOM: ESP 17 → PA10, ESP 16 ← PA9; S3: 40 / 39),
 zajednički GND, i da je na STM32 flešovan kod sa comm.c. Oba su na 115200 baud-a.
 
 ## Prvo podešavanje
@@ -68,15 +139,20 @@ Kopiraj `secrets_example.py` u `secrets.py` i `webrepl_cfg_example.py` u `webrep
 pa upiši prave mreže i lozinke. Ta dva fajla se ne commit-uju.
 
 ## Probna vožnja (POKREĆE MOTORE)
-    mpremote connect /dev/ttyUSB0 run tests/goto_test.py
+    mpremote connect /dev/ttyACM1 run tests/goto_test.py
 Postavi pozu na (0, 0, 0) i pošalje GOTO 300 mm napred na 200 mm/s; ispisuje STATUS dok ne stigne
 DONE/FAIL. Ctrl+C, 10 s bez završetka ili pad veze šalju STOP. Pre pokretanja: slobodno ispred robota,
-ruka na prekidaču za motore. Posle testa `mpremote connect /dev/ttyUSB0 reset` vraća ekran.
+ruka na prekidaču za motore. Posle testa `mpremote connect /dev/ttyACM1 reset` vraća ekran.
 
 ## Bez kabla (WiFi)
 Na ESP-u radi upload server (TCP 8267; prijava izazovom, lozinka iz `webrepl_cfg.py` se ne šalje)
 i telemetrija (UDP 8268). Server ne blokira glavnu petlju; dok taktika radi ili je meč naoružan,
-prima samo LOG, STOP i STAT.
+prima samo LOG, STOP i STAT. Telemetriju može da prati do 3 laptopa (programa) u isto vreme.
+
+Lidar preko WiFi-ja (hibridna simulacija, Robot panel u simulatoru): dok lidar radi (Meni -> Lidar test, ili
+komanda `LIDAR ON` upload serveru), svaki krug ide pretplatnicima telemetrije kao binarni paket (`lib/lidarpkt.py`:
+zaglavlje + 360 x uint16 mm, ~740 B, 10 puta u sekundi; pakovanje ~0,6 ms). Lidar upaljen sa `LIDAR ON` se gasi
+sam par sekundi pošto nestane poslednji pretplatnik, kad se robot naoruža ili taktika krene, i sa `LIDAR OFF`.
 
     python tools/esp_push.py                # šalje samo izmenjeno, atomično (STAGE + COMMIT), pa restart
     python tools/esp_push.py --list         # samo prikaži razlike
@@ -107,6 +183,7 @@ Taktika je fajl u `ESP32/tactics/` (vidi `primer.py`, `sve_komande.py`, `kamenol
     turn_to(90)                 # apsolutni ugao terena;  turn_by(-45) relativno
     move(-200)                  # mm, minus = unazad
     ir_off("FD"); ir_on()       # IR: u svakom uglu donji D i gornji U (FLD FLU ... BRU); ir_sees("FU") (protokol v5)
+    play("kraj"); play("ja:d=8,o=6,b=180:c,e,g")   # buzzer: ime iz config.SOUNDS ili RTTTL, ne čeka (zvuk = sve)
     wait(1); wait_until(lambda: ..., 3); step("čekam"); log("..."); here(); remaining()
     actuator("hvataljka", 1)                  # čeka DONE sa STM32; imena u config.ACTUATORS
     h = actuator("lift", 300, wait=False)     # paralelno sa vožnjom...

@@ -53,6 +53,9 @@ class App:
         self.pages = Pages(self)
         self.ui = ui.UI(fb, self.pages, self.indicators, lambda: self.st["sleep_s"])
         self.ui.on_menu = self.open_menu
+        self.buzzer = None                 # lib/buzzer.py (postavlja main.py ako ploča ima buzzer)
+        self.lidar_remote = None           # lidar upaljen preko WiFi-ja (upload LIDAR ON): vreme, telem.py ga čita
+        self.ui.sound = self.beep
         self.apply_display()
 
     # ---------------- ekran ----------------
@@ -61,7 +64,7 @@ class App:
         if not self.fb:
             return
         self.fb.contrast(self.st["contrast"] if contrast is None else contrast)
-        f = 1 if self.st["flip"] else 0
+        f = (1 if self.st["flip"] else 0) ^ (1 if getattr(cfg, "DISPLAY_ROT180", False) else 0)  # ploča ^ meni
         if hasattr(self.fb, "rotate"):
             self.fb.rotate(f)
         else:                              # stariji ssd1306 drajver
@@ -86,11 +89,19 @@ class App:
 
     # ---------------- poruke ----------------
 
+    def beep(self, kind, force=False, melody=None):
+        """Zvuk (lib/buzzer.py, imena u config.SOUNDS): ok, upoz, greska, start, kraj... melody: druga
+        melodija sa pravilima za kind (tac.play). Bez buzzera ne radi ništa; vraća da li svira."""
+        if self.buzzer is not None:
+            return self.buzzer.play(kind, force, melody)
+        return False
+
     def error(self, text):
         """Greška: ostaje na stranici DNEVNIK, a u traci je ! dok se ne pogleda."""
         t = ticks_diff(ticks_ms(), self._run["t0"]) if self._run else None   # van taktike bez vremena (L25)
         self.errors = (self.errors + [(t, text)])[-30:]
         self.unseen += 1
+        self.beep("upoz")                  # u meču se ne čuje (samo greška preko celog ekrana)
         self.tlog("GRESKA " + text)
 
     def errors_seen(self):
@@ -268,6 +279,7 @@ class App:
 
     def arm(self):
         if self.match.arm(self.st["sel_tactic"], self.st["sel_side"]):
+            self.beep("ok")
             self.show_page("PROVERA")
 
     def start_tactic(self, name, side=None):
@@ -317,6 +329,8 @@ class App:
         self._run = None
         self.save_report(self.report)
         self.pages.list[-1].view = 0
+        if how is None and not self.report["match"] and self.report["ok"]:
+            self.beep("gotovo")                # test taktika prošla (u meču: zvuk "kraj" na 100 s)
         if how:                                # prekid: ceo ekran, pa izveštaj
             self.ui.alarm("PREKID" if how != "STOP" else "STOP", how, lambda: self.show_page("IZVESTAJ"))
         else:
@@ -444,6 +458,19 @@ class App:
             tracker.finish()
             tracker.history = []
 
+    def sound_menu(self):
+        """Meni -> test zvuka: svaki zvuk iz config.SOUNDS (pušta se i kad je zvuk isključen)."""
+        import buzzer
+        names = list(buzzer.MENU) + sorted(n for n in buzzer.sounds() if n not in buzzer.MENU)
+        def play(kind):
+            return lambda u: self.beep(kind, force=True) if self.buzzer else u.toast("nema buzzera")
+        return Menu("Test zvuka", [Action(n, play(n)) for n in names])
+
+    def lidar_screen(self):
+        """Meni -> Lidar test (lib/lidar_test.py); uvozi se tek ovde (RAM)."""
+        from lidar_test import LidarScreen
+        return LidarScreen(self)
+
     def settings_menu(self):
         st = self.st
         def flip(v):
@@ -455,6 +482,12 @@ class App:
                    lambda: st["screen_match"], lambda v: st.set("screen_match", v)),
             Number("kontrast", lambda: st["contrast"], lambda v: (st.set("contrast", v), self.apply_display()),
                    0, 255, 15, preview=lambda v: self.apply_display(v)),
+            Choice("LED", [(0, "iskl"), (8, "slabo"), (32, "srednje"), (128, "jako")],
+                   lambda: st["led"], lambda v: st.set("led", v)),
+            Choice("zvuk", [(0, "iskl"), (1, "greske"), (2, "sve")],
+                   lambda: st["sound"], lambda v: st.set("sound", v)),
+            ui.Sub("test zvuka", self.sound_menu),
+            ui.Sub("Lidar test", self.lidar_screen),
             Toggle("okreni 180", lambda: st["flip"], flip),
             Toggle("obrni enk.", lambda: st["enc_rev"], lambda v: st.set("enc_rev", v)),
             Choice("spavanje", [(0, "nikad"), (60, "1min"), (300, "5min")],

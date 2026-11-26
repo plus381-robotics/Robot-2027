@@ -104,6 +104,17 @@ page("VEZA", "VEZA")
 a.stop(); snap("STOP preko celog ekrana")
 u.input("ok")
 run(200); u.input("menu"); snap("Meni (dugi NAZAD)")
+import machine
+import config
+from fakelidar import FakeRplidar
+machine.UART.devices[config.LIDAR_UART] = FakeRplidar(compat.ticks_ms)    # soba 1200 x 800 + protivnik
+lid = a.lidar_screen()
+u.push(lid)
+run(30); snap("Lidar test: pokrece se")
+run(800); snap("Lidar test: mapa 1 m (okret = razmera)")
+lid.rotate(u, 1); snap("Lidar test: mapa 2 m")
+lid.ok(u); snap("Lidar test: info (OK)")
+u.home()
 
 from PIL import Image, ImageDraw
 SC, PAD, CAP = 3, 14, 18

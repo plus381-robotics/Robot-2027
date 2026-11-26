@@ -122,6 +122,11 @@ DOC = {
                     example="if ir_sees(\"FU\"):        # upper front: the opponent\n    goto(1250, 1540)      # other plan"),
     "log": dict(group="Other", say="Write a line to the log (on the robot screen report and in the simulator).",
                 params=[["text", "any text"]], ret="Nothing.", example="log(\"got 3 stones\")"),
+    "play": dict(group="Other",
+                 say="Play a sound on the buzzer and go on at once (does not wait). A name from ESP32/config.py "
+                     "SOUNDS, or your own melody in RTTTL. Heard only when the robot menu says zvuk = sve.",
+                 params=[["sound", "a name (\"kraj\", \"gotovo\"...) or RTTTL \"name:d=8,o=6,b=180:c,e,g\""]],
+                 ret="True if it plays.", example="play(\"gotovo\")\nplay(\"ja:d=8,o=6,b=180:c,e,g,4c7\")"),
     "Abort": dict(group="Other", say="Stop the tactic on purpose: raise Abort(\"why\").",
                   params=[], ret="", example="raise Abort(\"gripper is empty\")"),
 }

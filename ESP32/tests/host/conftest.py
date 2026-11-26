@@ -11,6 +11,15 @@ for p in (ESP / "sim", ESP, ESP / "lib"):
 
 
 @pytest.fixture(autouse=True)
+def no_board_nrst(monkeypatch):
+    """Testovi ne zavise od izabrane ploče u config.py: podrazumevano bez NRST-a (kao BlackPill);
+    testovi sa NRST-om ga sami postave."""
+    import config
+    monkeypatch.setattr(config, "STM_NRST", None)
+    monkeypatch.setattr(config, "STM_BOOT0", None)
+
+
+@pytest.fixture(autouse=True)
 def fake_clock():
     import compat
     compat.fake = [100000]

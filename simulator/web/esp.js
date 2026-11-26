@@ -10,6 +10,9 @@ export class EspPanel {
     this.enabled = false;
     this.last = null;
     this.hint = root.querySelector('.esp-hint');
+    this.buzzEl = root.querySelector('.esp-buzz');
+    this.audio = null;                 // WebAudio for the buzzer; created on the first button press (autoplay rules)
+    root.addEventListener('pointerdown', () => this._audio(), true);
     for (const b of root.querySelectorAll('[data-btn]')) {
       const name = b.dataset.btn;
       const down = e => { e.preventDefault(); if (!this.enabled) return; b.classList.add('down'); this.send(['btn', name, 1]); };
@@ -34,6 +37,38 @@ export class EspPanel {
     this.canvas.parentElement.parentElement.classList.toggle('live', on);
     this.hint.textContent = on ? 'buttons are live · mouse wheel on the screen = encoder' :
       'recorded screen · buttons work in Live mode';
+  }
+
+  _audio() {
+    if (!this.audio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      this.audio = new AC();
+    }
+    if (this.audio.state === 'suspended') this.audio.resume();
+    return this.audio;
+  }
+
+  // Buzzer on the robot (ESP32/lib/buzzer.py, RTTTL): b = {kind, notes: [[Hz, ms], ...]} (Hz 0 = silence).
+  buzz(b, speed = 1) {
+    let t = 0;
+    const ctx = this.audio && this.audio.state === 'running' ? this.audio : null;
+    const t0 = ctx ? ctx.currentTime + 0.02 : 0;
+    for (const [hz, ms] of b.notes || []) {
+      const d = ms / 1000 / speed;
+      if (hz && ctx) {
+        const osc = ctx.createOscillator(), g = ctx.createGain();
+        osc.type = 'square'; osc.frequency.value = hz; g.gain.value = 0.05;
+        osc.connect(g).connect(ctx.destination);
+        osc.start(t0 + t); osc.stop(t0 + t + d);
+      }
+      t += d;
+    }
+    if (this.buzzEl) {
+      this.buzzEl.classList.add('on');
+      clearTimeout(this._buzzT);
+      this._buzzT = setTimeout(() => this.buzzEl.classList.remove('on'), Math.max(150, t * 1000));
+    }
   }
 
   setScreen(s) {                       // s = {b: base64 1024 B, on, flip} or null

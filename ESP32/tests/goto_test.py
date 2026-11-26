@@ -1,10 +1,10 @@
 # Probna vožnja: jedan GOTO preko ESP-a. POKREĆE MOTORE.
 #
-#   mpremote connect /dev/ttyUSB0 run tests/goto_test.py
+#   mpremote connect /dev/ttyACM1 run tests/goto_test.py
 #
 # Pre pokretanja: robot na podu (ili podignut, točkovi u vazduhu), ispred njega bar
 # DIST_MM + 20 cm slobodno, ruka na prekidaču za motore. mpremote prekida main.py dok
-# test traje; posle testa: mpremote connect /dev/ttyUSB0 reset.
+# test traje; posle testa: mpremote connect /dev/ttyACM1 reset.
 #
 # Tok: čeka STM32 -> SET_POSE (0, 0, 0) -> GOTO (DIST_MM, 0) bez završnog ugla ->
 # ispisuje STATUS dok ne stigne DONE/FAIL. Ctrl+C, isteklo vreme ili pad veze -> STOP.

@@ -33,11 +33,12 @@ INMATCH = P.State.MATCH_RUNNING | P.State.MATCH_OVER
 
 
 class StmReset:
-    """NRST (open-drain) i BOOT0 sa ESP-a, bez blokiranja petlje: pulse() pa poll() u svakom krugu."""
+    """NRST (lib/nrst.py) i BOOT0 sa ESP-a, bez blokiranja petlje: pulse() pa poll() u svakom krugu."""
 
     def __init__(self, cfg):
         from machine import Pin
-        self.nrst = Pin(cfg.STM_NRST, Pin.OPEN_DRAIN, value=1)
+        from nrst import Nrst
+        self.nrst = Nrst(cfg)
         self.boot0 = Pin(cfg.STM_BOOT0, Pin.OUT, value=0) if getattr(cfg, "STM_BOOT0", None) is not None else None
         self.t = None                  # kad je NRST spušten (None = pušten)
         self.t_last = None             # poslednji impuls
@@ -45,12 +46,12 @@ class StmReset:
     def pulse(self):
         if self.boot0:
             self.boot0.value(0)        # normalan start (ne bootloader)
-        self.nrst.value(0)
+        self.nrst.hold(True)
         self.t = self.t_last = ticks_ms()
 
     def poll(self):
         if self.t is not None and ticks_diff(ticks_ms(), self.t) >= NRST_LOW_MS:
-            self.nrst.value(1)
+            self.nrst.hold(False)
             self.t = None
 
     def since(self):
@@ -118,6 +119,7 @@ class Match:
         self._was_running = None       # prethodni bit MATCH_RUNNING (činč bez naoružavanja, L4)
         self._idle_seen = False        # posle naoružavanja viđen STATUS bez meča (čeka se NOV činč)
         self._boot_seen = False
+        self._kraj_for = None          # t_cord meča za koji je već pušten zvuk "kraj"
 
     @property
     def armed(self):
@@ -275,6 +277,7 @@ class Match:
             self.t_cord = ticks_add(ticks_ms(), -min(s["match_ms"], 1000))   # STM32 broji od izvlačenja
             self._boot_ref = r.boot_n
             a.tlog("CINC: start")
+            a.beep("start")
             if self.start:
                 self._send_pose(r)
                 self.state = POSE
@@ -300,6 +303,9 @@ class Match:
             a.abort = "kraj meca"
         if self.state in (MATCH, DONE) and self.t_cord is not None:
             self._guard(r, a, s)
+            if self._kraj_for != self.t_cord and self.elapsed() >= MATCH_MS:
+                self._kraj_for = self.t_cord       # 100 s od činča: zvuk jednom po meču
+                a.beep("kraj")
 
     def _guard(self, r, a, s):
         """Meč traje: ESP sat (100 s), restart STM32, STM32 koji se ne javlja."""

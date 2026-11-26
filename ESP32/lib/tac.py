@@ -36,7 +36,7 @@ from tactic import tracker
 __all__ = ("pose", "goto", "turn_to", "turn_by", "rotate", "move", "wait", "wait_until", "step",
            "actuator", "done", "wait_done", "log", "status", "here", "remaining", "side", "Abort",
            "match_time", "in_match", "attack_phase", "deadline", "go_home", "TimeUp",
-           "ir_off", "ir_on", "ir_sees")
+           "ir_off", "ir_on", "ir_sees", "play")
 
 FIELD_X = 3000                 # mm, dužina terena (ogledanje po x)
 REF_SIDE = "zuta"              # strana za koju se taktike pišu (pravila 2027: žuta startna zona x 0..500)
@@ -108,6 +108,16 @@ def _pump():
 
 def log(text):
     app.tlog(str(text))
+
+
+def play(sound):
+    """Pusti zvuk na buzzeru i nastavi odmah (ne čeka kraj melodije). sound: ime iz config.SOUNDS
+    ("kraj", "gotovo"...) ili RTTTL tekst ("ja:d=8,o=6,b=180:c,e,g,4c7"). Čuje se samo kad je
+    Meni -> zvuk = "sve" (i u meču). Loš RTTTL tekst: ValueError. Vraća True ako svira."""
+    import buzzer
+    import rtttl
+    rtttl.check(sound, buzzer.sounds())        # greška u tekstu se vidi u taktici, i bez buzzera
+    return bool(app.beep("takt", melody=sound))
 
 
 def wait(s):

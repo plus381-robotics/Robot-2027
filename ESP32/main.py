@@ -32,8 +32,11 @@ def main():
     app = App(Robot(uart), st, oled)           # odmah primenjuje kontrast i okretanje ekrana
     inp = Inputs(cfg, lambda: st["enc_rev"])
     holder.append(app)                         # Net pita app.busy() pre ponovnog povezivanja
-    # Memorija: heap ne sme da raste na račun WiFi drajvera (WROOM-32 nema PSRAM). Čisti se
-    # pre nego što se napuni, pa ne mora da se širi.
+    # Memorija: heap ne sme da raste na račun WiFi drajvera. Čisti se pre nego što se napuni,
+    # pa ne mora da se širi. Ovo je pisano za WROOM-32, koji nema PSRAM.
+    # TODO (S-2, docs/faza4-esp32s3-lidar.md): S3 (N16R8) sada ima 8 MB PSRAM-a i heap je u njemu, pa
+    # je prag ispod ~2 MB: GC radi retko, ali dugo (PSRAM je sporiji). Srediti: prag iz board fajla
+    # (npr. 32-64 KB), gc.collect() u mirnim trenucima i merenje trajanja GC-a u STAT.
     gc.collect()
     gc.threshold(max(4096, gc.mem_free() // 4))
     gui = app.ui
@@ -48,8 +51,17 @@ def main():
         gui.hold(inp.hold_ms)
 
     telem = Telem(app)                         # UDP 8268: tools/watch.py
-    loop = Loop([("net", net.poll), ("upload", upload.poll), ("telem", telem.poll), ("robot", app.update),
-                 ("ulaz", handle_inputs), ("ekran", gui.tick)], sleep_ms,
+    services = [("net", net.poll), ("upload", upload.poll), ("telem", telem.poll), ("robot", app.update),
+                ("ulaz", handle_inputs), ("ekran", gui.tick)]
+    if getattr(cfg, "NEOPIXEL", None) is not None:    # RGB LED: stanje robota (lib/led.py)
+        from led import Led
+        services.append(("led", Led(app, cfg.NEOPIXEL).tick))
+    if getattr(cfg, "BUZZER", None) is not None:      # pasivni buzzer (lib/buzzer.py)
+        from buzzer import Buzzer
+        app.buzzer = Buzzer(app, cfg.BUZZER)
+        services.append(("zvuk", app.buzzer.tick))
+        app.beep("boot")
+    loop = Loop(services, sleep_ms,
                 on_error=lambda faza, tekst: app.error("%s: %s" % (faza, tekst)))
     app.pump = loop.step                       # taktika ga zove dok čeka (tac.py)
     app.loop = loop

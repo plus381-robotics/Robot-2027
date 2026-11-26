@@ -37,6 +37,7 @@
       <button id="run" class="primary" title="Run the whole simulation fast, then play it back. With the editor open: the editor text, saved or not (Ctrl+Enter)">▶ Run</button>
     </span>
     <span id="rowLive" class="tabrow" hidden>
+      <select id="lidarSrc" title="Where the lidar scans come from. Simulated: rays on the virtual table. Robot: the real lidar on the robot over WiFi (host and password from Robot → Connect…), the rest stays simulated; every scan is recorded to simulator/lidar/ and Live runs at ×1. A recording: replays saved real scans."></select>
       <button id="liveBtn" class="primary" title="Start the interactive simulation in real time: ESP screen and buttons, cord, STOP, move the opponent">▶ Start Live</button>
       <span id="liveGroup" class="group" hidden>
         <button id="armBtn" title="Select tactic + side and arm the match (like the ESP menu)">Arm match</button>
@@ -144,6 +145,7 @@
         <label>step labels <select id="labelMode" title="Name next to the step points"><option value="none">none</option><option value="current" selected>current step</option><option value="all">all</option></select></label>
         <label><input type="checkbox" id="showLegend" checked> legend</label>
         <label title="IR sensor rays: grey = nothing within range, red = sees something (stops the robot)"><input type="checkbox" id="showIr" checked> IR sensor rays</label>
+        <label title="Lidar: the last full scan as the ESP measured it (cyan dots at lidar height), nearest point = yellow ring. Shown while the lidar runs (e.g. ESP menu, Lidar test)"><input type="checkbox" id="showLidar" checked> lidar points</label>
         <label title="Draft path from the editor text (dashed purple)"><input type="checkbox" id="showDraft" checked> draft path from the editor</label>
         <label>markers <select id="markSize" title="Size of step points and target labels"><option value="0.7">small</option><option value="1" selected>normal</option><option value="1.5">large</option></select></label>
         <label title="Table look: drawing from the 2027 rules or a plain grid"><input type="checkbox" id="rulesLook" checked> rules table</label>
@@ -171,7 +173,7 @@
       <div class="dim small"><span id="elPos"></span> · drag on the table to move · the robot pushes quarries</div>
     </div>
     <div id="oppEdit" class="overlay" hidden>
-      <div class="ov-title">Opponent <span id="oppName" class="dim"></span> <button id="oppDel" title="Remove">✕</button></div>
+      <div class="ov-title">Opponent <span id="oppName" class="dim"></span> <button id="oppClose" title="Close (the opponent stays on the table)">✕</button></div>
       <div class="ov-grid">
         <label>x <input type="number" id="oppX" step="10"></label><label>y <input type="number" id="oppY" step="10"></label>
         <label>w <input type="number" id="oppW" step="10" min="20"></label><label>h <input type="number" id="oppH" step="10" min="20"></label>
@@ -181,9 +183,10 @@
         <label class="wide">seed <input type="number" id="oppSeed" min="1" step="1" title="For random tactics: same seed = same match"></label>
       </div>
       <div class="dim small">drag on the table to move · simulation re-runs on release</div>
+      <div class="row"><button id="oppDel" class="danger" title="Remove this opponent from the table">remove</button></div>
     </div>
     <div id="espPanel" class="overlay">
-      <div class="ov-title">ESP <span class="esp-hint dim small"></span></div>
+      <div class="ov-title">ESP <span class="esp-buzz" title="buzzer">♪</span> <span class="esp-hint dim small"></span></div>
       <div class="oled"><canvas width="128" height="64"></canvas></div>
       <div class="esp-btns">
         <button data-rot="-1" title="Encoder: turn left">⟲</button>

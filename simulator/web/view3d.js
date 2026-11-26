@@ -136,6 +136,8 @@ export class FieldView {
     this.scene.add(this.prevGroup);
     this.cursorGroup = new THREE.Group();          // krst za x, y iz reda sa kursorom (plan S8)
     this.scene.add(this.cursorGroup);
+    this.lidarGroup = this._lidarPoints();         // poslednji krug lidara (tačke na stolu), događaj "lidar"
+    this.scene.add(this.lidarGroup);
     this.onPreviewClick = null; this.onAltPick = null;
     this.opponents = []; this.oppSel = -1; this.drag = null;
     this.onOppSelect = null; this.onOppMove = null;
@@ -255,6 +257,14 @@ export class FieldView {
     g.add(arrow);
     g.userData.body = body; g.userData.plate = plate;
     g.add(this._irRays());
+    const lp = this.profile.lidar;
+    if (lp && Object.keys(lp).length) {            // lidar na robotu (profil [lidar]: x, y, z)
+      const puck = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.04, 24),
+        new THREE.MeshStandardMaterial({ color: 0x2a2f36, roughness: 0.5 }));
+      puck.rotation.x = Math.PI / 2;
+      puck.position.set((lp.x || 0) / 1000, (lp.y || 0) / 1000, (lp.z || 300) / 1000 - 0.02);
+      g.add(puck);
+    }
     const file = this.profile.model && this.profile.model.file;
     if (file) {                                    // CAD model (simulator/tools/cad_to_glb.py): umesto ploče i točkova
       new GLTFLoader().load(file, gltf => {
@@ -295,6 +305,57 @@ export class FieldView {
     this.irGroup = grp;
     return grp;
   }
+
+  // Lidar: tačke poslednjeg kruga u koordinatama stola (ne deo robota: krug je snimljen u jednom trenutku),
+  // na visini lidara; najbliža tačka veća. Do 360 tačaka (bin po stepenu, lib/lidar.py).
+  _lidarPoints() {
+    const g = new THREE.Group();
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(360 * 3), 3));
+    geo.setDrawRange(0, 0);
+    const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0x3ee0ff, size: 5, sizeAttenuation: false,
+      depthTest: false, transparent: true, opacity: 0.9 }));
+    pts.renderOrder = 6;
+    const near = new THREE.Mesh(new THREE.RingGeometry(0.018, 0.03, 20),
+      new THREE.MeshBasicMaterial({ color: 0xffd65a, depthTest: false, side: THREE.DoubleSide }));
+    near.renderOrder = 7; near.visible = false;
+    g.add(pts, near);
+    this.lidarPts = pts; this.lidarNear = near;
+    g.visible = true;
+    return g;
+  }
+
+  // s = {pose: [x, y, ugao], o: [x, y, z] lidar na robotu (mm), pts: [ugao, mm, ...] (ugao robota, + levo),
+  //      near: [mm, ugao] ili null} ili null (lidar ne radi)
+  setLidar(s) {
+    if (s === this._lidarShown) return;
+    this._lidarShown = s;
+    const geo = this.lidarPts.geometry;
+    if (!s) { geo.setDrawRange(0, 0); this.lidarNear.visible = false; return; }
+    const [x, y, th] = s.pose, [ox, oy, oz] = s.o;
+    const r = th * Math.PI / 180, c = Math.cos(r), sn = Math.sin(r);
+    const lx = (x + ox * c - oy * sn) / 1000, ly = (y + ox * sn + oy * c) / 1000, z = (oz || 300) / 1000;
+    const at = (a, d) => {
+      const w = r + a * Math.PI / 180;
+      return [lx + d / 1000 * Math.cos(w), ly + d / 1000 * Math.sin(w)];
+    };
+    const p = geo.attributes.position;
+    let n = 0;
+    for (let i = 0; i + 1 < s.pts.length && n < 360; i += 2, n++) {
+      const [px, py] = at(s.pts[i], s.pts[i + 1]);
+      p.setXYZ(n, px, py, z);
+    }
+    p.needsUpdate = true;
+    geo.setDrawRange(0, n);
+    geo.computeBoundingSphere();
+    if (s.near) {
+      const [px, py] = at(s.near[1], s.near[0]);
+      this.lidarNear.position.set(px, py, z);
+      this.lidarNear.visible = true;
+    } else this.lidarNear.visible = false;
+  }
+
+  setShowLidar(on) { this.lidarGroup.visible = on; }
 
   setIr(hits, mask = 0xFF) {                       // hits: [mm po senzoru, -1 = ništa] ili null; mask: uključeni
     if (!this.irRays) return;

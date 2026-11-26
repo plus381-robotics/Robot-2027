@@ -95,6 +95,36 @@ class _Fake:
         return dist, dt
 
 
+_RTTTL = None
+
+
+def _rtttl():
+    """ESP32/lib/rtttl.py (bez zavisnosti), učitan po putanji: preview ne stavlja ESP kod u sys.path."""
+    global _RTTTL
+    if _RTTTL is None:
+        import importlib.util
+        from . import paths
+        spec = importlib.util.spec_from_file_location("_eurosim_rtttl", paths.ESP / "lib" / "rtttl.py")
+        _RTTTL = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_RTTTL)
+    return _RTTTL
+
+
+def _sound_names():
+    """Imena zvukova: podrazumevana iz ESP32/lib/buzzer.py i config.SOUNDS (čita se tekst, bez uvoza)."""
+    import ast
+    from . import paths
+    names = set()
+    for f, var in ((paths.ESP / "lib" / "buzzer.py", "DEFAULT_SOUNDS"), (paths.ESP / "config.py", "SOUNDS")):
+        try:
+            for n in ast.parse(f.read_text(encoding="utf-8")).body:
+                if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", None) == var:
+                    names |= set(ast.literal_eval(n.value))
+        except Exception:                          # noqa: BLE001
+            pass
+    return names
+
+
 def _module(fk):
     """Lažni tac: ista imena i potpisi kao ESP32/lib/tac.py (__all__), bez kretanja."""
     m = types.ModuleType("tac")
@@ -172,6 +202,10 @@ def _module(fk):
 
     def log(text):
         pass
+
+    def play(sound):
+        _rtttl().check(sound, _sound_names())     # isti parser kao na robotu: loš RTTTL je greška i ovde
+        return True
 
     def status():
         fk.begin()

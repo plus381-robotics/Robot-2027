@@ -269,6 +269,8 @@ class Info(Item):
 class Screen:
     live = False
     wants_hold = False
+    # Ekran može da ima i tick(ui) (zove se u svakom krugu petlje dok je na vrhu, npr. čitanje lidara)
+    # i leave() (zove se kad se skine sa steka: NAZAD, home(), taktika krene), vidi UI._left.
     def rotate(self, ui, n): pass
     def ok(self, ui): pass
     def back(self, ui): return False     # True = obrađeno, ne vraćaj se nazad
@@ -353,6 +355,7 @@ class Confirm(Screen):
         if ms >= self.HOLD_MS and not self.done:
             self.done = True
             ui.pop()
+            ui.sound("ok")
             self.fn(ui)
 
     def draw(self, ui, fb):
@@ -387,6 +390,7 @@ class UI:
         self._alarm = None              # (naslov, razlog, posle_ok) dok se ne pritisne OK
         self._shown = None              # poslednja poslata slika (za slanje samo na promenu)
         self.sent = 0                   # koliko puta je slika stvarno poslata (merenje)
+        self.sound = lambda kind: None  # zvuk (app.beep -> buzzer): ok / upoz / greska
 
     @property
     def top(self):
@@ -398,12 +402,20 @@ class UI:
 
     def pop(self):
         if len(self.stack) > 1:
-            self.stack.pop()
+            self._left([self.stack.pop()])
         self.dirty = True
 
     def home(self):
+        gone = self.stack[1:]
         del self.stack[1:]
+        self._left(gone)
         self.dirty = True
+
+    def _left(self, screens):
+        for s in reversed(screens):
+            f = getattr(s, "leave", None)
+            if f:
+                f()
 
     def toast(self, text, ms=1500, alert=False):
         """Kratka poruka preko ekrana. alert=True: inverzna (greška) i budi ekran."""
@@ -411,6 +423,7 @@ class UI:
         self._toast_until = ticks_ms() + ms
         if alert:
             self.wake()
+            self.sound("upoz")
         self.dirty = True
         print("[ui]", text)
 
@@ -419,6 +432,7 @@ class UI:
         Ostaje dok se ne pritisne OK; after() se tada pozove (npr. prikaži izveštaj)."""
         self._alarm = (str(title), str(reason), after)
         self.wake()
+        self.sound("greska")
         self.dirty = True
         print("[ui] PREKID", title, reason)
 
@@ -480,6 +494,9 @@ class UI:
             self._toast = None
             self.dirty = True
         top = self.top
+        t = getattr(top, "tick", None)
+        if t:
+            t(self)                         # i dok ekran spava (lidar mora da se čita)
         if isinstance(top, Confirm) and not top.ms and ticks_diff(now, top.t0) > Confirm.TIMEOUT_MS:
             self.pop()                      # potvrda bez odgovora: zatvori (L13)
             self.dirty = True

@@ -18,7 +18,7 @@ jobs:
       - run: pip install mpy-cross==1.29.0.post2 pyyaml pytest
       - name: mpy-cross (ista verzija kao firmver na ESP-u)
         run: |
-          for f in ESP32/main.py ESP32/boot.py ESP32/config.py ESP32/lib/*.py ESP32/tactics/*.py ESP32/tests/*.py; do
+          for f in ESP32/main.py ESP32/boot.py ESP32/config.py ESP32/board_*.py ESP32/lib/*.py ESP32/tactics/*.py ESP32/tests/*.py; do
             mpy-cross -o /tmp/x.mpy "$f" || { echo "::error file=$f::mpy-cross"; exit 1; }
           done
       - name: protocol.py, BlackPill i Nucleo protocol.h u skladu sa protocol.yaml

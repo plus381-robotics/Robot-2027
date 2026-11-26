@@ -159,10 +159,12 @@ def flash_file(uart, path, uart_args, robot=None, cfg=None, log=print):
         log("STM32 se ne javlja; probam bootloader (možda je već u njemu)")
     if hw:
         from machine import Pin
+        from nrst import Nrst
         boot0 = Pin(cfg.STM_BOOT0, Pin.OUT, value=1)
-        nrst = Pin(cfg.STM_NRST, Pin.OPEN_DRAIN, value=0)
+        nrst = Nrst(cfg)
+        nrst.hold(True)
         sleep_ms(20)
-        nrst.value(1)
+        nrst.hold(False)
         sleep_ms(80)
     uart.init(parity=0, bits=8, stop=1, timeout=0, **uart_args)
     bl = Bootloader(uart, log)
@@ -205,8 +207,8 @@ def flash_file(uart, path, uart_args, robot=None, cfg=None, log=print):
     finally:
         if hw:
             boot0.value(0)
-            nrst.value(0)
+            nrst.hold(True)
             sleep_ms(20)
-            nrst.value(1)
+            nrst.hold(False)
         uart.init(parity=None, bits=8, stop=1, timeout=0, **uart_args)
     return size

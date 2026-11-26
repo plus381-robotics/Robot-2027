@@ -37,9 +37,48 @@ class I2C:
 
 
 class UART:
-    """Zamenjuje se lažnim STM32 (sim/fakestm.py) u testovima."""
+    """Ka STM32 se zamenjuje lažnim STM32 (sim/fakestm.py). Ostali UART-ovi: ako je za id prijavljen lažni
+    uređaj (UART.devices[id] = npr. sim/fakelidar.FakeRplidar), UART(id, ...) vraća njega; inače ćuti."""
+    devices = {}
+
+    def __new__(cls, id=None, *a, **k):
+        dev = cls.devices.get(id)
+        return dev if dev is not None else super().__new__(cls)
+
     def __init__(self, *a, **k):
         pass
+
+    def any(self):
+        return 0
+
+    def read(self, n=-1):
+        return None
+
+    def write(self, b):
+        return len(b)
+
+
+class PWM:
+    """PWM pamti frekvenciju i popunu; PWM.pins[pin] = poslednji PWM na tom pinu (buzzer, motor lidara)."""
+    pins = {}
+
+    def __init__(self, pin, freq=0, duty_u16=0, **k):
+        self.pin = pin.n if isinstance(pin, Pin) else pin
+        self._freq, self._duty = freq, duty_u16
+        PWM.pins[self.pin] = self
+
+    def freq(self, f=None):
+        if f is None:
+            return self._freq
+        self._freq = f
+
+    def duty_u16(self, d=None):
+        if d is None:
+            return self._duty
+        self._duty = d
+
+    def deinit(self):
+        self._duty = 0
 
 
 class WDT:
