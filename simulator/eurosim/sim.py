@@ -68,6 +68,7 @@ class Sim:
         self.stm = self.esp.stm
         self.app = self.esp.app
         self.lidar = self._lidar_init()
+        self._lidar_scans = 0                    # koliko krugova ESP lidara je već snimljeno (događaj "lidar")
         self._buzz_n = 0
         if net:
             self._net(net)
@@ -240,6 +241,27 @@ class Sim:
         machine.UART.devices[config.LIDAR_UART] = dev
         return dev
 
+    def _collect_lidar(self, t):
+        """Novi krug ESP lidara (lib/lidar.py) -> događaj "lidar": šta je ESP izmerio (binovi po stepenu, ugao
+        robota, LIDAR_MOUNT_DEG već uračunat), stvarna poza robota i položaj lidara na robotu. Web crta tačke na
+        stolu; pogrešan ugao montaže bi se video kao tačke pored prepreka. Samo dok lidar radi."""
+        mod = sys.modules.get("lidar")
+        L = getattr(mod, "_dev", None) if mod else None
+        if L is None or L.scans == self._lidar_scans:
+            return
+        self._lidar_scans = L.scans
+        if not L.scanning:
+            return
+        pl = self.stm.plant
+        pts = []
+        for a, d in enumerate(L.dist):
+            if d:
+                pts += (a, d)
+        ox, oy, z = self._lidar_p[0] * 1000, self._lidar_p[1] * 1000, self._lidar_p[2]
+        self.rec.event(t, "lidar", {"pose": [round(pl.x * 1000), round(pl.y * 1000), round(math.degrees(pl.th), 1)],
+                                    "o": [round(ox), round(oy), z], "pts": pts,
+                                    "near": list(L.nearest) if L.nearest else None, "hz": round(L.hz, 1)})
+
     def lidar_range(self, angle):
         """Udaljenost (mm, 0 = ništa) koju lidar meri pod uglom angle (stepeni lidara, u smeru kazaljke)."""
         ox, oy, z, walls, max_mm, mount = self._lidar_p
@@ -388,6 +410,7 @@ class Sim:
                 # flip: kako slika izgleda na robotu (ploča sa ekranom montiranim naopako ga već okreće)
                 rot = 1 if getattr(sys.modules.get("config"), "DISPLAY_ROT180", False) else 0
                 self.rec.event(t, "screen", {"b": base64.b64encode(b).decode(), "on": fb.on, "flip": fb.flip ^ rot})
+        self._collect_lidar(t)
         bz = self.esp.buzzer
         if bz is not None and bz.n != self._buzz_n:          # novi zvuk: svi tonovi (Hz, ms), web ih pušta
             self._buzz_n = bz.n

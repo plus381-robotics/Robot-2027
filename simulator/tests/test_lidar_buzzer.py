@@ -54,3 +54,39 @@ def test_editor_proverava_play():
     assert ok["error"] is None
     bad = preview.preview("from tac import *\nplay('ja:d=8,o=6,b=180:c,x,g')\n")
     assert bad["error"] and "losa nota" in bad["error"]["msg"] and bad["error"]["line"] == 2
+
+
+def _world(scan):
+    """Tačke jednog kruga ("lidar" događaj) u koordinatama stola (mm), kao web/view3d.js setLidar."""
+    import math
+    x, y, th = scan["pose"]
+    ox, oy, _ = scan["o"]
+    r = math.radians(th)
+    lx, ly = x + ox * math.cos(r) - oy * math.sin(r), y + ox * math.sin(r) + oy * math.cos(r)
+    p = scan["pts"]
+    return [(lx + d * math.cos(r + math.radians(a)), ly + d * math.sin(r + math.radians(a))) for a, d in zip(p[::2], p[1::2])]
+
+
+def test_snimak_kruga_lidara_tacke_na_preprekama():
+    """Lidar test iz menija: događaji "lidar" (~10 Hz) sa onim što je ESP izmerio; tačke padaju na lice
+    protivnika (x = 600) i na zid iza robota (x = 0), a najbliža tačka je zid iza (250 mm)."""
+    s, _, _ = live([(300, ("btn", "back", 1)), (1100, ("btn", "back", 0))], obstacles=[OPP], speed=1000)
+    idx = [it.label for it in s.app.ui.top.items].index("Lidar test")
+    s, r, _ = live([(300, ("btn", "back", 1)), (1100, ("btn", "back", 0)), (1300, ("rot", idx)),
+                    (1500, ("btn", "enc", 1)), (1600, ("btn", "enc", 0)), (3500, ("pause", False))],
+                   obstacles=[OPP], speed=1000)
+    scans = [e for e in r.of("lidar")]
+    assert len(scans) >= 10                                     # ~1,5 s skeniranja na 10 Hz
+    last = scans[-1][2]
+    assert last["pose"][:2] == [250, 1000] and last["hz"] > 5
+    pts = _world(last)
+    face = [p for p in pts if abs(p[0] - 600) < 8 and abs(p[1] - 1000) < 150]
+    back = [p for p in pts if abs(p[0]) < 8]
+    assert len(face) >= 10 and len(back) >= 10
+    assert last["near"][0] == pytest.approx(250, abs=3)
+    assert all(-5 <= x <= 3005 and -5 <= y <= 2005 for x, y in pts)   # sve na stolu (zidovi), ništa van
+
+
+def test_bez_lidara_nema_dogadjaja():
+    s, r, _ = live([(300, ("pause", False))])
+    assert not r.of("lidar")

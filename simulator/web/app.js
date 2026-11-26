@@ -9,6 +9,7 @@ const SIDE_NAME = { plava: 'Blue', zuta: 'Yellow' };
 const REASON = { BLOCKED: 'blocked', TIMEOUT: 'timeout', PREEMPTED: 'preempted', MATCH_OVER: 'match over',
   STOPPED: 'stopped', INVALID: 'rejected', NOREPLY: 'no reply', SUPERSEDED: 'superseded', STOP: 'STOP' };
 const FIELD_X = 3000;
+const LIDAR_HOLD_MS = 400;          // tačke lidara se brišu kad ovoliko nema novog kruga (lidar stao)
 let REF_SIDE = 'zuta';                // strana za koju se pišu taktike (ESP32/lib/tac.py), stiže sa servera
 
 let info, view, charts, esp, run = null;
@@ -69,7 +70,14 @@ function buildRun(d) {
     for (const sc of screens) { if (sc.t <= t) r = sc; else break; }
     return r;
   };
-  return { ...d, frameAt, steps, tactics, excLines, log, screens, screenAt, elEvents, duration: ts.length ? ts[ts.length - 1] : 0 };
+  const lidars = d.events.filter(e => e[1] === 'lidar').map(([t, , x]) => ({ t, ...x }));   // krugovi lidara
+  const lidarAt = t => {                         // poslednji krug do t; posle LIDAR_HOLD_MS bez novog: lidar ne radi
+    let r = null;
+    for (const s of lidars) { if (s.t <= t) r = s; else break; }
+    return r && t - r.t <= LIDAR_HOLD_MS ? r : null;
+  };
+  return { ...d, frameAt, steps, tactics, excLines, log, screens, screenAt, lidars, lidarAt, elEvents,
+           duration: ts.length ? ts[ts.length - 1] : 0 };
 }
 
 // ---------------- formatting ----------------
@@ -333,6 +341,7 @@ function show() {
   const i = run.frameAt(play.t);
   showElementsAt(play.t);
   esp.setScreen(run.screenAt(play.t));
+  view.setLidar(run.lidarAt(play.t));
   edMarks();
   view.setFrame(i);
   renderState(i);
@@ -947,11 +956,13 @@ async function startLive() {
         L.raw.events.push(...m.events); L.dirty = true;
         for (const e of m.events) {
           if (e[1] === 'screen') L.screen = { t: e[0], ...e[2] };
+          else if (e[1] === 'lidar') L.lidar = { t: e[0], ...e[2] };
           else if (e[1] === 'buzzer') esp.buzz(e[2], m.speed || 1);
         }
       }
       if (L.follow) {
         if (L.screen) esp.setScreen(L.screen);
+        view.setLidar(L.lidar && m.t - L.lidar.t <= LIDAR_HOLD_MS ? L.lidar : null);
         const f = m.frames[m.frames.length - 1];
         if (f) {
           view.setPose(f);
@@ -973,6 +984,7 @@ async function startLive() {
 
 function stopLiveUi() {
   if (!live) return;
+  view.setLidar(null);
   try { live.ws.close(); } catch (e) { /* ignore */ }
   live = null;
   $('bandCord').hidden = true;
@@ -1361,6 +1373,7 @@ async function main() {
   $('showOdom').onchange = () => { vis(); if (run) show(); };
   $('showTargets').onchange = vis;
   $('showIr').onchange = e => view.setShowIr(e.target.checked);
+  $('showLidar').onchange = e => view.setShowLidar(e.target.checked);
   const pref = (k, el, apply) => {                 // izbor u Show ▾ se pamti (localStorage)
     try { const v = localStorage.getItem('eurosim.' + k); if (v != null) { if (el.type === 'checkbox') el.checked = v === '1'; else el.value = v; } } catch (er) { /* ignore */ }
     const go = () => { apply(el.type === 'checkbox' ? el.checked : el.value);

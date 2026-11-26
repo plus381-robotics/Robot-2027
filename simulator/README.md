@@ -77,6 +77,9 @@ STM32 i čeka, kao na stolu.
     Editor proverava `play("...")` istim parserom kao robot (`ESP32/lib/rtttl.py`).
   - **Lidar**: Meni → Lidar test radi sa lažnim RPLIDAR-om (`ESP32/sim/fakelidar.py`, isti bajtovi kao pravi)
     koji vidi ivice stola, kamenolome i protivnike sa stola (profil `[lidar]`: položaj, visina ravni).
+    Dok lidar radi, poslednji krug (ono što je ESP izmerio) se crta na stolu kao plave tačke na visini
+    lidara, najbliža tačka žutim prstenom (prekidač "lidar points" u Show); snima se i u snimak (događaj
+    `lidar`, ~10 puta u sekundi), pa se vidi i pri puštanju. Tačke pored prepreka = pogrešan `LIDAR_MOUNT_DEG`.
 - **Arm match** (izabrana taktika i strana), **Pull cord** (činč: meč kreće, 100 s), **Run test**, **STOP**.
 - **Follow**: prikaz prati robota; isključi ga (ili klikni na klizač/korak) da se vratiš unazad dok
   simulacija radi dalje.
