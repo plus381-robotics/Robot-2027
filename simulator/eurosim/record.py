@@ -4,7 +4,21 @@ import gzip
 import json
 
 FRAME_MS = 20
-VERSION = 1
+VERSION = 2
+
+
+def upgrade(d):
+    """Snimak v1 -> v2: meta.origin (ko je izvor podataka). meta.source (tekst taktike) se ne dira."""
+    if d.get("version", 1) >= 2 and "origin" in d.get("meta", {}):
+        return d
+    meta = d.setdefault("meta", {})
+    if "origin" not in meta:
+        robot = bool((d.get("result") or {}).get("robot"))
+        meta["origin"] = {"engine": "robot" if robot else "sim", "parts": {}}
+        meta.setdefault("tactic_sha", None)
+        meta.setdefault("scenario", None)
+    d["version"] = VERSION
+    return d
 
 
 def _round(v):
@@ -37,7 +51,7 @@ class Recording:
     @classmethod
     def load(cls, path):
         with gzip.open(path, "rt", encoding="utf-8") as f:
-            d = json.load(f)
+            d = upgrade(json.load(f))
         r = cls(d["meta"])
         r.frames, r.events, r.result = d["frames"], d["events"], d.get("result", {})
         return r

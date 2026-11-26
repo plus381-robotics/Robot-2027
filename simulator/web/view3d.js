@@ -454,7 +454,7 @@ export class FieldView {
     for (let i = 0; i < n; i++) {
       pts.push(c.x[i] / 1000, c.y[i] / 1000, 0.004);
       // odometry jumps on SET_POSE: draw it as separate segments, without the jump
-      if (i > 0 && Math.hypot(c.ox[i] - c.ox[i - 1], c.oy[i] - c.oy[i - 1]) < 100) {
+      if (i > 0 && c.ox[i] != null && c.ox[i - 1] != null && Math.hypot(c.ox[i] - c.ox[i - 1], c.oy[i] - c.oy[i - 1]) < 100) {
         opts.push(c.ox[i - 1] / 1000, c.oy[i - 1] / 1000, 0.006, c.ox[i] / 1000, c.oy[i] / 1000, 0.006);
         this.odomSeg.push(i);
       }
@@ -754,9 +754,12 @@ export class FieldView {
     this.frame = i;
     this.robot.position.set(c.x[i] / 1000, c.y[i] / 1000, 0);
     this.robot.rotation.z = c.th[i] * Math.PI / 180;
-    this.ghost.position.set(c.ox[i] / 1000, c.oy[i] / 1000, 0);
-    this.ghost.rotation.z = c.oth[i] * Math.PI / 180;
-    const diff = Math.hypot(c.x[i] - c.ox[i], c.y[i] - c.oy[i]) > 1 || Math.abs(c.th[i] - c.oth[i]) > 0.3;
+    const hasOdom = c.ox[i] != null && c.oy[i] != null && c.oth[i] != null;
+    if (hasOdom) {
+      this.ghost.position.set(c.ox[i] / 1000, c.oy[i] / 1000, 0);
+      this.ghost.rotation.z = c.oth[i] * Math.PI / 180;
+    }
+    const diff = hasOdom && (Math.hypot(c.x[i] - c.ox[i], c.y[i] - c.oy[i]) > 1 || Math.abs(c.th[i] - c.oth[i]) > 0.3);
     this.ghost.visible = this.showOdom !== false && diff;
     this.pathDone.geometry.setDrawRange(0, 6 * i);
     this.setIr(c.irh ? c.irh[i] : null, c.irm && c.irm[i] != null ? c.irm[i] : 0xFF);

@@ -21,8 +21,12 @@ const play = { t: 0, playing: false, speed: 1, last: 0 };
 
 // ---------------- recording -> run ----------------
 
+// Kolone koje robot ne šalje (snimak v2 ih nema): ponašaju se kao sve-null ("–" u tabeli, bez grafika).
+const OPT_COLS = ['ox', 'oy', 'oth', 'w', 'vl', 'vr', 'v_ref', 'w_ref', 'reg', 'ms', 'stuck', 'ir'];
+
 function buildRun(d) {
   const cols = d.cols, ts = cols.t;
+  for (const k of OPT_COLS) if (!cols[k]) cols[k] = ts.map(() => null);
   const frameAt = t => {                                   // last frame with t <= t
     let lo = 0, hi = ts.length - 1;
     if (hi < 0) return 0;
@@ -89,7 +93,7 @@ const secs = ms => (ms / 1000).toFixed(2);
 
 function stateCells(c, i) {
   const t = c.t[i];
-  const dx = Math.hypot(c.x[i] - c.ox[i], c.y[i] - c.oy[i]);
+  const dx = c.ox[i] == null || c.oy[i] == null ? null : Math.hypot(c.x[i] - c.ox[i], c.y[i] - c.oy[i]);
   const match = c.match[i];
   const rem = match == null ? '–' : Math.max(0, (100000 - match) / 1000).toFixed(1) + ' s';
   const act = c.act && c.act[i] ? Object.entries(c.act[i]).map(([k, v]) => `${k}=${v}`).join(' ') : '–';
@@ -97,12 +101,12 @@ function stateCells(c, i) {
     ['time', secs(t) + ' s'], ['match left', rem],
     ['flow', c.mec[i] || '–'], ['STM32', c.link[i] ? 'link ok' : 'no link', c.link[i] ? 'good' : 'bad'],
     ['x / y', `${f0(c.x[i])} / ${f0(c.y[i])}`], ['angle', f1(c.th[i]) + '°'],
-    ['odom x/y', `${f0(c.ox[i])} / ${f0(c.oy[i])}`], ['odom ∠', f1(c.oth[i]) + '°'],
-    ['odom err', f1(dx) + ' mm', dx > 10 ? 'warn' : ''], ['STM phase', c.reg[i] === '' || c.reg[i] == null ? (c.phase[i] || '–') : `${c.phase[i]} ${c.reg[i]}/${c.ms[i]}`],
+    ['odom x/y', `${f0(c.ox[i])} / ${f0(c.oy[i])}`], ['odom ∠', c.oth[i] == null ? '–' : f1(c.oth[i]) + '°'],
+    ['odom err', dx == null ? '–' : f1(dx) + ' mm', dx > 10 ? 'warn' : ''], ['STM phase', c.reg[i] === '' || c.reg[i] == null ? (c.phase[i] || '–') : `${c.phase[i]} ${c.reg[i]}/${c.ms[i]}`],
     ['v', f2(c.v[i]) + ' m/s'], ['v ref', f2(c.v_ref[i])],
-    ['ω', f2(c.w[i]) + ' r/s'], ['ω ref', f2(c.w_ref[i])],
+    ['ω', c.w[i] == null ? '–' : f2(c.w[i]) + ' r/s'], ['ω ref', f2(c.w_ref[i])],
     ['wheel L', f2(c.vl[i])], ['wheel R', f2(c.vr[i])],
-    ['stuck', c.stuck[i] ? 'YES' : 'no', c.stuck[i] ? 'bad' : ''], ['actuators', act],   // IR: slika ispod (#irPanel)
+    ['stuck', c.stuck[i] == null ? '–' : c.stuck[i] ? 'YES' : 'no', c.stuck[i] ? 'bad' : ''], ['actuators', act],   // IR: slika ispod (#irPanel)
   ];
 }
 

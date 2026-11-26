@@ -10,6 +10,7 @@ import sys
 import time
 
 from . import field, paths
+from .record import Recording
 
 TELEM_PORT = 8268
 UPLOAD_PORT = 8267
@@ -55,6 +56,7 @@ class TelemRecorder:
         self.tac = None
         self.pending = []            # zatvoreni koraci koji čekaju red dnevnika sa ishodom
         self.recent = []             # (t, red) poslednji redovi dnevnika
+        self.ended = set()           # koraci čiji je ishod stigao u telemetriji (step_end)
         self.last_rx = None
 
     def feed(self, d, now_ms):
@@ -76,13 +78,16 @@ class TelemRecorder:
         if key and (self.cur is None or key != self.cur[:3]):
             self.cur = key + (d.get("to"), d.get("nx"), t)
             self.events.append([t, "step", [d.get("i"), d.get("step"), d.get("to"), d.get("nx")]])
+        se = d.get("step_end")       # noviji firmver šalje ishod koraka; dnevnik je samo za stari
+        if se:
+            self.ended.add(se[0])
+            self.events.append([t, "step_end", list(se)])
         self._resolve(t)
         if "x" in d:
             st = d.get("st", 0)
             self.frames.append({
-                "t": t, "x": d["x"], "y": d["y"], "th": d["th"], "ox": d["x"], "oy": d["y"], "oth": d["th"],
-                "v": d.get("sp", 0) / 1000, "w": None, "vl": None, "vr": None, "v_ref": None, "w_ref": None,
-                "phase": "MOVING" if st & 1 else "IDLE", "reg": "", "ms": "", "stuck": False, "ir": 0,
+                "t": t, "x": d["x"], "y": d["y"], "th": d["th"],
+                "v": d.get("sp", 0) / 1000, "phase": "MOVING" if st & 1 else "IDLE",
                 "match": d.get("mm") if st & (MATCH_RUNNING | 8) else None, "link": bool(d.get("ok")),
                 "mec": d.get("mec"), "ok": d.get("ok"), "run": tac, "tac": tac, "i": d.get("i"), "n": d.get("n"),
                 "step": d.get("step"), "el": d.get("el"), "to": d.get("to"), "st": st,
@@ -117,6 +122,9 @@ class TelemRecorder:
         """Ishod koraka iz dnevnika (tac.py piše "<korak>: OK 1.3s" ili "<korak>: BLOCKED")."""
         keep = []
         for i, name, t0, t1 in self.pending:
+            if i in self.ended:
+                self.ended.discard(i)
+                continue
             res = None
             for tl, line in self.recent:
                 if tl >= t0 and line.startswith(name + ": "):
@@ -163,7 +171,9 @@ class RobotLink:
         self.rec = TelemRecorder({"tactic": None, "side": None, "mode": "robot", "host": host,
                                   "profile": prof.get("name"), "body": prof["body"], "drive": prof["drive"],
                                   "field": field.describe(), "obstacles": [], "elements": field.elements(),
-                                  "frame_ms": 100})
+                                  "frame_ms": 100,
+                                  "origin": {"engine": "robot", "parts": {"pogon": "pravi", "lidar": "pravi"}},
+                                  "tactic_sha": None, "scenario": None})
         self.sent = (0, 0)
         self.transport = None
         self.addr = None
@@ -220,5 +230,7 @@ class RobotLink:
 
     def recording(self):
         r = self.rec
-        return {"version": 1, "meta": r.meta, "frames": r.frames, "events": r.events,
-                "result": {"ok": None, "robot": True, "sim_ms": r.frames[-1]["t"] if r.frames else 0}}
+        rec = Recording(r.meta)
+        rec.frames, rec.events = r.frames, r.events
+        rec.result = {"ok": None, "robot": True, "sim_ms": r.frames[-1]["t"] if r.frames else 0}
+        return rec.to_dict()

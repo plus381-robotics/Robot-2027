@@ -6,6 +6,8 @@ const DEFS = [
   { title: 'Wheels [m/s]', series: [['vl', 'left', '#3ecf8e'], ['vr', 'right', '#ff9f43']] },
 ];
 
+const hasData = (c, d) => d.series.some(([k]) => c[k] && c[k].some(v => v != null));
+
 export class Charts {
   constructor(el, onSeek) {
     this.el = el; this.onSeek = onSeek; this.plots = []; this.lines = [];
@@ -17,7 +19,8 @@ export class Charts {
     this.plots = []; this.lines = [];
     const c = run.cols;
     const t = c.t.map(v => v / 1000);
-    for (const d of DEFS) {
+    this.defs = DEFS.filter(d => hasData(c, d));            // grafik bez podataka (robot ih ne šalje) se ne crta
+    for (const d of this.defs) {
       const div = document.createElement('div');
       this.el.appendChild(div);
       const opts = {
@@ -54,7 +57,8 @@ export class Charts {
   update(run) {                      // live: new data in existing charts
     if (!this.plots.length) return this.setRun(run);
     const c = run.cols, t = c.t.map(v => v / 1000);
-    DEFS.forEach((d, i) => this.plots[i].setData([t, ...d.series.map(([k]) => c[k] || t.map(() => null))]));
+    if (DEFS.filter(d => hasData(c, d)).length !== this.plots.length) return this.setRun(run);
+    this.defs.forEach((d, i) => this.plots[i].setData([t, ...d.series.map(([k]) => c[k] || t.map(() => null))]));
     this._placeSteps();
   }
 
