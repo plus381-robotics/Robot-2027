@@ -91,16 +91,22 @@ class TelemRecorder:
     def feed_lidar(self, s, offset):
         """Krug lidara sa robota (telemetrija, ESP32/lib/lidarpkt.py) -> događaj "lidar" kao u simulaciji: tačke
         oko poslednje poze iz telemetrije (odometrija robota). offset: (x, y, z) lidara na robotu, mm."""
-        if self.t_first is None or not self.frames:
-            return                                # još nema poze robota
-        f = self.frames[-1]
+        if self.t_first is None:
+            self.t_first = s["t"]                 # krug stigao pre prvog JSON paketa: vremenska osnova iz kruga
         pts = []
         for a, d in enumerate(s["bins"]):
             if d:
                 pts += (a, d)
-        self.events.append([s["t"] - self.t_first, "lidar", {"pose": [f["x"], f["y"], f["th"]], "o": list(offset),
-                                                             "pts": pts, "near": list(s["near"]) if s["near"] else None,
-                                                             "hz": s["hz"]}])
+        ev = {"pose": None, "o": list(offset), "pts": pts, "near": list(s["near"]) if s["near"] else None,
+              "hz": s["hz"]}
+        if self.frames:
+            f = self.frames[-1]
+            ev["pose"] = [f["x"], f["y"], f["th"]]
+        else:                                     # nema poze (STM32 nije povezan): centar startne zone
+            x0, y0, x1, y1 = field.START_ZONES["zuta"]
+            ev["pose"] = [(x0 + x1) // 2, (y0 + y1) // 2, 0]
+            ev["nopose"] = True
+        self.events.append([s["t"] - self.t_first, "lidar", ev])
 
     def _close(self, t):
         tac, i, name, to, nx, t0 = self.cur

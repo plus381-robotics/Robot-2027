@@ -330,6 +330,7 @@ export class FieldView {
   setLidar(s) {
     if (s === this._lidarShown) return;
     this._lidarShown = s;
+    this._noPoseLabel(!!(s && s.nopose));
     const geo = this.lidarPts.geometry;
     if (!s) { geo.setDrawRange(0, 0); this.lidarNear.visible = false; return; }
     const [x, y, th] = s.pose, [ox, oy, oz] = s.o;
@@ -353,6 +354,20 @@ export class FieldView {
       this.lidarNear.position.set(px, py, z);
       this.lidarNear.visible = true;
     } else this.lidarNear.visible = false;
+  }
+
+  _noPoseLabel(on) {                               // mali natpis preko prikaza stola kad lidar nema pozu
+    if (!this._npEl) {
+      if (!on) return;
+      const d = document.createElement('div');
+      d.textContent = 'nema poze: STM32 nije povezan';
+      d.style.cssText = 'position:absolute;left:8px;bottom:8px;padding:2px 8px;font:12px sans-serif;' +
+        'color:#ffd27a;background:rgba(18,21,26,.75);border-radius:4px;pointer-events:none';
+      if (getComputedStyle(this.el).position === 'static') this.el.style.position = 'relative';
+      this.el.appendChild(d);
+      this._npEl = d;
+    }
+    this._npEl.style.display = on ? '' : 'none';
   }
 
   setShowLidar(on) { this.lidarGroup.visible = on; }

@@ -1029,7 +1029,10 @@ function liveData(m) {                          // shared by Live and Robot: app
   const f = m.frames[m.frames.length - 1];
   if (L.follow && f) view.setPose(f);
   if (f) L.tLast = f.t;                         // vreme robota (telemetrija); lidar stao = nema novog kruga
-  if (L.follow) view.setLidar(L.lidar && L.tLast != null && L.tLast - L.lidar.t <= 2 * LIDAR_HOLD_MS ? L.lidar : null);
+  if (L.follow) {                               // bez frame-ova (STM32 nije povezan) staro merimo po samom lidaru
+    const lt = L.lidar && (L.tLast != null ? L.tLast : L.lidar.t);
+    view.setLidar(L.lidar && lt - L.lidar.t <= 2 * LIDAR_HOLD_MS ? L.lidar : null);
+  }
   return f;
 }
 
