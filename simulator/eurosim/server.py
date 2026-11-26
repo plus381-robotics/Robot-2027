@@ -104,6 +104,8 @@ def _live_worker(conn, kw):
             conn.send(("data", d))
 
         tmp = _staged(kw)
+        from . import lidarsrc                       # izvor lidara se pravi ovde (nit i soket ne prelaze u proces)
+        kw["lidar"] = lidarsrc.open_source(kw.pop("lidar_spec", None), kw.pop("lidar_pw", None))
         with contextlib.redirect_stderr(io.StringIO()):
             rec = Sim(mode="live", control=control, emit=emit, **kw).run()
         if tmp:
@@ -159,6 +161,7 @@ async def info(request):
                     "ir_sensors": _ir_layout(prof)},
         "sides": ["zuta", "plava"], "ref_side": tacmod.tac_api()["ref_side"], "runs": _runs(), "where": paths.describe(),
         "opp_tactics": __import__("eurosim.opponents", fromlist=["available"]).available(),
+        "lidar_files": __import__("eurosim.lidarsrc", fromlist=["recordings"]).recordings(),
     })
 
 
@@ -291,6 +294,8 @@ async def live(request):
               elements=_elements_arg(q.get("elements", "1")))
     if staged:
         kw["name"], kw["source"] = staged
+    if q.get("lidar") and q.get("lidar") != "sim":   # hibridna simulacija: lidar sa robota ili iz snimka
+        kw["lidar_spec"], kw["lidar_pw"] = q.get("lidar"), q.get("lidar_pw") or None
     ctx = mp.get_context("spawn")
     a, b = ctx.Pipe()
     p = ctx.Process(target=_live_worker, args=(b, kw), daemon=True)

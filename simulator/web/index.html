@@ -37,6 +37,7 @@
       <button id="run" class="primary" title="Run the whole simulation fast, then play it back. With the editor open: the editor text, saved or not (Ctrl+Enter)">▶ Run</button>
     </span>
     <span id="rowLive" class="tabrow" hidden>
+      <select id="lidarSrc" title="Where the lidar scans come from. Simulated: rays on the virtual table. Robot: the real lidar on the robot over WiFi (host and password from Robot → Connect…), the rest stays simulated; every scan is recorded to simulator/lidar/ and Live runs at ×1. A recording: replays saved real scans."></select>
       <button id="liveBtn" class="primary" title="Start the interactive simulation in real time: ESP screen and buttons, cord, STOP, move the opponent">▶ Start Live</button>
       <span id="liveGroup" class="group" hidden>
         <button id="armBtn" title="Select tactic + side and arm the match (like the ESP menu)">Arm match</button>

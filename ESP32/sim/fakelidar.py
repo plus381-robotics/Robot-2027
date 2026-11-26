@@ -3,6 +3,8 @@
 # u sekundi, samo dok se motor vrti (motor() -> True). Udaljenost daje ranges(ugao_lidara) -> mm (0 = nema),
 # ugao u smeru kazaljke kao pravi lidar. Bafer je ograničen kao UART rxbuf (najstariji bajtovi se gube).
 # Kao UART: any(), read(n), write(b). Prijava: machine.UART.devices[config.LIDAR_UART] = FakeRplidar(...).
+# ranges=None: lidar sam ne meri, nego šalje krugove koji mu se daju (push_scan: pravi lidar sa robota preko
+# WiFi-ja ili snimak, simulator/eurosim/lidarsrc.py) - ESP kod ih čita istim drajverom kao pravi lidar.
 import math
 
 RATE, HZ = 2000, 10
@@ -99,8 +101,22 @@ class FakeRplidar:
             self._t = self.clock()
             self._k = 0
 
+    def push_scan(self, bins, mount_deg=0):
+        """Jedan ceo krug spolja: bins[k] = mm u uglu robota k (0 = napred, + = levo), 0 = nema tačke.
+        Šalje se kao bajtovi SCAN-a; ugao lidara = mount - k, pa ga drajver (lib/lidar.py) vrati u bin k.
+        Ništa ako lidar ne skenira ili motor stoji (kao pravi). Krug se zatvara kad stigne sledeći (bit S)."""
+        if not self.scanning or self.mute or not self.motor():
+            return False
+        pts = [((mount_deg - k) % 360, d) for k, d in enumerate(bins) if d]
+        pts.sort()
+        out = bytearray()
+        for i, (a, d) in enumerate(pts or [(0, 0)]):
+            out += node(a, d, 47 if d else 0, i == 0)
+        self._put(out)
+        return True
+
     def _gen(self):
-        if not self.scanning or self.mute:
+        if not self.scanning or self.mute or self.ranges is None:
             return
         now = self.clock()
         if not self.motor():

@@ -54,6 +54,7 @@ class App:
         self.ui = ui.UI(fb, self.pages, self.indicators, lambda: self.st["sleep_s"])
         self.ui.on_menu = self.open_menu
         self.buzzer = None                 # lib/buzzer.py (postavlja main.py ako ploča ima buzzer)
+        self.lidar_remote = None           # lidar upaljen preko WiFi-ja (upload LIDAR ON): vreme, telem.py ga čita
         self.ui.sound = self.beep
         self.apply_display()
 

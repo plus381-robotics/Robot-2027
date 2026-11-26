@@ -933,6 +933,11 @@ async function startLive() {
   setPlaying(false);
   const q = new URLSearchParams({ tactic: $('tactic').value, side: $('side').value, obstacles: JSON.stringify(opponents),
     elements: (a => (a === true ? '1' : a === false ? '0' : JSON.stringify(a)))(elementsArg()) });
+  const src = $('lidarSrc').value;              // hibridna simulacija: odakle dolaze krugovi lidara
+  if (src === 'robot') {
+    q.set('lidar', 'robot:' + ($('rHost').value.trim() || 'eurokik.local'));
+    if ($('rPass').value) q.set('lidar_pw', $('rPass').value);
+  } else if (src !== 'sim') q.set('lidar', src);
   if (ed) {                                     // editor text (saved or not) is the tactic in Live too
     try { q.set('stage', (await api('/api/stage', { name: ed.name, source: ed.editor.text() })).stage); }
     catch (e) { msg(e.message, true); return; }
@@ -949,7 +954,7 @@ async function startLive() {
     const m = JSON.parse(ev.data);
     if (m.type === 'data') {
       const L = live; if (!L) return;
-      if (m.meta) L.raw.meta = m.meta;
+      if (m.meta) { L.raw.meta = m.meta; setRealtime(!!m.meta.realtime, m.meta.lidar_source); }
       $('bandCord').hidden = m.mec !== 'NAORUZAN';         // naoružan: čeka činč (dugme na timeline-u)
       if (m.frames.length) { L.raw.frames.push(...m.frames); L.dirty = true; }
       if (m.events.length) {
@@ -982,9 +987,25 @@ async function startLive() {
   ws.onclose = () => { if (live) { stopLiveUi(); msg('live connection closed', true); } };
 }
 
+// Pravi uređaj u Live-u (lidar sa robota): brzina ×1 i bez pauze, jer uređaj radi u stvarnom vremenu.
+function setRealtime(on, source) {
+  $('pace').disabled = on; $('pauseBtn').disabled = on;
+  if (on) { $('pace').value = '1'; msg('live with the real lidar (' + source + '): runs at ×1, no pause'); }
+}
+
+function fillLidarSources() {
+  const keep = $('lidarSrc').value || 'sim';
+  const files = info.lidar_files || [];
+  $('lidarSrc').innerHTML = '<option value="sim">Lidar: simulated</option><option value="robot">Lidar: robot (WiFi)</option>' +
+    files.map(f => `<option value="file:${f}">Lidar: ${f.replace('.jsonl.gz', '')}</option>`).join('');
+  $('lidarSrc').value = [...$('lidarSrc').options].some(o => o.value === keep) ? keep : 'sim';
+}
+
 function stopLiveUi() {
   if (!live) return;
   view.setLidar(null);
+  setRealtime(false);
+  api('/api/info').then(i => { info = i; fillLidarSources(); }).catch(() => {});   // nov snimak lidara u listi
   try { live.ws.close(); } catch (e) { /* ignore */ }
   live = null;
   $('bandCord').hidden = true;
@@ -1002,9 +1023,14 @@ function liveData(m) {                          // shared by Live and Robot: app
   const L = live; if (!L) return null;
   if (m.meta) L.raw.meta = m.meta;
   if (m.frames.length) { L.raw.frames.push(...m.frames); L.dirty = true; }
-  if (m.events.length) { L.raw.events.push(...m.events); L.dirty = true; }
+  if (m.events.length) {
+    L.raw.events.push(...m.events); L.dirty = true;
+    for (const e of m.events) if (e[1] === 'lidar') L.lidar = { t: e[0], ...e[2] };   // lidar pravog robota
+  }
   const f = m.frames[m.frames.length - 1];
   if (L.follow && f) view.setPose(f);
+  if (f) L.tLast = f.t;                         // vreme robota (telemetrija); lidar stao = nema novog kruga
+  if (L.follow) view.setLidar(L.lidar && L.tLast != null && L.tLast - L.lidar.t <= 2 * LIDAR_HOLD_MS ? L.lidar : null);
   return f;
 }
 
@@ -1181,6 +1207,7 @@ function renderRepo(st) {
 
 async function main() {
   info = await api('/api/info');
+  fillLidarSources();
   REF_SIDE = info.ref_side || REF_SIDE;
   $('tactic').innerHTML = info.tactics.map(t => `<option>${t}</option>`).join('');
   try {

@@ -15,6 +15,8 @@
 #   STOP                           prekini taktiku i pošalji STOP robotu
 #   LOG <od>                       dnevnik taktike od rednog broja <od>; poslednji red "OK <n> <radi>"
 #   STAT                           merenja petlje i veze, verzija koda
+#   LIDAR ON|OFF                   lidar za laptop (krugovi idu telemetrijom, telem.py); sam se gasi kad
+#                                  nema pretplatnika ili kad se robot naoruža. Odgovor: "OK <stanje lidara>"
 #   FLASH <dužina>                 STM32 .bin u /stm.bin pa flešovanje (stmflash.py; blokira, STM32 stoji)
 # Odgovor: redovi, poslednji "OK ..." ili "ERR ...". Dok taktika radi ili je meč naoružan: samo
 # LOG, STOP, STAT. U rescue režimu (app = None): samo upis/brisanje/lista, RESET i LOG.
@@ -475,6 +477,29 @@ class Upload:
             if first + i >= int(args[1]):
                 self._say(line)
         self._ok("%d %d" % (a.log_n, 1 if (a.running or a.request) else 0))
+
+    def c_lidar(self, args):                # LIDAR ON|OFF: lidar za laptop (simulator), krugovi idu telemetrijom
+        import config as cfg
+        import lidar
+        try:
+            L = lidar.get(cfg)
+        except Exception as e:              # noqa: BLE001  (UART/PWM ne može da se otvori)
+            return self._fail("lidar: %s" % e)
+        if L is None:
+            return self._fail("nema lidara na ploci")
+        a = self.app
+        screen = type(a.ui.top).__name__ == "LidarScreen"
+        if args[1].upper() == "ON":
+            if L.state in ("off", "greska"):
+                L.start()
+            a.lidar_remote = ticks_ms()
+        elif args[1].upper() == "OFF":
+            a.lidar_remote = None
+            if not screen:
+                L.stop()
+        else:
+            return self._fail("LIDAR ON ili LIDAR OFF")
+        self._ok(L.state)
 
     def c_stat(self, args):
         a, r = self.app, self.app.robot

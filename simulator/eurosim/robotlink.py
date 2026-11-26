@@ -91,6 +91,20 @@ class TelemRecorder:
                 "step": d.get("step"), "el": d.get("el"), "to": d.get("to"), "st": st,
             })
 
+    def feed_lidar(self, s, offset):
+        """Krug lidara sa robota (telemetrija, ESP32/lib/lidarpkt.py) -> događaj "lidar" kao u simulaciji: tačke
+        oko poslednje poze iz telemetrije (odometrija robota). offset: (x, y, z) lidara na robotu, mm."""
+        if self.t_first is None or not self.frames:
+            return                                # još nema poze robota
+        f = self.frames[-1]
+        pts = []
+        for a, d in enumerate(s["bins"]):
+            if d:
+                pts += (a, d)
+        self.events.append([s["t"] - self.t_first, "lidar", {"pose": [f["x"], f["y"], f["th"]], "o": list(offset),
+                                                             "pts": pts, "near": list(s["near"]) if s["near"] else None,
+                                                             "hz": s["hz"]}])
+
     def _close(self, t):
         tac, i, name, to, nx, t0 = self.cur
         self.pending.append([i, name, t0, t])
@@ -120,10 +134,17 @@ class TelemRecorder:
 
 
 class _Udp(asyncio.DatagramProtocol):
-    def __init__(self, on):
-        self.on = on
+    def __init__(self, on, on_lidar=None):
+        self.on, self.on_lidar = on, on_lidar
 
     def datagram_received(self, data, addr):
+        if data[:4] == b"LIDR":                   # krug lidara (binarni paket, ESP32/lib/lidarpkt.py)
+            if self.on_lidar:
+                from .lidarsrc import pkt
+                s = pkt().parse_lidar(data)
+                if s:
+                    self.on_lidar(s)
+            return
         try:
             self.on(json.loads(data))
         except ValueError:
@@ -145,6 +166,8 @@ class RobotLink:
         self.addr = None
         self.t0 = time.monotonic()
         self.packets = 0
+        lp = prof.get("lidar", {})
+        self.lidar_offset = (lp.get("x", 0), lp.get("y", 0), lp.get("z", 300))
 
     def now(self):
         return int((time.monotonic() - self.t0) * 1000)
@@ -157,7 +180,8 @@ class RobotLink:
         loop = asyncio.get_running_loop()
         info = await loop.getaddrinfo(self.host, self.telem_port, family=socket.AF_INET, type=socket.SOCK_DGRAM)
         self.addr = info[0][4]
-        self.transport, _ = await loop.create_datagram_endpoint(lambda: _Udp(self._on), local_addr=("0.0.0.0", 0))
+        self.transport, _ = await loop.create_datagram_endpoint(
+            lambda: _Udp(self._on, lambda s: self.rec.feed_lidar(s, self.lidar_offset)), local_addr=("0.0.0.0", 0))
 
     async def run(self):
         """Pretplata na telemetriju i slanje novih podataka dok se ne otkaže."""

@@ -147,7 +147,12 @@ ruka na prekidaču za motore. Posle testa `mpremote connect /dev/ttyACM1 reset` 
 ## Bez kabla (WiFi)
 Na ESP-u radi upload server (TCP 8267; prijava izazovom, lozinka iz `webrepl_cfg.py` se ne šalje)
 i telemetrija (UDP 8268). Server ne blokira glavnu petlju; dok taktika radi ili je meč naoružan,
-prima samo LOG, STOP i STAT.
+prima samo LOG, STOP i STAT. Telemetriju može da prati do 3 laptopa (programa) u isto vreme.
+
+Lidar preko WiFi-ja (hibridna simulacija, Robot panel u simulatoru): dok lidar radi (Meni -> Lidar test, ili
+komanda `LIDAR ON` upload serveru), svaki krug ide pretplatnicima telemetrije kao binarni paket (`lib/lidarpkt.py`:
+zaglavlje + 360 x uint16 mm, ~740 B, 10 puta u sekundi; pakovanje ~0,6 ms). Lidar upaljen sa `LIDAR ON` se gasi
+sam par sekundi pošto nestane poslednji pretplatnik, kad se robot naoruža ili taktika krene, i sa `LIDAR OFF`.
 
     python tools/esp_push.py                # šalje samo izmenjeno, atomično (STAGE + COMMIT), pa restart
     python tools/esp_push.py --list         # samo prikaži razlike

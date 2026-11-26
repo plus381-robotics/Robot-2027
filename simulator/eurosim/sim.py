@@ -38,14 +38,16 @@ def _git_version():
 class Sim:
     def __init__(self, name, side="zuta", mode="mec", prof=None, tactics_dir=None, start=None,
                  cord_s=1.0, max_s=None, obstacles=(), screen=True, schedule=(), control=None, emit=None,
-                 net=None, elements=True):
+                 net=None, elements=True, lidar=None):
         """start: (x, y, ugao) stvarna poza na stolu u koordinatama naše strane (None = START iz taktike).
         schedule: [(s, fn(sim))] radnje u zadatom trenutku (npr. STOP, pomeranje protivnika).
         mode "live": interaktivno, u stvarnom vremenu; control() vraća listu komandi (vidi command()),
         emit(dict) dobija nove frame-ove, događaje i sliku ekrana (~20 puta u sekundi).
         net = {"upload": 8267, "telem": 8268, "password": "eurosim"}: virtuelni robot na mreži, sa pravim
         upload.py i telem.py (tools/tactic.py, tools/watch.py i Robot panel rade sa njim kao sa robotom);
-        taktike su u njegovom "flešu" (privremeni folder), kao na ESP-u."""
+        taktike su u njegovom "flešu" (privremeni folder), kao na ESP-u.
+        lidar: izvor krugova lidara (hibridna simulacija, eurosim/lidarsrc.py): None = simuliran (zraci na stolu),
+        objekat sa poll(t_ms) (RobotLidar: pravi lidar sa robota, samo u Live, brzina ×1; FileLidar: snimak)."""
         self.name, self.side, self.mode = name, side, mode
         self.prof = prof or profmod.load()
         self.tactics_dir = pathlib.Path(tactics_dir or paths.TACTICS)
@@ -67,6 +69,10 @@ class Sim:
                            inputs=True, nrst=self._nrst_pins())
         self.stm = self.esp.stm
         self.app = self.esp.app
+        self.lidar_src = lidar
+        if lidar is not None and getattr(lidar, "kind", None) == "robot" and mode != "live":
+            raise ValueError("pravi lidar sa robota radi samo u Live (stvarno vreme)")
+        self.realtime = getattr(lidar, "kind", None) == "robot"      # pravi uređaj: brzina ×1, bez pauze
         self.lidar = self._lidar_init()
         self._lidar_scans = 0                    # koliko krugova ESP lidara je već snimljeno (događaj "lidar")
         self._buzz_n = 0
@@ -126,6 +132,7 @@ class Sim:
             "field": field.describe(), "obstacles": [o.to_dict() for o in self.opponents],
             "elements": [o.to_dict() for o in self.elements],
             "frame_ms": FRAME_MS, "git": _git_version(),
+            "lidar_source": lidar.describe() if lidar is not None else "sim", "realtime": self.realtime,
         }
 
     def _net(self, net):
@@ -237,9 +244,23 @@ class Sim:
         def motor():
             p = machine.PWM.pins.get(pin)
             return pin is None or bool(p and p.duty_u16())
-        dev = fakelidar.FakeRplidar(self.esp.now, ranges=self.lidar_range, motor=motor)
+        dev = fakelidar.FakeRplidar(self.esp.now, ranges=None if self.lidar_src else self.lidar_range, motor=motor)
         machine.UART.devices[config.LIDAR_UART] = dev
         return dev
+
+    def _feed_lidar(self):
+        """Krugovi iz spoljnog izvora (robot, snimak) -> lažni RPLIDAR -> drajver simuliranog ESP-a."""
+        src = self.lidar_src
+        if src is None or self.lidar is None:
+            return
+        import config
+        mount = getattr(config, "LIDAR_MOUNT_DEG", 0)
+        for s in src.poll(self.t()):
+            self.lidar.push_scan(s["bins"], mount)
+        err = getattr(src, "error", None)
+        if err and err != getattr(self, "_src_err", None):
+            self._src_err = err
+            self.event("sim", {"text": "lidar (%s): %s" % (src.describe(), err)})
 
     def _collect_lidar(self, t):
         """Novi krug ESP lidara (lib/lidar.py) -> događaj "lidar": šta je ESP izmerio (binovi po stepenu, ugao
@@ -340,6 +361,7 @@ class Sim:
 
     def _service(self):
         self._watch_nrst()
+        self._feed_lidar()
         self.stm.advance()
         t = self.t()
         self._opp_update(t)
@@ -516,11 +538,13 @@ class Sim:
                 self.stm.plant.place(c[1], c[2], c[3])
                 self.event("sim", {"text": "robot postavljen na %d, %d, %d°" % (c[1], c[2], c[3])})
         elif k == "speed":
-            self.speed = max(0.05, float(c[1]))
-            self._anchor = None
+            if not self.realtime:                 # pravi lidar: samo ×1 (uređaj radi u stvarnom vremenu)
+                self.speed = max(0.05, float(c[1]))
+                self._anchor = None
         elif k == "pause":
-            self.paused = bool(c[1])
-            self._anchor = None
+            if not self.realtime:
+                self.paused = bool(c[1])
+                self._anchor = None
         elif k == "stm_reset":                  # simulacija: STM32 se sam restartuje (watchdog, pad napona)
             self.stm.hard_reset("restart (watchdog / napajanje)", stmmod.P.ResetCause.IWDG)
         elif k == "stm_hang":                   # simulacija: STM32 se zaglavi (ne odgovara dok ga NRST ne resetuje)
@@ -598,6 +622,11 @@ class Sim:
         self._finish()
 
     def _finish(self):
+        if self.lidar_src is not None:
+            self.lidar_src.close()
+            f = getattr(self.lidar_src, "file", None)
+            if f:
+                self.event("sim", {"text": "lidar snimljen: %s (%d krugova)" % (f.name, self.lidar_src.received)})
         a, pl = self.app, self.stm.plant
         rp = a.report or {}
         corners = [(x * 1000, y * 1000) for x, y in pl.corners()]

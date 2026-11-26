@@ -27,8 +27,12 @@ def cmd_run(a):
     from .sim import Sim
     prof = profmod.load(a.profile)
     t0 = time.time()
+    from . import lidarsrc
+    if a.lidar and a.lidar.startswith("robot"):
+        sys.exit("--lidar robot: samo u Live (web interfejs), jer pravi lidar radi u stvarnom vremenu")
     sim = Sim(a.name, side=a.side, mode="test" if a.test else "mec", prof=prof, tactics_dir=a.dir,
-              max_s=a.max_s, cord_s=a.cord, obstacles=[_opp(o) for o in a.opp or []], elements=not a.no_elements)
+              max_s=a.max_s, cord_s=a.cord, obstacles=[_opp(o) for o in a.opp or []], elements=not a.no_elements,
+              lidar=lidarsrc.open_source(a.lidar))
     rec = sim.run()
     wall = time.time() - t0
     for t, kind, d in rec.events:
@@ -101,6 +105,7 @@ def main(argv=None):
     r.add_argument("--opp", action="append", help="protivnik x,y[,w,h[,ugao]] u mm (može više puta)")
     r.add_argument("--out", help="sačuvaj snimak (.json.gz)")
     r.add_argument("--no-elements", action="store_true", help="bez elemenata igre (kamenolomi)")
+    r.add_argument("--lidar", help="krugovi lidara iz snimka: file:<ime u simulator/lidar/ ili putanja> (podrazumevano simuliran)")
     r.add_argument("-v", "--verbose", action="store_true", help="i poruke ESP <-> STM32")
     r.set_defaults(fn=cmd_run)
     li = sub.add_parser("list", help="taktike")

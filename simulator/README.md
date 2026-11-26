@@ -85,6 +85,21 @@ STM32 i čeka, kao na stolu.
   simulacija radi dalje.
 - **End**: kraj; sesija ostaje kao snimak (reprodukcija, Save run).
 
+### Hibridna simulacija: pravi lidar sa robota, ostalo simulirano
+
+U Live kartici, levo od **▶ Start Live**, bira se odakle dolaze krugovi lidara:
+- **Lidar: simulated**: lažni lidar vidi sto iz simulacije (podrazumevano).
+- **Lidar: robot (WiFi)**: pravi lidar na robotu. Simulator pošalje robotu `LIDAR ON` (host i lozinka iz
+  Robot → Connect…), prima krugove iz telemetrije i daje ih simuliranom ESP-u kroz lažni RPLIDAR, pa ih ESP kod
+  čita istim drajverom kao na robotu. Pogon, odometrija, IR i protivnici ostaju simulirani. Brzina je ×1 i
+  nema pauze (pravi uređaj). Svaki krug se snima u `simulator/lidar/<vreme>.jsonl.gz`; na kraju `LIDAR OFF`.
+- **Lidar: <snimak>**: ponavlja snimljene krugove (u krug), bez robota; radi na svakoj brzini.
+- Iz terminala: `python simulator/sim.py run <taktika> --lidar file:<snimak>`.
+
+Tačke pokazuju okolinu **pravog** robota, nacrtanu oko **virtuelnog**: poklapaju se sa stolom samo kad pravi
+robot stoji na stolu na istom mestu. Za proveru drajvera i prepoznavanja protivnika (kutija ispred robota)
+robot može da stoji bilo gde.
+
 ### Robot (🤖 Robot): pravi robot uživo
 
 Veza preko postojećeg ESP upload servera (TCP 8267) i telemetrije (UDP 8268), kao `tools/tactic.py` i
@@ -95,6 +110,7 @@ iz `ESP32/webrepl_cfg.py` (ili upiši).
 - Telemetrija (10 Hz) crta robota, korake (ishod iz dnevnika), dnevnik, brzinu i stanje meča, isto kao
   simulacija; **Follow** / klizač za vraćanje. **Disconnect**: sesija ostaje kao snimak (Save run).
 - Robot šalje odometriju (ne zna stvarnu pozu) i ne šalje ekran; koraci kraći od 100 ms mogu da promaknu.
+- **Lidar robota**: dok lidar na robotu radi, krugovi se crtaju na stolu (plave tačke) oko poze iz telemetrije.
 - **Virtual robot**: na ovom računaru pokrene virtuelnog robota (pravi ESP kod sa upload serverom i
   telemetrijom nad simuliranim STM32) i poveže se na njega. Isto iz terminala: `python simulator/sim.py robot`,
   pa `python tools/tactic.py primer --host 127.0.0.1 --password eurosim` i `python tools/watch.py --host 127.0.0.1`.
