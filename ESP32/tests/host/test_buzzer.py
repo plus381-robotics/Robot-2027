@@ -78,7 +78,7 @@ def test_svi_zvuci_se_parsiraju():
 
 
 def test_tonovi_imaju_pauzu_izmedju_nota():
-    t = buzzer.tones([(1000, 100), (1000, 100), (0, 50), (2000, 10)])
+    t = list(buzzer.tones([(1000, 100), (1000, 100), (0, 50), (2000, 10)]))
     assert t == [(1000, 88), (0, 12), (1000, 88), (0, 12), (0, 50), (2000, 10)]
 
 
@@ -256,3 +256,25 @@ def test_bez_buzzera_beep_ne_radi_nista(app, stm):
     run(app, 300)
     run_tactic(app, "t")
     assert "p False" in app.log
+
+
+def test_duga_melodija_se_cita_nota_po_nota(app, monkeypatch):
+    """Paganini (~430 nota): play() ne parsira ceo tekst unapred, note se čitaju dok svira."""
+    calls = []
+    real = rtttl.note
+    monkeypatch.setattr(rtttl, "note", lambda *a: calls.append(1) or real(*a))
+    b = make(app)
+    assert b.play("paganini", force=True)
+    assert len(calls) == 1                                 # samo prva nota
+    run(app, 1000)
+    assert 3 < len(calls) < 40 and b.kind == "paganini"
+    b.stop()
+    assert b.kind is None and not b.sounding
+
+
+def test_losa_nota_u_sred_melodije_prekida(app):
+    b = make(app)
+    b.sounds = dict(b.sounds, ok="ok:d=16,o=7,b=200:d,e,zz,f")
+    assert app.beep("ok")
+    run(app, 500)
+    assert b.kind is None and not b.sounding

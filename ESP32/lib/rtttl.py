@@ -14,15 +14,16 @@ def note_hz(semi, octave):
     return round(440 * 2 ** ((12 * (octave + 1) + semi - 69) / 12))
 
 
-def parse(text):
-    """RTTTL -> [(Hz, ms), ...] (Hz 0 = pauza). Ime i podešavanja mogu da se izostave ("c,e,g").
-    Loš tekst: ValueError sa opisom."""
-    parts = text.split(":")
-    if len(parts) > 3:
+def header(text):
+    """Podešavanja i početak nota: (d, o, cela nota u ms, indeks prve note). ValueError ako ne valja."""
+    c2 = text.rfind(":")
+    if text.count(":") > 2:
         raise ValueError("RTTTL: previse ':'")
     d, o, b = 4, 6, 63
-    if len(parts) >= 2:
-        for item in parts[-2].split(","):
+    if c2 >= 0:
+        c1 = text.find(":")
+        ctl = text[c1 + 1:c2] if c1 != c2 else text[:c2]
+        for item in ctl.split(","):
             item = item.strip().lower()
             if not item:
                 continue
@@ -41,36 +42,59 @@ def parse(text):
                 raise ValueError("RTTTL: nepoznato '%s'" % item)
     if d not in _DURS or not 3 <= o <= 8 or not 10 <= b <= 900:
         raise ValueError("RTTTL: d=%d o=%d b=%d van opsega" % (d, o, b))
-    whole = 240000 // b                         # cela nota (4 četvrtine) u ms
-    out = []
-    for tok in parts[-1].split(","):
-        tok = tok.strip().lower()
-        if not tok:
-            continue
-        i = 0
-        while i < len(tok) and tok[i].isdigit():
-            i += 1
-        dur = int(tok[:i]) if i else d
-        if i >= len(tok) or (tok[i] not in _SEMI and tok[i] != "p"):
+    return d, o, 240000 // b, c2 + 1
+
+
+def note(tok, d, o, whole):
+    """Jedna nota ("8c#7.") -> (Hz, ms); Hz 0 = pauza."""
+    tok = tok.strip().lower()
+    i = 0
+    while i < len(tok) and tok[i].isdigit():
+        i += 1
+    dur = int(tok[:i]) if i else d
+    if i >= len(tok) or (tok[i] not in _SEMI and tok[i] != "p"):
+        raise ValueError("RTTTL: losa nota '%s'" % tok)
+    letter = tok[i]
+    semi = _SEMI.get(letter, 0)
+    octave, dot = o, False
+    for ch in tok[i + 1:]:
+        if ch == "#" or ch == "_":
+            semi += 1
+        elif ch == ".":
+            dot = True
+        elif ch.isdigit():
+            octave = int(ch)
+        else:
             raise ValueError("RTTTL: losa nota '%s'" % tok)
-        letter = tok[i]
-        semi = _SEMI.get(letter, 0)
-        octave, dot = o, False
-        for ch in tok[i + 1:]:
-            if ch == "#" or ch == "_":
-                semi += 1
-            elif ch == ".":
-                dot = True
-            elif ch.isdigit():
-                octave = int(ch)
-            else:
-                raise ValueError("RTTTL: losa nota '%s'" % tok)
-        if dur not in _DURS or not 3 <= octave <= 8:
-            raise ValueError("RTTTL: losa nota '%s'" % tok)
-        ms = whole // dur
-        if dot:
-            ms = ms * 3 // 2
-        out.append((0 if letter == "p" else note_hz(semi, octave), ms))
+    if dur not in _DURS or not 3 <= octave <= 8:
+        raise ValueError("RTTTL: losa nota '%s'" % tok)
+    ms = whole // dur
+    if dot:
+        ms = ms * 3 // 2
+    return (0 if letter == "p" else note_hz(semi, octave)), ms
+
+
+def stream(text):
+    """Note jednu po jednu (generator), bez liste: za duge melodije na ESP-u (brz početak, malo RAM-a).
+    Podešavanja se proveravaju odmah (pre prve note), loša nota baca ValueError kad na nju dođe red."""
+    d, o, whole, i = header(text)
+
+    def gen(i):
+        n = len(text)
+        while i < n:
+            j = text.find(",", i)
+            if j < 0:
+                j = n
+            if text[i:j].strip():
+                yield note(text[i:j], d, o, whole)
+            i = j + 1
+    return gen(i)
+
+
+def parse(text):
+    """RTTTL -> [(Hz, ms), ...] (Hz 0 = pauza). Ime i podešavanja mogu da se izostave ("c,e,g").
+    Loš tekst: ValueError sa opisom."""
+    out = list(stream(text))
     if not out:
         raise ValueError("RTTTL: nema nota")
     return out

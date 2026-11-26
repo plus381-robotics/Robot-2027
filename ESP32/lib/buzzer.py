@@ -18,6 +18,7 @@
 # U meču (POZA, MEC) se čuju samo greška, start, kraj i zvuk iz taktike. Važniji zvuk prekida manje
 # važan, obrnuto ne.
 from compat import ticks_ms, ticks_diff
+import rtttl
 from rtttl import parse, note_hz  # noqa: F401  (parser je u rtttl.py: koristi ga i simulator)
 
 OFF, ERRORS, ALL = 0, 1, 2
@@ -42,15 +43,13 @@ DEFAULT_SOUNDS = {
 }
 
 def tones(notes):
-    """Note -> tonovi za PWM: na kraju svake note kratka tišina (GAP_MS)."""
-    out = []
+    """Note -> tonovi za PWM (generator): na kraju svake note kratka tišina (GAP_MS)."""
     for hz, ms in notes:
         if hz and ms > 2 * GAP_MS:
-            out.append((hz, ms - GAP_MS))
-            out.append((0, GAP_MS))
+            yield hz, ms - GAP_MS
+            yield 0, GAP_MS
         else:
-            out.append((hz, ms))
-    return out
+            yield hz, ms
 
 
 def allowed(kind, level, in_match):
@@ -72,6 +71,9 @@ def sounds():
 
 
 class Buzzer:
+    """Melodija se ne parsira unapred: note se čitaju iz teksta jedna po jedna (rtttl.stream), pa i duga
+    melodija (Paganini, ~430 nota) kreće odmah i ne zauzima RAM. Loša nota u sred melodije je prekida."""
+
     def __init__(self, app, pin):
         self.app = app
         self.pwm = None
@@ -81,9 +83,9 @@ class Buzzer:
         except Exception as e:          # buzzer nije obavezan: bez njega sve radi isto
             print("buzzer nije dostupan:", e)
         self.sounds = sounds()
-        self._cache = {}                # ime -> tonovi (parsira se jednom)
-        self.tones = ()                 # preostali tonovi tekućeg zvuka
-        self.notes = ()                 # svi tonovi tekućeg zvuka (simulator ih pušta u browseru)
+        self.text = None                # RTTTL tekst koji svira
+        self.last = None                # poslednji pušten tekst (simulator: note za browser)
+        self._it = None                 # preostali tonovi (generator)
         self.kind = None
         self.prio = 0
         self._t = 0                     # kad se menja sledeći ton
@@ -94,14 +96,10 @@ class Buzzer:
     def _in_match(self):
         return self.app.match.state in ("POZA", "MEC")
 
-    def melody(self, name):
-        """Tonovi za ime iz SOUNDS ili za RTTTL tekst. ValueError ako tekst ne valja."""
-        t = self._cache.get(name)
-        if t is None:
-            t = tones(parse(self.sounds.get(name, name)))
-            if name in self.sounds:
-                self._cache[name] = t
-        return t
+    @property
+    def notes(self):
+        """Svi tonovi tekućeg zvuka (Hz, ms) sa pauzama, kao lista (simulator ih šalje browseru)."""
+        return list(tones(parse(self.last))) if self.last else []
 
     def play(self, kind, force=False, melody=None):
         """Pusti zvuk kind (ime iz SOUNDS). melody: druga melodija (ime ili RTTTL) sa pravilima za kind
@@ -111,16 +109,20 @@ class Buzzer:
             return False
         if self.kind is not None and prio < self.prio:
             return False                # važniji zvuk još traje
+        name = melody or kind
+        text = self.sounds.get(name, name)
         try:
-            t = self.melody(melody or kind)
-        except ValueError as e:
-            print("zvuk %s: %s" % (melody or kind, e))
+            it = tones(rtttl.stream(text))
+            first = next(it)
+        except (ValueError, StopIteration) as e:
+            print("zvuk %s: %s" % (name, e or "nema nota"))
             return False
-        self.kind, self.prio, self.tones, self.notes = kind, prio, t, t
+        self.kind, self.prio, self.text, self.last = kind, prio, text, text
+        self._it = it
         self.played = (self.played + [kind])[-10:]
         self.n += 1
         self._t = ticks_ms()
-        self._next()
+        self._tone(first)
         return True
 
     def _set(self, hz):
@@ -135,14 +137,27 @@ class Buzzer:
                 self.pwm.duty_u16(0)
         self._hz = hz
 
+    def _tone(self, t):
+        self._set(t[0])
+        self._t += t[1]                  # od planiranog trenutka, ne od sada: ritam ne kasni za petljom
+
+    def _end(self):
+        self._set(0)
+        self.kind, self.prio, self.text, self._it = None, 0, None, None
+
     def _next(self):
-        if self.tones:
-            (hz, ms), self.tones = self.tones[0], self.tones[1:]
-            self._set(hz)
-            self._t += ms                # od planiranog trenutka, ne od sada: ritam ne kasni za petljom
-        else:
-            self._set(0)
-            self.kind, self.prio = None, 0
+        try:
+            self._tone(next(self._it))
+        except StopIteration:
+            self._end()
+        except ValueError as e:          # loša nota u sred melodije (config.SOUNDS)
+            print("zvuk %s: %s" % (self.kind, e))
+            self._end()
+
+    def stop(self):
+        """Prekini zvuk koji svira."""
+        if self.kind is not None:
+            self._end()
 
     @property
     def sounding(self):
