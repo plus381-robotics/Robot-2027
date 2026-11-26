@@ -79,10 +79,14 @@ void Error_Handler(void);
 #define Val3_GPIO_Port GPIOC
 #define DIR_M_R_Pin GPIO_PIN_2
 #define DIR_M_R_GPIO_Port GPIOC
-#define EN_M_R_Pin GPIO_PIN_3
-#define EN_M_R_GPIO_Port GPIOC
-#define EN_M_L_Pin GPIO_PIN_4
-#define EN_M_L_GPIO_Port GPIOA
+#define ENC_A_L_Pin GPIO_PIN_0
+#define ENC_A_L_GPIO_Port GPIOA
+#define ENC_B_L_Pin GPIO_PIN_1
+#define ENC_B_L_GPIO_Port GPIOA
+#define OUT_IR_2_Pin GPIO_PIN_6
+#define OUT_IR_2_GPIO_Port GPIOA
+#define OUT_IR_8_Pin GPIO_PIN_7
+#define OUT_IR_8_GPIO_Port GPIOA
 #define Val4_Pin GPIO_PIN_4
 #define Val4_GPIO_Port GPIOC
 #define OUT_IR_7_Pin GPIO_PIN_5
@@ -95,6 +99,10 @@ void Error_Handler(void);
 #define Vac2_GPIO_Port GPIOB
 #define Vac1_Pin GPIO_PIN_15
 #define Vac1_GPIO_Port GPIOB
+#define ENC_A_R_Pin GPIO_PIN_6
+#define ENC_A_R_GPIO_Port GPIOC
+#define ENC_B_R_Pin GPIO_PIN_7
+#define ENC_B_R_GPIO_Port GPIOC
 #define OUT_IR_4_Pin GPIO_PIN_8
 #define OUT_IR_4_GPIO_Port GPIOC
 #define OUT_IR_5_Pin GPIO_PIN_9
@@ -109,12 +117,22 @@ void Error_Handler(void);
 #define OUT_MSW_1_GPIO_Port GPIOC
 #define OUT_MSW_2_Pin GPIO_PIN_11
 #define OUT_MSW_2_GPIO_Port GPIOC
-#define Chinch_GPIO_Pin GPIO_PIN_12
-#define Chinch_GPIO_GPIO_Port GPIOC
+#define CHINCH_Pin GPIO_PIN_12
+#define CHINCH_GPIO_Port GPIOC
+#define PWM_BLDC_Pin GPIO_PIN_3
+#define PWM_BLDC_GPIO_Port GPIOB
 #define Val6_Pin GPIO_PIN_4
 #define Val6_GPIO_Port GPIOB
 #define Val5_Pin GPIO_PIN_5
 #define Val5_GPIO_Port GPIOB
+#define PWM_M_L_Pin GPIO_PIN_6
+#define PWM_M_L_GPIO_Port GPIOB
+#define PWM_M_R_Pin GPIO_PIN_7
+#define PWM_M_R_GPIO_Port GPIOB
+#define OUT_IR_6_Pin GPIO_PIN_8
+#define OUT_IR_6_GPIO_Port GPIOB
+#define OUT_IR_3_Pin GPIO_PIN_9
+#define OUT_IR_3_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

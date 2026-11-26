@@ -23,13 +23,13 @@ const static uint16_t incr_total = 8192;
 static float inc2rad;
 
 void encoder_init() {
-	HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
+	HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
 	HAL_TIM_Encoder_Start(&htim5, TIM_CHANNEL_ALL);
 	inc2rad = 2 * M_PI / incr_total;
 }
 
 float encoder_speed_left(float dt) {
-	encoder_value_left = (int16_t) __HAL_TIM_GET_COUNTER(&htim2);
+	encoder_value_left = (int16_t) __HAL_TIM_GET_COUNTER(&htim3);
 	delta_left = (int16_t) (encoder_value_left - encoder_left_poc);
 	encoder_left_poc = encoder_value_left;
 

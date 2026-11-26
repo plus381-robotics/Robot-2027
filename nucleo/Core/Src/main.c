@@ -18,7 +18,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "i2c.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -73,7 +72,8 @@ int main(void)
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. *  HAL_Init();
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -91,10 +91,10 @@ int main(void)
   MX_TIM10_Init();
   MX_TIM2_Init();
   MX_TIM5_Init();
-  MX_TIM3_Init();
-  MX_I2C1_Init();
   MX_USART1_UART_Init();
   MX_USART6_UART_Init();
+  MX_TIM4_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 	time_start();
 	//encoder_init();
@@ -115,7 +115,7 @@ int main(void)
 
 		//comm_poll();
 		//watchdog_feed();
-		motori_set(100, -100);
+		//motori_set(100, -100);
 	}
   /* USER CODE END 3 */
 }

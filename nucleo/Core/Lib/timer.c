@@ -15,6 +15,8 @@ const float dt = 0.001;
 
 void timer10_isr() {
 	time_ms++;
+	get_left_encoder();
+	get_right_encoder();
 	chinch_read();
 	chinch_debounce_counter(chinch_time, dt);
 	if (match_started == 1) {
@@ -27,12 +29,12 @@ void timer10_isr() {
 		motori_set(0, 0);
 	}
 
-	/*else {
+	else {
 		if (time_ms % 10 == 0) {
 			position_control_loop(dt);
 		}
 		velocity_control_loop(dt);
-	}*/
+	}
 }
 
 void time_start() {

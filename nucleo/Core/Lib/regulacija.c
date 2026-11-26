@@ -25,8 +25,9 @@ float ang_w = 0;
 float err_v = 0;
 float err_w = 0;
 
-float ref_lin_v = 0;
-float ref_ang_w = 0;
+float ref_lin_v = 100;
+float ref_ang_w = 20;
+//TODO PROVERITI LEVI I DESNI SADA SA OVIME
 
 float output_v = 0;
 float output_w = 0;
@@ -74,6 +75,7 @@ void stop(float dt) {
 void rotacija(float dt) {
 	err_ang = ogranicenje_phi(ref_ang) - get_phi_pos_rob();
 	err_ang = ogranicenje_phi(err_ang);
+
 	ref_ang_w = PID_regulator(&PID_ang, &err_ang, dt);
 	ref_lin_v = 0;
 	if (fabsf(err_ang) < TOLERANCIJA_RAD) {
@@ -84,9 +86,11 @@ void rotacija(float dt) {
 uint8_t rotacija_to_xy(float dt) {
 	err_ang = get_ugao_ka_cilju(ref_x, ref_y) - get_phi_pos_rob();
 	err_ang = ogranicenje_phi(err_ang);
+
 	if (fabsf(err_ang) < TOLERANCIJA_RAD) {
 		return 1;
 	}
+
 	ref_ang_w = PID_regulator(&PID_ang, &err_ang, dt);
 	ref_lin_v = 0;
 	return 0;
@@ -148,6 +152,7 @@ void velocity_control_loop(float dt) {
 		right = 100;
 	if (right < -100)
 		right = -100;
+	motori_set(left, right);
 }
 float get_distance(float ref_x, float ref_y) {
 	float dx = get_x_pos_rob() - ref_x;
