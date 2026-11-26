@@ -44,7 +44,7 @@ i svakih 50 ms šalje STATUS. Komanda se ponavlja do 3 puta ako ACK ne stigne za
 | taster NAZAD | 18 | 25 | nazad; dugi (≥ 0,6 s) = meni (zaključan dok je robot naoružan ili meč traje) |
 | taster OK | 11 | 26 | |
 | taster STOP | 17 | 27 | šalje STOP odmah, i kad je ekran ugašen |
-| buzzer (pasivni, PWM) | 13 | - | `lib/buzzer.py`, ton `BUZZER_HZ` (2700 Hz) |
+| buzzer (pasivni, PWM) | 13 | - | `lib/buzzer.py`, zvuci (RTTTL) u `config.SOUNDS` |
 | lidar TX / RX / MOTOCTL | 47 / 21 / 48 | - | S3: UART2, konektor J3, RPLIDAR A2M8 na 115200; `lib/lidar.py` |
 
 STM32 NRST / BOOT0 na S3: 15 / 16. NRST na ESP32_Main ide preko MOSFET-a, pa je obrnut (1 = reset,
@@ -69,17 +69,27 @@ Stanje robota se vidi i bez ekrana (prvo pravilo koje važi):
 Svetlina: Meni → LED (iskl / slabo / srednje / jako).
 
 ### Buzzer (S3, GPIO13, `lib/buzzer.py`)
-Pasivni buzzer, PWM bez blokiranja petlje (raspored tonova, servis "zvuk"):
+Pasivni buzzer, PWM bez blokiranja petlje (servis "zvuk"). Svi zvuci su melodije u **RTTTL** formatu u
+`config.SOUNDS` (ime → tekst), pa se menjaju bez diranja koda; parser je `lib/rtttl.py`.
 
-| Zvuk | Kada |
-|---|---|
-| 1 kratak | naoružan; potvrđena radnja (drži OK) |
-| 2 kratka | greška u dnevniku (korak nije uspeo van meča, greška servisa) |
-| 3 kratka | prekid preko celog ekrana: STOP, VEZA, PREKID taktike |
-| 1 dug | slaba baterija (kad bude merenja) |
+| Ime | Zvuk | Kada |
+|---|---|---|
+| `ok` | 1 kratak | naoružan; potvrđena radnja (drži OK) |
+| `upoz` | 2 kratka | greška u dnevniku (korak nije uspeo van meča, greška servisa) |
+| `greska` | 3 kratka | prekid preko celog ekrana: STOP, VEZA, PREKID taktike |
+| `baterija` | 1 dug | slaba baterija (kad bude merenja) |
+| `boot` | melodija | ESP pokrenut |
+| `start` | melodija | činč izvučen, meč kreće |
+| `kraj` | melodija | 100 s od činča (jednom po meču) |
+| `gotovo` | melodija | test taktika završena bez greške |
 
-Meni → zvuk: iskl / greske (samo 3 kratka i dug) / sve. U meču (POZA, MEC) se čuje samo greška.
-Meni → test zvuka pušta svaki zvuk (i kad je zvuk isključen).
+RTTTL: `"ime:d=8,o=6,b=180:c,e,g,4c7"`: `d` podrazumevano trajanje (1/2/4/8/16/32 = deo cele note),
+`o` oktava, `b` tempo (četvrtina nota u minuti); nota = `[trajanje]slovo[#][.][oktava]`, `p` = pauza,
+tačka = 1,5 puta duže. Buzzer (CEM-1206S) je najglasniji oko 2,4 kHz: oktave 6 i 7 (ispod ~1 kHz se jedva čuje).
+
+Meni → zvuk: iskl / greske (samo `greska` i `baterija`) / sve. U meču (POZA, MEC) se čuju samo `greska`,
+`start`, `kraj` i zvuk iz taktike. Važniji zvuk prekida manje važan (greška prekida melodiju), obrnuto ne.
+Meni → test zvuka pušta svaki zvuk iz `SOUNDS` (i kad je zvuk isključen). Iz taktike: `play(...)`.
 
 ### Lidar test (S3, `lib/lidar.py`, `lib/lidar_test.py`)
 Meni → **Lidar test**: pali motor (PWM na MOTOCTL), pita lidar GET_INFO i GET_HEALTH, pa pokreće SCAN.
@@ -168,6 +178,7 @@ Taktika je fajl u `ESP32/tactics/` (vidi `primer.py`, `sve_komande.py`, `kamenol
     turn_to(90)                 # apsolutni ugao terena;  turn_by(-45) relativno
     move(-200)                  # mm, minus = unazad
     ir_off("FD"); ir_on()       # IR: u svakom uglu donji D i gornji U (FLD FLU ... BRU); ir_sees("FU") (protokol v5)
+    play("kraj"); play("ja:d=8,o=6,b=180:c,e,g")   # buzzer: ime iz config.SOUNDS ili RTTTL, ne čeka (zvuk = sve)
     wait(1); wait_until(lambda: ..., 3); step("čekam"); log("..."); here(); remaining()
     actuator("hvataljka", 1)                  # čeka DONE sa STM32; imena u config.ACTUATORS
     h = actuator("lift", 300, wait=False)     # paralelno sa vožnjom...

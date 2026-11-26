@@ -88,10 +88,12 @@ class App:
 
     # ---------------- poruke ----------------
 
-    def beep(self, kind, force=False):
-        """Zvuk (lib/buzzer.py): ok, upoz, greska, baterija. Bez buzzera ne radi ništa."""
+    def beep(self, kind, force=False, melody=None):
+        """Zvuk (lib/buzzer.py, imena u config.SOUNDS): ok, upoz, greska, start, kraj... melody: druga
+        melodija sa pravilima za kind (tac.play). Bez buzzera ne radi ništa; vraća da li svira."""
         if self.buzzer is not None:
-            self.buzzer.play(kind, force)
+            return self.buzzer.play(kind, force, melody)
+        return False
 
     def error(self, text):
         """Greška: ostaje na stranici DNEVNIK, a u traci je ! dok se ne pogleda."""
@@ -326,6 +328,8 @@ class App:
         self._run = None
         self.save_report(self.report)
         self.pages.list[-1].view = 0
+        if how is None and not self.report["match"] and self.report["ok"]:
+            self.beep("gotovo")                # test taktika prošla (u meču: zvuk "kraj" na 100 s)
         if how:                                # prekid: ceo ekran, pa izveštaj
             self.ui.alarm("PREKID" if how != "STOP" else "STOP", how, lambda: self.show_page("IZVESTAJ"))
         else:
@@ -454,10 +458,12 @@ class App:
             tracker.history = []
 
     def sound_menu(self):
+        """Meni -> test zvuka: svaki zvuk iz config.SOUNDS (pušta se i kad je zvuk isključen)."""
+        import buzzer
+        names = list(buzzer.MENU) + sorted(n for n in buzzer.sounds() if n not in buzzer.MENU)
         def play(kind):
             return lambda u: self.beep(kind, force=True) if self.buzzer else u.toast("nema buzzera")
-        return Menu("Test zvuka", [Action("1 kratak", play("ok")), Action("2 kratka", play("upoz")),
-                                   Action("3 kratka", play("greska")), Action("dug", play("baterija"))])
+        return Menu("Test zvuka", [Action(n, play(n)) for n in names])
 
     def lidar_screen(self):
         """Meni -> Lidar test (lib/lidar_test.py); uvozi se tek ovde (RAM)."""

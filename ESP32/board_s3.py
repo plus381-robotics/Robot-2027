@@ -26,8 +26,8 @@ STM_NRST_INV = True
 # RGB LED (WS2812) na Waveshare ploči, stanje robota (lib/led.py); isti pin izlazi i na J4
 NEOPIXEL = 38
 
-# pasivni buzzer (PWM_BUZZ, J5), lib/buzzer.py: ton BUZZER_HZ
-BUZZER, BUZZER_HZ = 13, 2700
+# pasivni buzzer (PWM_BUZZ, J5), lib/buzzer.py; zvuci (RTTTL) su u config.SOUNDS
+BUZZER = 13
 
 # LIDAR (RPLIDAR A2M8, 115200 baud) na UART2, konektor J3: TX_LIDAR = 21 (ide na ESP RX), RX_LIDAR = 47
 # (ESP TX), MOTOCTL_LIDAR = 48 (PWM motora). lib/lidar.py, Meni -> "Lidar test".

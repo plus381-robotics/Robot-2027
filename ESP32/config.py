@@ -20,6 +20,20 @@ ENC_STEPS = 4                   # prelaza enkodera po kliku (4 ili 2)
 ACTUATORS = {"hvataljka": 1, "lift": 2, "ruka_l": 3, "ruka_r": 4}
 ACTUATOR_MIRROR = {"ruka_l": "ruka_r", "ruka_r": "ruka_l"}
 
+# Zvuci (lib/buzzer.py), RTTTL: "ime:d=trajanje,o=oktava,b=tempo:nota,nota,...", nota = [trajanje]slovo[#][.][oktava],
+# p = pauza. Ovde se menjaju ili dodaju (dodati se čuju iz taktike: play("ime"), i u Meni -> test zvuka).
+# Buzzer je najglasniji oko 2,4 kHz (oktave 6-7). Šta se ne navede, ostaje podrazumevano iz lib/buzzer.py.
+SOUNDS = {
+    "ok": "ok:d=16,o=7,b=200:d",                              # 1 kratak: potvrda
+    "upoz": "upoz:d=16,o=7,b=200:d,p,d",                      # 2 kratka: upozorenje
+    "greska": "greska:d=8,o=7,b=200:d,16p,d,16p,d",           # 3 kratka: greška, prekid
+    "baterija": "baterija:d=2,o=6,b=120:g",                   # dug: slaba baterija
+    "boot": "boot:d=16,o=6,b=180:c,e,g,8c7",                  # ESP pokrenut
+    "start": "start:d=16,o=6,b=180:c,d,e,f,g,a,b,4c7",        # činč: meč kreće
+    "kraj": "kraj:d=8,o=6,b=160:c7,g,e,4c",                   # kraj meča (100 s)
+    "gotovo": "gotovo:d=16,o=6,b=200:e,g,8c7",                # test taktika završena bez greške
+}
+
 # SET_POSE posle povezivanja sa STM32 (mm, mm, stepeni); isključuje se u Podešavanjima
 START_POSE = (250, 1000, 0)
 

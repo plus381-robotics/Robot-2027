@@ -49,16 +49,16 @@ export class EspPanel {
     return this.audio;
   }
 
-  // Buzzer on the robot (ESP32/lib/buzzer.py): b = {kind, hz, tones: [[on, ms], ...]}; plays the whole pattern.
+  // Buzzer on the robot (ESP32/lib/buzzer.py, RTTTL): b = {kind, notes: [[Hz, ms], ...]} (Hz 0 = silence).
   buzz(b, speed = 1) {
     let t = 0;
     const ctx = this.audio && this.audio.state === 'running' ? this.audio : null;
     const t0 = ctx ? ctx.currentTime + 0.02 : 0;
-    for (const [on, ms] of b.tones) {
+    for (const [hz, ms] of b.notes || []) {
       const d = ms / 1000 / speed;
-      if (on && ctx) {
+      if (hz && ctx) {
         const osc = ctx.createOscillator(), g = ctx.createGain();
-        osc.type = 'square'; osc.frequency.value = b.hz; g.gain.value = 0.05;
+        osc.type = 'square'; osc.frequency.value = hz; g.gain.value = 0.05;
         osc.connect(g).connect(ctx.destination);
         osc.start(t0 + t); osc.stop(t0 + t + d);
       }

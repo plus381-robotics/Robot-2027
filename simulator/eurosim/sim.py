@@ -389,10 +389,9 @@ class Sim:
                 rot = 1 if getattr(sys.modules.get("config"), "DISPLAY_ROT180", False) else 0
                 self.rec.event(t, "screen", {"b": base64.b64encode(b).decode(), "on": fb.on, "flip": fb.flip ^ rot})
         bz = self.esp.buzzer
-        if bz is not None and bz.n != self._buzz_n:          # novi zvuk: ceo raspored tonova (web ga pušta)
+        if bz is not None and bz.n != self._buzz_n:          # novi zvuk: svi tonovi (Hz, ms), web ih pušta
             self._buzz_n = bz.n
-            import buzzer as bzmod
-            self.rec.event(t, "buzzer", {"kind": bz.kind, "hz": bz.hz, "tones": list(bzmod.PATTERNS[bz.kind][1])})
+            self.rec.event(t, "buzzer", {"kind": bz.played[-1], "notes": [list(n) for n in bz.notes]})
         if t - self._last_frame >= FRAME_MS:
             self._last_frame = t - t % FRAME_MS
             s = st.snapshot()

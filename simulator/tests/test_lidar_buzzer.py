@@ -39,8 +39,18 @@ def test_meni_lidar_test_preko_tastera():
 
 def test_buzzer_i_okrenut_ekran():
     s, r, _ = live([(300, ("btn", "stop", 1)), (400, ("btn", "stop", 0))])
-    bz = r.of("buzzer")
-    assert bz and bz[0][2]["kind"] == "greska" and len(bz[0][2]["tones"]) == 5
+    bz = {e[2]["kind"]: e[2]["notes"] for e in r.of("buzzer")}
+    assert "boot" in bz                                          # ESP pokrenut (kao main.py)
+    assert [hz for hz, ms in bz["greska"] if hz] == [2349] * 3   # STOP: 3 kratka, note iz RTTTL-a
     # ploča S3 ima ekran montiran naopako (DISPLAY_ROT180): slika se okreće, a na robotu izgleda uspravno
     assert s.esp.fb.flip == 1
     assert all(e[2]["flip"] == 0 for e in r.of("screen"))
+
+
+def test_editor_proverava_play():
+    """Lažni tac u editoru (preview.py): play() prima ime ili RTTTL, loš tekst je greška taktike kao na robotu."""
+    from eurosim import preview
+    ok = preview.preview("from tac import *\nplay('kraj')\nplay('ja:d=8,o=6,b=180:c,e,g')\n")
+    assert ok["error"] is None
+    bad = preview.preview("from tac import *\nplay('ja:d=8,o=6,b=180:c,x,g')\n")
+    assert bad["error"] and "losa nota" in bad["error"]["msg"] and bad["error"]["line"] == 2

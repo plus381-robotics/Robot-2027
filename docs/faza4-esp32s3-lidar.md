@@ -25,8 +25,9 @@ arhitektonskog pregleda ESP koda (vidi `docs/plan-esp.md`) i pregleda ekrana.
       provera ne prolazi, žuto naoružan, zeleno spreman, belo puls meč, žuto treptanje blokiran, crveno
       treptanje STOP/greška, zeleno treptanje gotovo). Upis samo pri promeni stanja; svetlina u podešavanjima.
 - [x] **K-2** Buzzer (GPIO13 po šemi, `lib/buzzer.py`): 1 kratak = potvrda, 2 = upozorenje, 3 = greška,
-      dug = slaba baterija. PWM + raspored u petlji (bez sleep); u meču samo greška; Meni → zvuk
-      (iskl / greske / sve) i test zvuka. Dug zvuk čeka merenje baterije.
+      dug = slaba baterija. PWM + raspored u petlji (bez sleep); Meni → zvuk (iskl / greske / sve) i test
+      zvuka. Svi zvuci su RTTTL u `config.SOUNDS` (`lib/rtttl.py`), plus melodije boot / start / kraj / gotovo
+      i `play()` u taktikama; u meču samo greška, start, kraj i taktika. Dug zvuk čeka merenje baterije.
 
 ## Memorija i performanse (M-1..M-3, T-3)
 - [ ] **M-1** manje alokacija u krugu petlje (STATUS dict, liste događaja, formatiranje teksta).

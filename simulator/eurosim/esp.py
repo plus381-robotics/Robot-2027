@@ -115,8 +115,9 @@ class Esp:
         self.buzzer = None
         if getattr(cfg, "BUZZER", None) is not None:       # kao main.py: pasivni buzzer (lažni PWM)
             from buzzer import Buzzer
-            self.buzzer = self.app.buzzer = Buzzer(self.app, cfg.BUZZER, getattr(cfg, "BUZZER_HZ", 2700))
+            self.buzzer = self.app.buzzer = Buzzer(self.app, cfg.BUZZER)
             services.append(("zvuk", self.buzzer.tick))
+            self.app.beep("boot")                          # kao main.py
 
         def sleep(ms):
             compat.sleep_ms(ms + loop_extra_ms)

@@ -119,6 +119,7 @@ class Match:
         self._was_running = None       # prethodni bit MATCH_RUNNING (činč bez naoružavanja, L4)
         self._idle_seen = False        # posle naoružavanja viđen STATUS bez meča (čeka se NOV činč)
         self._boot_seen = False
+        self._kraj_for = None          # t_cord meča za koji je već pušten zvuk "kraj"
 
     @property
     def armed(self):
@@ -276,6 +277,7 @@ class Match:
             self.t_cord = ticks_add(ticks_ms(), -min(s["match_ms"], 1000))   # STM32 broji od izvlačenja
             self._boot_ref = r.boot_n
             a.tlog("CINC: start")
+            a.beep("start")
             if self.start:
                 self._send_pose(r)
                 self.state = POSE
@@ -301,6 +303,9 @@ class Match:
             a.abort = "kraj meca"
         if self.state in (MATCH, DONE) and self.t_cord is not None:
             self._guard(r, a, s)
+            if self._kraj_for != self.t_cord and self.elapsed() >= MATCH_MS:
+                self._kraj_for = self.t_cord       # 100 s od činča: zvuk jednom po meču
+                a.beep("kraj")
 
     def _guard(self, r, a, s):
         """Meč traje: ESP sat (100 s), restart STM32, STM32 koji se ne javlja."""
