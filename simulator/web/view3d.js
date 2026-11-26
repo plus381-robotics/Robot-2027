@@ -735,8 +735,10 @@ export class FieldView {
     this.robot.visible = true;
     this.robot.position.set(f.x / 1000, f.y / 1000, 0);
     this.robot.rotation.z = f.th * Math.PI / 180;
-    this.ghost.position.set(f.ox / 1000, f.oy / 1000, 0);
-    this.ghost.rotation.z = f.oth * Math.PI / 180;
+    if (f.ox != null && f.oy != null && f.oth != null) {   // robot ne šalje odometriju
+      this.ghost.position.set(f.ox / 1000, f.oy / 1000, 0);
+      this.ghost.rotation.z = f.oth * Math.PI / 180;
+    }
     this.setIr(f.irh || null, f.irm != null ? f.irm : 0xFF);
   }
 

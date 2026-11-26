@@ -10,13 +10,13 @@ const hasData = (c, d) => d.series.some(([k]) => c[k] && c[k].some(v => v != nul
 
 export class Charts {
   constructor(el, onSeek) {
-    this.el = el; this.onSeek = onSeek; this.plots = []; this.lines = [];
+    this.el = el; this.onSeek = onSeek; this.plots = []; this.lines = []; this.defs = []; this.stepEls = []; this.steps = [];
     new ResizeObserver(() => this.resize()).observe(el);
   }
 
   setRun(run) {
     this.el.innerHTML = '';
-    this.plots = []; this.lines = [];
+    this.plots = []; this.lines = []; this.stepEls = [];     // svi nizovi po grafiku ostaju poravnati sa this.defs
     const c = run.cols;
     const t = c.t.map(v => v / 1000);
     this.defs = DEFS.filter(d => hasData(c, d));            // grafik bez podataka (robot ih ne šalje) se ne crta
@@ -51,13 +51,14 @@ export class Charts {
       u.over.appendChild(line);
       this.plots.push(u); this.lines.push(line);
     }
+    this.setSteps(this.steps);                      // markeri koraka za nove grafike
     this.resize();
   }
 
   update(run) {                      // live: new data in existing charts
-    if (!this.plots.length) return this.setRun(run);
     const c = run.cols, t = c.t.map(v => v / 1000);
-    if (DEFS.filter(d => hasData(c, d)).length !== this.plots.length) return this.setRun(run);
+    const want = DEFS.filter(d => hasData(c, d));
+    if (!this.plots.length || want.length !== this.defs.length || want.some((d, i) => d !== this.defs[i])) return this.setRun(run);
     this.defs.forEach((d, i) => this.plots[i].setData([t, ...d.series.map(([k]) => c[k] || t.map(() => null))]));
     this._placeSteps();
   }
@@ -81,6 +82,7 @@ export class Charts {
   _placeSteps() {
     (this.stepEls || []).forEach((els, i) => {
       const u = this.plots[i];
+      if (!u) return;
       els.forEach((d, k) => { d.style.left = u.valToPos(this.steps[k].t / 1000, 'x') + 'px'; });
     });
   }
@@ -88,7 +90,7 @@ export class Charts {
   setTime(tms) {
     this.plots.forEach((u, i) => {
       const x = u.valToPos(tms / 1000, 'x');
-      this.lines[i].style.left = x + 'px';
+      if (this.lines[i]) this.lines[i].style.left = x + 'px';
     });
     this._placeSteps();                            // uPlot dobije veličinu tek posle prvog crtanja
   }
