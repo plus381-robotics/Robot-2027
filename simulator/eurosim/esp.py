@@ -111,6 +111,12 @@ class Esp:
             self.inputs = Inputs(cfg, lambda: st["enc_rev"])
             services.append(("ulaz", self._handle_inputs))
         services += [("sim", self._sim_services), ("ekran", self.app.ui.tick)]
+        import config as cfg
+        self.buzzer = None
+        if getattr(cfg, "BUZZER", None) is not None:       # kao main.py: pasivni buzzer (lažni PWM)
+            from buzzer import Buzzer
+            self.buzzer = self.app.buzzer = Buzzer(self.app, cfg.BUZZER, getattr(cfg, "BUZZER_HZ", 2700))
+            services.append(("zvuk", self.buzzer.tick))
 
         def sleep(ms):
             compat.sleep_ms(ms + loop_extra_ms)

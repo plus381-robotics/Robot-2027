@@ -24,8 +24,9 @@ arhitektonskog pregleda ESP koda (vidi `docs/plan-esp.md`) i pregleda ekrana.
 - [x] **K-1** NeoPixel (GPIO38 na Waveshare ploči, `lib/led.py`; tabela boja u ESP32/README): jedna tabela boja po stanju (ljubičasto sto, plavo izbor, crveno
       provera ne prolazi, žuto naoružan, zeleno spreman, belo puls meč, žuto treptanje blokiran, crveno
       treptanje STOP/greška, zeleno treptanje gotovo). Upis samo pri promeni stanja; svetlina u podešavanjima.
-- [ ] **K-2** Buzzer (GPIO14): 1 kratak = potvrda, 2 = upozorenje, 3 = greška, dug = slaba baterija.
-      PWM + raspored u petlji (bez sleep); u meču isključen osim greške; podešavanje uključen/isključen.
+- [x] **K-2** Buzzer (GPIO13 po šemi, `lib/buzzer.py`): 1 kratak = potvrda, 2 = upozorenje, 3 = greška,
+      dug = slaba baterija. PWM + raspored u petlji (bez sleep); u meču samo greška; Meni → zvuk
+      (iskl / greske / sve) i test zvuka. Dug zvuk čeka merenje baterije.
 
 ## Memorija i performanse (M-1..M-3, T-3)
 - [ ] **M-1** manje alokacija u krugu petlje (STATUS dict, liste događaja, formatiranje teksta).
@@ -40,9 +41,10 @@ arhitektonskog pregleda ESP koda (vidi `docs/plan-esp.md`) i pregleda ekrana.
 - [ ] **L-1** mesto u arhitekturi: `lib/lidar.py` kao servis u petlji (`Loop`), model podataka za taktike:
       `opponent()` -> (x, y, udaljenost, starost) u koordinatama terena, `seen(zona)`.
       LIDAR_SCAN iz protocol.yaml (lidar na STM32) obrisati ili označiti kao rezervisano u protokolu v3.
-- [ ] **L-2** RPLIDAR A2: standardni SCAN (0x20), 115200 baud, 5 B po tački; parser u `@micropython.viper`
-      ili native modulu, UART rxbuf dovoljan za najduži krug petlje (meriti STAT); pin za MOTOCTL (PWM motora).
-      Test parsera na laptopu sa snimljenim podacima (`ESP32/sim/`), kao ostali host testovi.
+- [~] **L-2** RPLIDAR A2: standardni SCAN (0x20), 115200 baud, 5 B po tački: `lib/lidar.py` (INFO, HEALTH, SCAN,
+      resync, MOTOCTL PWM, rxbuf 4 KB, najviše 1000 B po krugu petlje). Meni → Lidar test (mapa + info).
+      Host testovi sa lažnim lidarom (`ESP32/sim/fakelidar.py`), i u simulatoru (vidi stvarni sto).
+      Ostaje: izmeriti trajanje parsera na S3 (VEZA/STAT, faza "ekran"); ako je sporo, viper; probati na lidaru.
 - [ ] **L-3** sinhronizacija sa pozom: STATUS stiže na 20 Hz (do 50 ms kašnjenja); interpolacija poze po
       vremenu prijema, filtriranje tačaka van terena, grupisanje u protivnika.
 - [ ] stavka „lidar“ na stranici PROVERA (GET_HEALTH, upozorenje).

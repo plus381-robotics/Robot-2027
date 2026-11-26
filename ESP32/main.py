@@ -56,6 +56,10 @@ def main():
     if getattr(cfg, "NEOPIXEL", None) is not None:    # RGB LED: stanje robota (lib/led.py)
         from led import Led
         services.append(("led", Led(app, cfg.NEOPIXEL).tick))
+    if getattr(cfg, "BUZZER", None) is not None:      # pasivni buzzer (lib/buzzer.py)
+        from buzzer import Buzzer
+        app.buzzer = Buzzer(app, cfg.BUZZER, getattr(cfg, "BUZZER_HZ", 2700))
+        services.append(("zvuk", app.buzzer.tick))
     loop = Loop(services, sleep_ms,
                 on_error=lambda faza, tekst: app.error("%s: %s" % (faza, tekst)))
     app.pump = loop.step                       # taktika ga zove dok čeka (tac.py)

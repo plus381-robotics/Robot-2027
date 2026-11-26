@@ -67,6 +67,8 @@ class Sim:
                            inputs=True, nrst=self._nrst_pins())
         self.stm = self.esp.stm
         self.app = self.esp.app
+        self.lidar = self._lidar_init()
+        self._buzz_n = 0
         if net:
             self._net(net)
         self.tracker = self.esp.tracker
@@ -216,6 +218,73 @@ class Sim:
     def t(self):
         return self.esp.now() - self.t0
 
+    # ---------------- lidar (lažni RPLIDAR na UART-u lidara, ESP32/sim/fakelidar.py) ----------------
+
+    def _lidar_init(self):
+        """Lažni lidar na config.LIDAR_UART: ESP ga otvara tek u Meni -> Lidar test. Vidi ivice stola i
+        prepreke više od ravni lidara (profil [lidar])."""
+        import config
+        import machine
+        import fakelidar
+        if getattr(config, "LIDAR_UART", None) is None:
+            return None
+        lp = self.prof.get("lidar", {})
+        self._lidar_p = (lp.get("x", 0) / 1000, lp.get("y", 0) / 1000, lp.get("z", 300),
+                         lp.get("see_walls", True), lp.get("max_range", 12000), getattr(config, "LIDAR_MOUNT_DEG", 0))
+        pin = getattr(config, "LIDAR_MOTOCTL", None)
+
+        def motor():
+            p = machine.PWM.pins.get(pin)
+            return pin is None or bool(p and p.duty_u16())
+        dev = fakelidar.FakeRplidar(self.esp.now, ranges=self.lidar_range, motor=motor)
+        machine.UART.devices[config.LIDAR_UART] = dev
+        return dev
+
+    def lidar_range(self, angle):
+        """Udaljenost (mm, 0 = ništa) koju lidar meri pod uglom angle (stepeni lidara, u smeru kazaljke)."""
+        ox, oy, z, walls, max_mm, mount = self._lidar_p
+        pl = self.stm.plant
+        c, s = math.cos(pl.th), math.sin(pl.th)
+        px, py = pl.x + ox * c - oy * s, pl.y + ox * s + oy * c
+        a = pl.th + math.radians(mount - angle)
+        dx, dy = math.cos(a), math.sin(a)
+        best = math.inf
+        if walls:
+            W, H = field.W / 1000, field.H / 1000
+            for t in ((W - px) / dx if dx > 1e-12 else math.inf, -px / dx if dx < -1e-12 else math.inf,
+                      (H - py) / dy if dy > 1e-12 else math.inf, -py / dy if dy < -1e-12 else math.inf):
+                if 0 < t < best:
+                    best = t
+        for o in self.stm.plant.obstacles:
+            if o.z < z:
+                continue
+            cx, cy = o.x / 1000 - px, o.y / 1000 - py
+            proj = cx * dx + cy * dy
+            if proj + o.radius() < 0 or proj - o.radius() > best:
+                continue                          # iza lidara ili dalje od već nađenog
+            if o.r:
+                r = o.r / 1000
+                disc = proj * proj - (cx * cx + cy * cy - r * r)
+                if disc >= 0:
+                    t = proj - math.sqrt(disc)
+                    if 0 < t < best:
+                        best = t
+                continue
+            poly = o.poly()
+            for i in range(len(poly)):
+                (x1, y1), (x2, y2) = poly[i], poly[(i + 1) % len(poly)]
+                ex, ey = x2 - x1, y2 - y1
+                den = dx * ey - dy * ex
+                if abs(den) < 1e-12:
+                    continue
+                qx, qy = x1 - px, y1 - py
+                t = (qx * ey - qy * ex) / den
+                u = (qx * dy - qy * dx) / den
+                if 0 < t < best and 0 <= u <= 1:
+                    best = t
+        mm = best * 1000
+        return mm if 150 <= mm <= max_mm else 0
+
     # ---------------- servis u ESP petlji (radi i dok taktika čeka) ----------------
 
     def _opp_init(self, side):
@@ -316,7 +385,14 @@ class Sim:
             b = bytes(sum(row[x * 8 + k] << (7 - k) for k in range(8)) for row in px for x in range(16))
             if b != self._screen or not fb.on:
                 self._screen = b
-                self.rec.event(t, "screen", {"b": base64.b64encode(b).decode(), "on": fb.on, "flip": fb.flip})
+                # flip: kako slika izgleda na robotu (ploča sa ekranom montiranim naopako ga već okreće)
+                rot = 1 if getattr(sys.modules.get("config"), "DISPLAY_ROT180", False) else 0
+                self.rec.event(t, "screen", {"b": base64.b64encode(b).decode(), "on": fb.on, "flip": fb.flip ^ rot})
+        bz = self.esp.buzzer
+        if bz is not None and bz.n != self._buzz_n:          # novi zvuk: ceo raspored tonova (web ga pušta)
+            self._buzz_n = bz.n
+            import buzzer as bzmod
+            self.rec.event(t, "buzzer", {"kind": bz.kind, "hz": bz.hz, "tones": list(bzmod.PATTERNS[bz.kind][1])})
         if t - self._last_frame >= FRAME_MS:
             self._last_frame = t - t % FRAME_MS
             s = st.snapshot()

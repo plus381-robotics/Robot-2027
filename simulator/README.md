@@ -72,6 +72,10 @@ STM32 i čeka, kao na stolu.
   enkoder ⟲ ● ⟳, BACK, OK, STOP. Tasteri idu kroz pravi `inputs.py` (lažni pinovi: debounce, dugi pritisak,
   kvadraturni enkoder), pa se meni, izbor taktike i strane, naoružavanje i "drži OK" ponašaju kao na
   robotu. Točkić miša na ekranu = enkoder.
+  - **Buzzer**: zvukovi sa robota (`ESP32/lib/buzzer.py`) se čuju u browseru (posle prvog klika na panel)
+    i trepće ♪ pored naslova; u dnevniku `[buzzer] greska`...
+  - **Lidar**: Meni → Lidar test radi sa lažnim RPLIDAR-om (`ESP32/sim/fakelidar.py`, isti bajtovi kao pravi)
+    koji vidi ivice stola, kamenolome i protivnike sa stola (profil `[lidar]`: položaj, visina ravni).
 - **Arm match** (izabrana taktika i strana), **Pull cord** (činč: meč kreće, 100 s), **Run test**, **STOP**.
 - **Follow**: prikaz prati robota; isključi ga (ili klikni na klizač/korak) da se vratiš unazad dok
   simulacija radi dalje.

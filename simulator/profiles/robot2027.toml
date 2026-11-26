@@ -85,3 +85,12 @@ low_z = 40             # visina donjih senzora (nije bitna, (P))
 high_z = 340           # (P) visina gornjih: iznad kutija
 see_walls = false
 see_elements = true    # (P) vide i kamenje u kamenolomima (330 mm visoko); false = samo protivnika
+
+[lidar]
+# Lidar (RPLIDAR A2, ESP32 lib/lidar.py): u simulatoru je lažni lidar (ESP32/sim/fakelidar.py) koji vidi
+# ivice stola i prepreke iz simulacije. Radi kad se na ESP-u otvori Meni -> Lidar test (Live).
+x = 0                  # (P) [mm] položaj lidara u odnosu na sredinu robota (+ = napred)
+y = 0                  # (P) [mm] (+ = levo)
+z = 300                # (P) visina ravni lidara: vidi prepreke više od ovoga (kamenolom 330, protivnik 350)
+see_walls = true       # pravi lidar vidi i sve oko stola (ivica je 70 mm); true = vidi ivicu stola kao zid
+max_range = 12000      # [mm] A2M8: 0.15 .. 12 m

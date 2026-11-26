@@ -126,6 +126,8 @@ button.live-on { background: #e5484d; border-color: #e5484d; color: #fff; }
 .ov-grid label.wide { grid-column: 1 / 3; }
 .ov-grid input[type=number] { width: 100%; padding: 2px 5px; }
 .esp-hint { text-transform: none; letter-spacing: 0; }
+.esp-buzz { visibility: hidden; color: #ffd65a; }
+.esp-buzz.on { visibility: visible; }
 
 /* ---------- F2: editor ---------- */
 #main.editing { grid-template-columns: minmax(420px, 42%) 1fr 380px; }

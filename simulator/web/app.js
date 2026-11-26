@@ -55,6 +55,7 @@ function buildRun(d) {
   for (const [t, kind, x] of d.events) {
     if (kind === 'log') log.push({ t, cls: /^GRESKA|PREKID/.test(x) ? 'err' : '', text: x });
     else if (kind === 'sim') log.push({ t, cls: 'sim', text: '[sim] ' + x.text });
+    else if (kind === 'buzzer') log.push({ t, cls: 'sim', text: '[buzzer] ' + x.kind });
     else if (kind === 'rx' || kind === 'tx') {
       const f = Object.entries(x.f || {}).map(([k, v]) => `${k}=${v}`).join(' ');
       log.push({ t, cls: 'proto', proto: true,
@@ -944,7 +945,10 @@ async function startLive() {
       if (m.frames.length) { L.raw.frames.push(...m.frames); L.dirty = true; }
       if (m.events.length) {
         L.raw.events.push(...m.events); L.dirty = true;
-        for (const e of m.events) if (e[1] === 'screen') L.screen = { t: e[0], ...e[2] };
+        for (const e of m.events) {
+          if (e[1] === 'screen') L.screen = { t: e[0], ...e[2] };
+          else if (e[1] === 'buzzer') esp.buzz(e[2], m.speed || 1);
+        }
       }
       if (L.follow) {
         if (L.screen) esp.setScreen(L.screen);

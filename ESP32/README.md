@@ -44,6 +44,8 @@ i svakih 50 ms šalje STATUS. Komanda se ponavlja do 3 puta ako ACK ne stigne za
 | taster NAZAD | 18 | 25 | nazad; dugi (≥ 0,6 s) = meni (zaključan dok je robot naoružan ili meč traje) |
 | taster OK | 11 | 26 | |
 | taster STOP | 17 | 27 | šalje STOP odmah, i kad je ekran ugašen |
+| buzzer (pasivni, PWM) | 13 | - | `lib/buzzer.py`, ton `BUZZER_HZ` (2700 Hz) |
+| lidar TX / RX / MOTOCTL | 47 / 21 / 48 | - | S3: UART2, konektor J3, RPLIDAR A2M8 na 115200; `lib/lidar.py` |
 
 STM32 NRST / BOOT0 na S3: 15 / 16. NRST na ESP32_Main ide preko MOSFET-a, pa je obrnut (1 = reset,
 `STM_NRST_INV` u `board_s3.py`, `lib/nrst.py`). Na S3 su rezervisani i pinovi koje kod još ne koristi
@@ -66,6 +68,29 @@ Stanje robota se vidi i bez ekrana (prvo pravilo koje važi):
 
 Svetlina: Meni → LED (iskl / slabo / srednje / jako).
 
+### Buzzer (S3, GPIO13, `lib/buzzer.py`)
+Pasivni buzzer, PWM bez blokiranja petlje (raspored tonova, servis "zvuk"):
+
+| Zvuk | Kada |
+|---|---|
+| 1 kratak | naoružan; potvrđena radnja (drži OK) |
+| 2 kratka | greška u dnevniku (korak nije uspeo van meča, greška servisa) |
+| 3 kratka | prekid preko celog ekrana: STOP, VEZA, PREKID taktike |
+| 1 dug | slaba baterija (kad bude merenja) |
+
+Meni → zvuk: iskl / greske (samo 3 kratka i dug) / sve. U meču (POZA, MEC) se čuje samo greška.
+Meni → test zvuka pušta svaki zvuk (i kad je zvuk isključen).
+
+### Lidar test (S3, `lib/lidar.py`, `lib/lidar_test.py`)
+Meni → **Lidar test**: pali motor (PWM na MOTOCTL), pita lidar GET_INFO i GET_HEALTH, pa pokreće SCAN.
+Izlaz (NAZAD, ili kad taktika krene) gasi skeniranje i motor; van ovog ekrana lidar ne radi.
+- **mapa**: poslednji krug odozgo, robot u sredini, napred = gore; okret enkodera menja razmeru
+  (0,5 / 1 / 2 / 4 m do gornje ivice), krstić = najbliža tačka (udaljenost dole desno).
+- **info** (OK): model, firmver, zdravlje, krugova/s i tačaka po krugu, najbliža tačka (ugao robota:
+  0° napred, + levo), odbačeni bajtovi (`losi B`, smetnje na liniji) i ponovna pokretanja (`rst`).
+- `nema odgovora`: proveri TX/RX (lidar TX → ESP 21, ESP 47 → lidar RX), 5 V i GND; `nema tacaka`: motor se ne vrti.
+- Ako lidar nije okrenut napred: `LIDAR_MOUNT_DEG` u `board_s3.py`. Brzina motora: `LIDAR_MOTOR_DUTY` (%).
+
 Pinovi su u `board_s3.py` i `board_wroom32.py`, a ploča se bira u `config.py`. Ako enkoder pravi 2 koraka po kliku (ili 1 na 2 klika), promeni `ENC_STEPS`.
 
 ### Ekran (telemetrija na robotu)
@@ -77,7 +102,9 @@ Okret enkodera menja stranicu; crta ispod naslova pokazuje na kojoj si.
 - **ROBOT**: x, y (mm), ugao (°), v (mm/s), stanje (`VOZI`, `BLOK`, `MEC`...) i starost STATUS-a.
 - **VEZA**: STM32 i verzija, okvira/s, CRC greške, ponavljanja, komande bez odgovora, IP.
 - Gore desno: preostalo vreme meča (inverzno poslednjih 10 s), WiFi i veza sa STM32 (trepće `x` kad nema).
-- Dugi NAZAD: meni (Podešavanja: kontrast, okretanje 180°, smer enkodera, gašenje, auto SET_POSE,
+- Na S3 je ekran montiran naopako: slika je okrenuta po difoltu (`DISPLAY_ROT180` u `board_s3.py`);
+  Meni → "okreni 180" je okreće još jednom.
+- Dugi NAZAD: meni (Podešavanja: kontrast, okretanje 180°, zvuk, test zvuka, Lidar test, smer enkodera, gašenje, auto SET_POSE,
   "test od START", "WDT mec*" (važi do restarta), **demo taktika** = lažni koraci samo za prikaz).
 - ROBOT, izveštaj i dnevnik su u koordinatama **naše strane** (kao taktika); telemetrija (tools/watch.py)
   u koordinatama terena.
