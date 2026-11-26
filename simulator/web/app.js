@@ -1264,6 +1264,7 @@ async function main() {
   };
   $('oppTac').onchange = editOpponent; $('oppSeed').onchange = editOpponent;
   $('oppDel').onclick = () => { opponents.splice(oppSel, 1); oppSel = -1; refreshOpponents(); opponentsChanged(true); };
+  $('oppClose').onclick = () => { oppSel = -1; refreshOpponents(); };       // samo zatvori: protivnik ostaje
   for (const id of ['oppX', 'oppY', 'oppW', 'oppH', 'oppTh', 'oppZ', 'oppRound']) $(id).onchange = editOpponent;
   $('liveBtn').onclick = () => (live ? liveSend(['quit']) : startLive());
   for (const id of ['tabSim', 'tabLive', 'tabRobot']) $(id).title = { tabSim: 'Fast simulation: the whole match in a few seconds, then play it back',

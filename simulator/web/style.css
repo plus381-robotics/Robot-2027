@@ -121,6 +121,7 @@ button.live-on { background: #e5484d; border-color: #e5484d; color: #fff; }
 .esp-btns button.down { background: var(--accent); color: #fff; }
 #espPanel:not(.live) .esp-btns button { opacity: .45; cursor: default; }
 #oppEdit { left: 8px; bottom: 36px; width: 250px; }
+#oppEdit .row { display: flex; justify-content: flex-end; margin-top: 6px; }
 .ov-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-bottom: 4px; }
 .ov-grid label { display: flex; gap: 5px; align-items: center; color: var(--dim); }
 .ov-grid label.wide { grid-column: 1 / 3; }

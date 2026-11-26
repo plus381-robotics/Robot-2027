@@ -172,7 +172,7 @@
       <div class="dim small"><span id="elPos"></span> · drag on the table to move · the robot pushes quarries</div>
     </div>
     <div id="oppEdit" class="overlay" hidden>
-      <div class="ov-title">Opponent <span id="oppName" class="dim"></span> <button id="oppDel" title="Remove">✕</button></div>
+      <div class="ov-title">Opponent <span id="oppName" class="dim"></span> <button id="oppClose" title="Close (the opponent stays on the table)">✕</button></div>
       <div class="ov-grid">
         <label>x <input type="number" id="oppX" step="10"></label><label>y <input type="number" id="oppY" step="10"></label>
         <label>w <input type="number" id="oppW" step="10" min="20"></label><label>h <input type="number" id="oppH" step="10" min="20"></label>
@@ -182,6 +182,7 @@
         <label class="wide">seed <input type="number" id="oppSeed" min="1" step="1" title="For random tactics: same seed = same match"></label>
       </div>
       <div class="dim small">drag on the table to move · simulation re-runs on release</div>
+      <div class="row"><button id="oppDel" class="danger" title="Remove this opponent from the table">remove</button></div>
     </div>
     <div id="espPanel" class="overlay">
       <div class="ov-title">ESP <span class="esp-buzz" title="buzzer">♪</span> <span class="esp-hint dim small"></span></div>
