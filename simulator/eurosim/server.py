@@ -31,6 +31,16 @@ PORT = 8270
 STATE = web.AppKey("state", dict)          # {"profile": Profile, "last": poslednji snimak (dict)}
 
 
+def _tactic_names():
+    """Imena taktika iz ESP32/tactics (bez .py)."""
+    return {f.stem for f in paths.TACTICS.glob("*.py")}
+
+
+def _dumps(o):
+    """Zbijen JSON za veće odgovore i WebSocket poruke."""
+    return json.dumps(o, separators=(",", ":"))
+
+
 # ---------------- simulacija u posebnom procesu ----------------
 
 def _staged(kw):
@@ -152,7 +162,7 @@ def _ir_layout(prof):
 
 async def info(request):
     prof = request.app[STATE]["profile"]
-    tactics = sorted(f.stem for f in paths.TACTICS.glob("*.py"))
+    tactics = sorted(_tactic_names())
     return web.json_response({
         "tactics": tactics, "field": field.describe(),
         "profile": {"name": prof.get("name"), "body": prof["body"], "drive": prof["drive"],
@@ -216,7 +226,7 @@ async def run(request):
     if source is not None:
         if not tacmod.NAME_RE.match(name or ""):
             return web.json_response({"error": "neispravno ime taktike %r" % name}, status=400)
-    elif name not in {f.stem for f in paths.TACTICS.glob("*.py")}:
+    elif name not in _tactic_names():
         return web.json_response({"error": "nema taktike %r" % name}, status=400)
     else:
         source = (paths.TACTICS / (name + ".py")).read_text(encoding="utf-8")
@@ -239,7 +249,7 @@ async def run(request):
     out = pack(res)
     out["diagnostics"] = diags + tacmod.runtime_diags(res)
     out["wall_s"] = round(time.time() - t0, 2)
-    return web.json_response(out, dumps=lambda o: json.dumps(o, separators=(",", ":")))
+    return web.json_response(out, dumps=_dumps)
 
 
 def _runs():
@@ -274,7 +284,7 @@ async def run_load(request):
         return web.json_response({"error": "nema snimka %s" % name}, status=404)
     r = Recording.load(f)
     request.app[STATE]["last"] = r.to_dict()
-    return web.json_response(pack(r.to_dict()), dumps=lambda o: json.dumps(o, separators=(",", ":")))
+    return web.json_response(pack(r.to_dict()), dumps=_dumps)
 
 
 async def live(request):
@@ -283,7 +293,7 @@ async def live(request):
     ws = web.WebSocketResponse(heartbeat=20, max_msg_size=32 * 1024 * 1024)
     await ws.prepare(request)
     q = request.query
-    names = {f.stem for f in paths.TACTICS.glob("*.py")}
+    names = _tactic_names()
     tactic = q.get("tactic") if q.get("tactic") in names else None
     staged = request.app[STATE].get("staged", {}).pop(q.get("stage"), None)
     try:
@@ -302,7 +312,6 @@ async def live(request):
     p.start()
     b.close()
     loop = asyncio.get_running_loop()
-    dumps = lambda o: json.dumps(o, separators=(",", ":"))   # noqa: E731
 
     async def outgoing():
         while True:
@@ -310,7 +319,7 @@ async def live(request):
                 has = await loop.run_in_executor(None, a.poll, 0.2)
                 if not has:
                     if not p.is_alive():
-                        await ws.send_str(dumps({"type": "error", "error": "proces simulacije je stao"}))
+                        await ws.send_str(_dumps({"type": "error", "error": "proces simulacije je stao"}))
                         return
                     continue
                 kind, d = a.recv()
@@ -319,13 +328,13 @@ async def live(request):
             if ws.closed:
                 return
             if kind == "data":
-                await ws.send_str(dumps({"type": "data", **d}))
+                await ws.send_str(_dumps({"type": "data", **d}))
             elif kind == "end":
                 request.app[STATE]["last"] = d
-                await ws.send_str(dumps({"type": "end", "run": pack(d)}))
+                await ws.send_str(_dumps({"type": "end", "run": pack(d)}))
                 return
             else:
-                await ws.send_str(dumps({"type": "error", "error": d}))
+                await ws.send_str(_dumps({"type": "error", "error": d}))
                 return
 
     task = asyncio.create_task(outgoing())
@@ -487,7 +496,7 @@ async def stage(request):
 # ---------------- pravi robot (F5) ----------------
 
 async def robot_ws(request):
-    """WebSocket /ws/robot?host=..&password=..: telemetrija robota + komande (push, run, stop, stat).
+    """WebSocket /ws/robot?host=..&password=..: telemetrija robota + komande (push, run, stop).
     Isti oblik podataka kao /ws/live; na kraju {"type": "end", "run": snimak}."""
     from . import robotlink
     ws = web.WebSocketResponse(heartbeat=20, max_msg_size=32 * 1024 * 1024)
@@ -495,11 +504,10 @@ async def robot_ws(request):
     q = request.query
     host = q.get("host") or "eurokik.local"
     pw = q.get("password") or robotlink.default_password()
-    dumps = lambda o: json.dumps(o, separators=(",", ":"))   # noqa: E731
 
     async def emit(d):
         if not ws.closed:
-            await ws.send_str(dumps({"type": "data", **d}))
+            await ws.send_str(_dumps({"type": "data", **d}))
 
     link = robotlink.RobotLink(host, pw, emit, request.app[STATE]["profile"],
                                upload_port=int(q.get("port") or robotlink.UPLOAD_PORT),
@@ -507,7 +515,7 @@ async def robot_ws(request):
     try:
         await link.start()
     except OSError as e:
-        await ws.send_str(dumps({"type": "error", "error": "ne mogu da nađem %s: %s (probaj IP adresu sa ekrana "
+        await ws.send_str(_dumps({"type": "error", "error": "ne mogu da nađem %s: %s (probaj IP adresu sa ekrana "
                                                         "VEZA)" % (host, e)}))
         await ws.close()
         return ws
@@ -515,7 +523,7 @@ async def robot_ws(request):
 
     async def reply(c, ok, lines):
         if not ws.closed:
-            await ws.send_str(dumps({"type": "reply", "cmd": c, "ok": ok, "lines": lines}))
+            await ws.send_str(_dumps({"type": "reply", "cmd": c, "ok": ok, "lines": lines}))
 
     try:
         ok, lines = await link.cmd("STAT")
@@ -546,9 +554,6 @@ async def robot_ws(request):
             elif k == "stop":
                 ok, lines = await link.cmd("STOP")
                 await reply(k, ok, lines)
-            elif k == "stat":
-                ok, lines = await link.cmd("STAT")
-                await reply(k, ok, lines)
     finally:
         pump.cancel()
         link.close()
@@ -556,7 +561,7 @@ async def robot_ws(request):
         if res["frames"]:
             request.app[STATE]["last"] = res
         if not ws.closed:
-            await ws.send_str(dumps({"type": "end", "run": pack(res) if res["frames"] else None}))
+            await ws.send_str(_dumps({"type": "end", "run": pack(res) if res["frames"] else None}))
             await ws.close()
     return ws
 
@@ -581,7 +586,7 @@ async def vrobot(request):
         st["vrobot"] = None
         if q.get("action") == "stop":
             return web.json_response({"running": False})
-    names = {f.stem for f in paths.TACTICS.glob("*.py")}
+    names = _tactic_names()
     kw = dict(name=q.get("tactic") if q.get("tactic") in names else None, side=q.get("side", "zuta"),
               prof=st["profile"], obstacles=q.get("obstacles") or [],
               net={"upload": int(q.get("port", 8267)), "telem": int(q.get("telem", 8268)), "password": "eurosim"})

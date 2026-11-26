@@ -444,11 +444,6 @@ export class FieldView {
         this.odomSeg.push(i);
       }
     }
-    const mk = (arr, mat) => {
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
-      const l = new THREE.Line(g, mat); this.dyn.add(l); return l;
-    };
     // putanja: traka 14 mm, boja po koraku; cela bleda, pređeni deo puna
     const xy = [], cols = [];
     let si = -1;

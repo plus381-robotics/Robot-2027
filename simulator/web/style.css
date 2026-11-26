@@ -68,7 +68,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
 #stepbar.over { background: var(--fail); }
 
 #steps { width: 100%; border-collapse: collapse; }
-#stepscard .tablewrap, #steps { display: block; overflow-y: auto; flex: 1; }
+#steps { display: block; overflow-y: auto; flex: 1; }
 #steps thead, #steps tbody tr { display: table; width: 100%; table-layout: fixed; }
 #steps th { color: var(--dim); text-align: left; font-weight: normal; }
 #steps th:nth-child(1), #steps td:nth-child(1) { width: 26px; }
@@ -106,7 +106,6 @@ button.on { border-color: var(--accent); color: var(--accent); }
 .group { display: inline-flex; gap: 6px; align-items: center; padding-left: 8px; border-left: 1px solid var(--line); }
 .group[hidden] { display: none; }
 button.danger { background: #b3261e; border-color: #e5484d; color: #fff; font-weight: 600; }
-button.live-on { background: #e5484d; border-color: #e5484d; color: #fff; }
 .overlay { position: absolute; background: #1a1f26ee; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 .overlay[hidden] { display: none; }
 .ov-title { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--dim); margin-bottom: 6px;

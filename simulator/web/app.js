@@ -3,12 +3,12 @@
 import { FieldView } from './view3d.js';
 import { Charts } from './charts.js';
 import { EspPanel } from './esp.js';
+import { mirrorX } from './side.js';
 
 const $ = id => document.getElementById(id);
 const SIDE_NAME = { plava: 'Blue', zuta: 'Yellow' };
 const REASON = { BLOCKED: 'blocked', TIMEOUT: 'timeout', PREEMPTED: 'preempted', MATCH_OVER: 'match over',
   STOPPED: 'stopped', INVALID: 'rejected', NOREPLY: 'no reply', SUPERSEDED: 'superseded', STOP: 'STOP' };
-const FIELD_X = 3000;
 const LIDAR_HOLD_MS = 400;          // tačke lidara se brišu kad ovoliko nema novog kruga (lidar stao)
 let REF_SIDE = 'zuta';                // strana za koju se pišu taktike (ESP32/lib/tac.py), stiže sa servera
 
@@ -640,13 +640,11 @@ function fillTacticSelects() {                  // jedna lista taktika (gore); e
 
 // Kartice Simulate / Live / Robot (plan U1): drugi red pokazuje samo dugmad izabrane kartice. Dok traje Live
 // ili veza sa robotom, ostale kartice su zaključane (prvo End / Disconnect).
-let tab = 'sim';
 function setTab(t) {
   if (live && ((live.kind === 'robot') !== (t === 'robot') || (!live.kind && t !== 'live'))) {
     msg(live.kind === 'robot' ? 'disconnect from the robot first' : 'end Live first', true);
     return;
   }
-  tab = t;
   for (const b of document.querySelectorAll('.tabs button')) b.classList.toggle('on', b.dataset.tab === t);
   $('rowSim').hidden = t !== 'sim'; $('rowLive').hidden = t !== 'live'; $('rowRobot').hidden = t !== 'robot';
   try { localStorage.setItem('eurosim.tab', t); } catch (e) { /* ignore */ }
@@ -689,7 +687,7 @@ function edCursor(line) {
   const c = p && p.cmds ? [...p.cmds].reverse().find(k => k.line === line && k.target) : null;
   if (!c) { view.setCursorPoint(null); return; }
   const [fx, fy] = c.target;
-  const tx = side === REF_SIDE ? fx : FIELD_X - fx;          // u koordinatama taktike (žuta)
+  const tx = mirrorX(fx, side, REF_SIDE);          // u koordinatama taktike (žuta)
   view.setCursorPoint([fx, fy], `x = ${Math.round(tx)} mm from the left edge · y = ${Math.round(fy)} mm from the bottom`);
 }
 
@@ -1007,6 +1005,7 @@ function stopLiveUi() {
   setRealtime(false);
   api('/api/info').then(i => { info = i; fillLidarSources(); }).catch(() => {});   // nov snimak lidara u listi
   try { live.ws.close(); } catch (e) { /* ignore */ }
+  if (live.virtual) api('/api/vrobot', { action: 'stop' }).catch(() => {});   // virtuelni robot ne sme da ostane da radi
   live = null;
   $('bandCord').hidden = true;
   $('liveGroup').hidden = true;
@@ -1034,13 +1033,13 @@ function liveData(m) {                          // shared by Live and Robot: app
   return f;
 }
 
-function startRobot(host, password, label) {
+function startRobot(host, password, label, virtual = false) {
   if (live) return;
   setPlaying(false);
   $('robotConnect').hidden = true;
   const q = new URLSearchParams({ host, password });
   const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/robot?${q}`);
-  live = { kind: 'robot', ws, raw: { meta: null, frames: [], events: [] }, follow: true, dirty: false, host };
+  live = { kind: 'robot', ws, raw: { meta: null, frames: [], events: [] }, follow: true, dirty: false, host, virtual };
   $('robotGroup').hidden = false;
   $('robotBtn').hidden = true;                    // u Robot kartici sada: Push, Push & Run, STOP... Disconnect
   $('run').disabled = true; $('result').style.display = 'none';
@@ -1240,7 +1239,7 @@ async function main() {
   view.onHover = p => {
     if (!p) { $('cursor').textContent = ''; return; }
     const side = run ? run.meta.side : $('side').value;
-    const tx = side === REF_SIDE ? p[0] : FIELD_X - p[0];
+    const tx = mirrorX(p[0], side, REF_SIDE);
     $('cursor').textContent = `field ${Math.round(p[0])}, ${Math.round(p[1])}` +
       (side !== REF_SIDE ? `   ·   in tactic (${SIDE_NAME[REF_SIDE]}) ${Math.round(tx)}, ${Math.round(p[1])}` : '') +
       '   (double-click: copy)';
@@ -1249,13 +1248,13 @@ async function main() {
   view.onAltPick = p => {                                   // Alt+klik: tačka sa mape u editor (koordinate taktike)
     if (!ed) { msg('open the editor to put a point into a tactic (Alt+click)'); return; }
     const side = $('side').value;
-    const x = Math.round((side === REF_SIDE ? p[0] : FIELD_X - p[0]) / 10) * 10, y = Math.round(p[1] / 10) * 10;
+    const x = Math.round(mirrorX(p[0], side, REF_SIDE) / 10) * 10, y = Math.round(p[1] / 10) * 10;
     ed.editor.putPoint(x, y);
     msg(`goto ${x}, ${y} (tactic coordinates, ${SIDE_NAME[REF_SIDE]} side)`);
   };
   view.onPick = p => {
     const side = run ? run.meta.side : $('side').value;
-    const x = side === REF_SIDE ? p[0] : FIELD_X - p[0];
+    const x = mirrorX(p[0], side, REF_SIDE);
     const s = `${Math.round(x)}, ${Math.round(p[1])}`;
     navigator.clipboard?.writeText(s);
     msg(`copied ${s} (tactic coordinates)`);
@@ -1308,7 +1307,7 @@ async function main() {
     msg('starting a virtual robot (real ESP code, simulated STM32) on 127.0.0.1…');
     try {
       const d = await api('/api/vrobot', { action: 'start', tactic: curTactic(), side: $('side').value, obstacles: opponents });
-      startRobot(d.host, d.password, 'virtual (127.0.0.1)');
+      startRobot(d.host, d.password, 'virtual (127.0.0.1)', true);
     } catch (e) { msg(e.message, true); }
   };
   $('rPush').onclick = () => { const [n, src] = robotTactic(); liveSend(['push', n, src]); msg(`sending ${n}…`); };

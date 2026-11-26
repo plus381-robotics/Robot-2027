@@ -205,3 +205,24 @@ def test_scenariji_i_izmenjeni_kamenolomi(base, tmp_path, monkeypatch):
     assert post(base + "/api/scenarios/save", {"name": "../x", "elements": []})[0] == 400
     st, r = post(base + "/api/run", {"tactic": "primer", "mode": "test", "elements": el})
     assert st == 200 and r["meta"]["elements"][0]["z"] == 110
+
+
+def test_tactic_names_i_dumps():
+    assert "primer" in server._tactic_names()
+    assert server._dumps({"a": [1, 2]}) == '{"a":[1,2]}'
+
+
+def _port_otvoren(port):
+    with socket.socket() as s:
+        s.settimeout(0.5)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def test_vrobot_stop_gasi_proces(base):
+    code, d = post(base + "/api/vrobot", {"action": "start", "port": 18267, "telem": 18268})
+    assert code == 200 and d["running"] is True
+    assert _port_otvoren(18267)
+    code, d = post(base + "/api/vrobot", {"action": "stop"})
+    assert code == 200 and d == {"running": False}
+    assert not _port_otvoren(18267)           # proces je mrtav, pa niko ne sluša
+    assert post(base + "/api/vrobot", {"action": "stop"})[1] == {"running": False}

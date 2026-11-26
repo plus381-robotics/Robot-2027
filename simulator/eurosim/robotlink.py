@@ -26,14 +26,11 @@ def espnet():
 
 
 def default_password():
-    """Lozinka iz ESP32/webrepl_cfg.py (kao tools/*.py), ako postoji."""
-    import re
-    f = paths.ESP / "webrepl_cfg.py"
-    if f.exists():
-        m = re.search(r"PASS\s*=\s*['\"](.*)['\"]", f.read_text(encoding="utf-8"))
-        if m:
-            return m.group(1)
-    return ""
+    """Lozinka iz ESP32/webrepl_cfg.py (isto traženje kao tools/espnet.py), ili "" ako je nema."""
+    try:
+        return espnet().password()
+    except (SystemExit, ImportError):            # espnet.password() izlazi kad nema lozinke
+        return ""
 
 
 def command(host, pw, cmd, data=b"", port=UPLOAD_PORT, timeout=15):
