@@ -53,3 +53,43 @@ def test_sim_meta_ima_origin_i_sha():
     assert m["origin"]["parts"]["pogon"] == "sim" and m["origin"]["parts"]["lidar"] == "sim"
     assert m["tactic_sha"] == tactics.sha(m["source"])
     assert m["scenario"] is None and isinstance(m["source"], str)
+
+
+def _steps(r):
+    return [e[2] for e in r.events if e[1] == "step_end"]
+
+
+def _pk(t, step=None, **kw):
+    d = {"t": t, "tac": "tt", "i": 1, "side": "zuta", "n": 3}
+    if step:
+        d["step"] = step
+    d.update(kw)
+    return d
+
+
+def test_step_end_log_pa_telemetrija_jedan_dogadjaj():
+    r = robotlink.TelemRecorder({})
+    r.feed(_pk(1000, "x"), 0)
+    r.feed(_pk(1100, None, log=["x: OK 0.1s"]), 0)        # korak se zatvara, dnevnik daje ishod
+    r.feed(_pk(1200, None, step_end=[1, "x", True, None, 100]), 0)
+    assert len(_steps(r)) == 1
+
+
+def test_step_end_ponovljen_korak_ne_gubi_ishod():
+    r = robotlink.TelemRecorder({})
+    r.feed(_pk(1000, "x"), 0)
+    r.feed(_pk(1100, None, log=["x: OK 0.1s"]), 0)
+    r.feed(_pk(1200, None, step_end=[1, "x", True, None, 100]), 0)
+    r.feed(_pk(2000, "x"), 0)                              # isti indeks ponovo
+    r.feed(_pk(2100, None, log=["x: BLOCKED"]), 0)
+    s = _steps(r)
+    assert len(s) == 2 and s[1][2] is False and s[1][3] == "BLOCKED"
+
+
+def test_step_end_telemetrija_pre_zatvaranja_jedan_dogadjaj():
+    r = robotlink.TelemRecorder({})
+    r.feed(_pk(1000, "x"), 0)
+    r.feed(_pk(1100, "x", step_end=[1, "x", True, None, 100]), 0)
+    r.feed(_pk(1200, None, log=["x: OK 0.1s"]), 0)
+    r.feed(_pk(3000, None), 0)
+    assert len(_steps(r)) == 1

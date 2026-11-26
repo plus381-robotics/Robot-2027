@@ -56,7 +56,7 @@ class TelemRecorder:
         self.tac = None
         self.pending = []            # zatvoreni koraci koji čekaju red dnevnika sa ishodom
         self.recent = []             # (t, red) poslednji redovi dnevnika
-        self.ended = set()           # koraci čiji je ishod stigao u telemetriji (step_end)
+        self.ended = set()           # (i, ime) koraka čiji je step_end već zabeležen (do sledećeg pokretanja tog koraka)
         self.last_rx = None
 
     def feed(self, d, now_ms):
@@ -71,17 +71,21 @@ class TelemRecorder:
         if tac and tac != self.tac:
             self.events.append([t, "tactic", [tac, d.get("side")]])
             self.meta.update(tactic=tac, side=d.get("side"), total=d.get("n"))
+            self.ended.clear()
         self.tac = tac
+        se = d.get("step_end")       # noviji firmver šalje ishod koraka; dnevnik je samo za stari
+        if se and (se[0], se[1]) not in self.ended:
+            k = (se[0], se[1])
+            self.pending = [p for p in self.pending if (p[0], p[1]) != k]
+            self.ended.add(k)
+            self.events.append([t, "step_end", list(se)])
         key = (tac, d.get("i"), d.get("step")) if tac and d.get("step") else None
         if self.cur and (key is None or key != self.cur[:3]):
             self._close(t)
         if key and (self.cur is None or key != self.cur[:3]):
             self.cur = key + (d.get("to"), d.get("nx"), t)
+            self.ended.discard((key[1], key[2]))
             self.events.append([t, "step", [d.get("i"), d.get("step"), d.get("to"), d.get("nx")]])
-        se = d.get("step_end")       # noviji firmver šalje ishod koraka; dnevnik je samo za stari
-        if se:
-            self.ended.add(se[0])
-            self.events.append([t, "step_end", list(se)])
         self._resolve(t)
         if "x" in d:
             st = d.get("st", 0)
@@ -115,16 +119,14 @@ class TelemRecorder:
 
     def _close(self, t):
         tac, i, name, to, nx, t0 = self.cur
-        self.pending.append([i, name, t0, t])
+        if (i, name) not in self.ended:          # ishod je već stigao u telemetriji
+            self.pending.append([i, name, t0, t])
         self.cur = None
 
     def _resolve(self, t, force=False):
         """Ishod koraka iz dnevnika (tac.py piše "<korak>: OK 1.3s" ili "<korak>: BLOCKED")."""
         keep = []
         for i, name, t0, t1 in self.pending:
-            if i in self.ended:
-                self.ended.discard(i)
-                continue
             res = None
             for tl, line in self.recent:
                 if tl >= t0 and line.startswith(name + ": "):
@@ -134,6 +136,7 @@ class TelemRecorder:
             if res or force or t - t1 > 1500:
                 ok, reason = res or (None, "?")
                 self.events.append([t1, "step_end", [i, name, ok, reason, t1 - t0]])
+                self.ended.add((i, name))
             else:
                 keep.append([i, name, t0, t1])
         self.pending = keep
