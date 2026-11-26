@@ -1,3 +1,5 @@
+> Zamenjeno: vidi docs/redizajn-ui.md
+
 # Pregled arhitekture: eurosim + web, prema `docs/plan-redizajn-interfejsa.md`
 
 Datum: 2026-11-26. **Stanje: predlog, ništa još nije urađeno.** Svaka faza ide posle odobrenja, sa lokalnim

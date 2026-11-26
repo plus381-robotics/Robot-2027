@@ -1,3 +1,5 @@
+> Zamenjeno: vidi docs/redizajn-ui.md
+
 # Eurosim → jedan interfejs za robota (Eurobot 2027): režimi rada
 
 Datum: 2026-11-26. Nivo: režimi, zadaci, šta je uvek vidljivo, izvori podataka. Izgled i kod dolaze posle
