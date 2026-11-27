@@ -35,7 +35,9 @@ async def stages(request):
         q = await request.json()
     except ValueError:
         return _bad("neispravan JSON")
-    scan, pose = (q or {}).get("scan"), (q or {}).get("pose")
+    if not isinstance(q, dict):
+        return _bad("telo: {scan, pose}")
+    scan, pose = q.get("scan"), q.get("pose")
     if not isinstance(scan, dict) or not isinstance(scan.get("pts", []), list) \
             or len(scan.get("pts", [])) > 2 * lidarview.MAX_PTS or not all(_num(v) for v in scan.get("pts", [])):
         return _bad("scan: {pts: [ugao, mm, ...], o, near, hz}")

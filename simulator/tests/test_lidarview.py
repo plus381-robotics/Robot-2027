@@ -140,10 +140,14 @@ def test_endpoint_stages(tmp_path):
         nopose = await c.post("/api/lidar/stages", json={"scan": scan_of([(0, 400)]), "pose": None})
         bad = await c.post("/api/lidar/stages", json={"scan": {"pts": "x"}, "pose": None})
         bad2 = await c.post("/api/lidar/stages", json={"scan": scan_of([(0, 400)]), "pose": [1, 2]})
-        return ok.status, await ok.json(), (await nopose.json())["frame"], bad.status, bad2.status
-    st, d, frame, bad, bad2 = _client(go)
+        odd = [(await c.post("/api/lidar/stages", json=b)).status for b in ([1, 2], "x", None, 5)]
+        broken = (await c.post("/api/lidar/stages", data=b"{nije json",
+                               headers={"Content-Type": "application/json"})).status
+        return ok.status, await ok.json(), (await nopose.json())["frame"], bad.status, bad2.status, odd, broken
+    st, d, frame, bad, bad2, odd, broken = _client(go)
     assert st == 200 and d["out"] == [[3200, 1400]] and d["by"] == "laptop"
     assert frame == "robot" and bad == 400 and bad2 == 400
+    assert odd == [400, 400, 400, 400] and broken == 400            # telo nije objekat: 400, ne 500
 
 
 def test_endpoint_snimci_lidara(tmp_path, monkeypatch):
@@ -211,14 +215,17 @@ def test_robot_upali_lidar_i_snimi_krugove(tmp_path, monkeypatch):
                 await asyncio.sleep(0.2)
                 ev += [e for e in (await s.poll())["events"] if e[1] == "lidar"]
             stop = await s.command(["lidar", "rec", False])
+            tele = {k: (await s.poll()).get(k) for k in ("esp_mec", "lidar_state", "lidar_seen")}
             off = await s.command(["lidar", "off"])
             bad = await s.command(["lidar", "x"])
-            return empty_stop, on, rec, ev, stop, off, bad
+            return empty_stop, on, rec, ev, stop, off, bad, tele
         finally:
             await s.close()
             sim.command(("quit",))
             th.join(5)
-    empty_stop, on, rec, ev, stop, off, bad = asyncio.run(go())
+    empty_stop, on, rec, ev, stop, off, bad, tele = asyncio.run(go())
+    assert tele["lidar_seen"] is True and tele["lidar_state"] not in (None, "off")   # telemetrija javlja stanje lidara
+    assert tele["esp_mec"] == "NEMA"
     assert empty_stop["lidar"]["saved"] is None and "ništa" in empty_stop["lines"][-1]
     assert on["ok"] and on["cmd"] == "lidar" and on["lidar"]["on"] is True and on["lidar"]["state"] not in (None, "off")
     assert rec["ok"] and rec["lidar"]["rec"].endswith(".jsonl.gz")

@@ -59,12 +59,18 @@ class TelemRecorder:
         self.recent = []             # (t, red) poslednji redovi dnevnika
         self.ended = set()           # (i, ime) koraka čiji je step_end već zabeležen (do sledećeg pokretanja tog koraka)
         self.last_rx = None
+        self.esp_mec = None          # stanje meča iz poslednjeg paketa (i bez STM32-a, kad frame-ova nema)
+        self.lidar_state = None      # stanje lidara na ESP-u (telem.py "lidar"; nema ključa = ugašen)
+        self.lidar_seen = False      # telemetrija je bar jednom javila stanje lidara (stariji firmver ga ne šalje)
 
     def feed(self, d, now_ms):
         if self.t_first is None:
             self.t_first = d.get("t", 0)
         t = d.get("t", 0) - self.t_first
         self.last_rx = now_ms
+        self.esp_mec = d.get("mec", self.esp_mec)
+        self.lidar_state = d.get("lidar")
+        self.lidar_seen = self.lidar_seen or "lidar" in d
         for line in d.get("log", []):
             self.events.append([t, "log", line])
             self.recent = (self.recent + [(t, line)])[-30:]
@@ -260,7 +266,8 @@ class RobotLink:
         age = None if r.last_rx is None else self.now() - r.last_rx
         await self.emit({"frames": r.frames[nf:], "events": r.events[ne:], "meta": r.meta if nf == 0 else None,
                          "t": r.frames[-1]["t"] if r.frames else 0, "age": age, "packets": self.packets,
-                         "running": r.tac, "mec": r.frames[-1]["mec"] if r.frames else None})
+                         "running": r.tac, "mec": r.frames[-1]["mec"] if r.frames else None,
+                         "esp_mec": r.esp_mec, "lidar_state": r.lidar_state, "lidar_seen": r.lidar_seen})
         self.sent = (len(r.frames), len(r.events))
 
     async def cmd(self, *args, data=b""):

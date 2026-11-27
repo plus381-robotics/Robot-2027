@@ -14,6 +14,10 @@
 //   playIndex(scans, elapsed, loop) {i, done}: krug snimka u trenutku elapsed (ms od početka puštanja)
 //   fmtAge(ms), fmtGroup(g), statsRows(scan, stages, now)  brojke za karticu Lidar
 //   loadPrefs() / savePrefs(p)      localStorage `eurosim.lidar` {src, file, layers, range, loop} (try/catch)
+//   robotLidarView(st, sent)        dugmad Upali/Ugasi lidar i Snimi krugove: {robot, on, state, onDisabled, recDisabled,
+//                                   reason}. st = store (session, running, robotMec, robotLidar, robotLidarSeen); sent =
+//                                   šta je panel poslao {on, rec}. ESP odbija LIDAR ON/OFF dok taktika radi, dok je robot
+//                                   naoružan ili meč traje (upload.py BUSY_OK), pa su tada siva sa razlogom.
 
 export const LAYERS = [
   { id: 'sirovo', label: 'sirovo', title: 'Sve tačke kruga (na stolu: tačke u stolu)' },
@@ -101,6 +105,23 @@ export function statsRows(scan, stages, now) {
       'izračunao robot: lib/lidar.py _closest (najbliži bin, ugao + levo)'],
   ];
   return rows;
+}
+
+export const BUSY_MEC = { RESET: 'robot je naoružan', NAORUZAN: 'robot je naoružan', POZA: 'robot je naoružan',
+  MEC: 'meč traje' };                               // ESP32/lib/match.py armed: upload odbija sve osim LOG/STOP/STAT
+
+export function robotLidarView(st = {}, sent = {}) {
+  const ses = st.session, robot = !!(ses && ses.kind === 'robot');
+  if (!robot) {
+    const reason = ses ? 'samo uz ROBOT sesiju (u simulaciji: ESP meni → Lidar test)' : 'samo uz ROBOT sesiju (Vožnja → ROBOT → Pokreni sesiju)';
+    return { robot, on: false, state: null, onDisabled: true, recDisabled: true, reason };
+  }
+  const busy = st.running ? `taktika ${st.running} radi` : BUSY_MEC[st.robotMec] || null;
+  const reason = busy ? `${busy}: ESP odbija LIDAR ON/OFF dok taktika radi, dok je naoružan ili dok meč traje (i sam gasi lidar)` : '';
+  const seen = !!st.robotLidarSeen;                // telemetrija javlja stanje lidara: to je istina; inače ono što je panel poslao
+  const state = seen ? st.robotLidar || null : sent.state || null;
+  const on = seen ? !!state && state !== 'off' : !!sent.on;
+  return { robot, on, state, onDisabled: !!busy, recDisabled: !!busy && !sent.rec, reason };
 }
 
 const clean = p => {

@@ -1,7 +1,7 @@
 // Testovi za web/core/lidar.js (Test dela → Lidar): projekcije radar / sto, slojevi, puštanje snimka, brojke, prefs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scanPose, radarView, radarXY, tableView, tableXY, layerItems, playIndex, fmtAge, fmtGroup, statsRows,
+import { robotLidarView, scanPose, radarView, radarXY, tableView, tableXY, layerItems, playIndex, fmtAge, fmtGroup, statsRows,
   loadPrefs, savePrefs, PREFS_KEY, DEFAULT_PREFS } from '../../web/core/lidar.js';
 
 // Međukoraci kao iz POST /api/lidar/stages (eurosim/lidarview.py).
@@ -114,4 +114,33 @@ test('prefs: localStorage eurosim.lidar, pokvaren ili nedostupan -> podrazumevan
   assert.deepEqual(loadPrefs(bad), DEFAULT_PREFS);
   savePrefs(DEFAULT_PREFS, bad);                              // ne baca
   assert.deepEqual(loadPrefs(undefined), DEFAULT_PREFS);
+});
+
+test('robotLidarView: Upali lidar / Snimi krugove samo uz ROBOT; sivo dok taktika radi, naoružan ili meč (ESP odbija)', () => {
+  const robot = { session: { kind: 'robot' }, running: null, robotMec: 'NEMA', robotLidar: null, robotLidarSeen: false };
+  const idle = robotLidarView(robot, {});
+  assert.deepEqual([idle.robot, idle.on, idle.onDisabled, idle.recDisabled, idle.reason], [true, false, false, false, '']);
+  const none = robotLidarView({ session: null }, {});
+  assert.ok(none.onDisabled && none.recDisabled && /ROBOT sesiju/.test(none.reason));
+  const sim = robotLidarView({ session: { kind: 'sim' } }, {});
+  assert.ok(sim.onDisabled && /Lidar test/.test(sim.reason));
+  const tac = robotLidarView({ ...robot, running: 'primer' }, {});
+  assert.ok(tac.onDisabled && tac.recDisabled && /taktika primer radi/.test(tac.reason) && /odbija/.test(tac.reason));
+  for (const mec of ['RESET', 'NAORUZAN', 'POZA']) assert.match(robotLidarView({ ...robot, robotMec: mec }, {}).reason, /naoružan/);
+  assert.match(robotLidarView({ ...robot, robotMec: 'MEC' }, {}).reason, /meč traje/);
+  assert.equal(robotLidarView({ ...robot, robotMec: 'KRAJ' }, {}).onDisabled, false);
+  // snimanje koje već traje sme da se zaustavi i dok je robot zauzet (snima laptop)
+  assert.equal(robotLidarView({ ...robot, robotMec: 'MEC' }, { rec: 'a.jsonl.gz' }).recDisabled, false);
+});
+
+test('robotLidarView: stanje lidara iz telemetrije kad ga javlja, inače ono što je panel poslao', () => {
+  const robot = { session: { kind: 'robot' }, running: null, robotMec: 'NEMA' };
+  assert.equal(robotLidarView({ ...robot, robotLidarSeen: false }, { on: true }).on, true);       // stariji firmver
+  assert.equal(robotLidarView({ ...robot, robotLidarSeen: false }, { on: false }).on, false);
+  assert.equal(robotLidarView({ ...robot, robotLidarSeen: false }, { on: true, state: 'scan' }).state, 'scan');
+  assert.equal(robotLidarView({ ...robot, robotLidarSeen: true, robotLidar: null }, { state: 'scan' }).state, null);
+  const on = robotLidarView({ ...robot, robotLidarSeen: true, robotLidar: 'skenira' }, { on: false });
+  assert.deepEqual([on.on, on.state], [true, 'skenira']);                                          // upaljen sa ESP menija
+  assert.equal(robotLidarView({ ...robot, robotLidarSeen: true, robotLidar: null }, { on: true }).on, false);   // ESP ga ugasio
+  assert.equal(robotLidarView({ ...robot, robotLidarSeen: true, robotLidar: 'off' }, {}).on, false);
 });

@@ -2,7 +2,9 @@
 // (POST /api/lidar/stages, eurosim/lidarview.py): ESP danas ima samo binove i najbližu tačku (lib/lidar.py _closest).
 // Tri panela, jedno stanje (S, ispod):
 //   lidar-alati (red komandi)  Izvor: Sesija | Snimak (simulator/lidar/, ▶/⏸, u krug); uz ROBOT sesiju „Upali lidar“
-//                              (postojeća komanda LIDAR ON/OFF upload servera; ESP ga sam gasi kad je naoružan / u meču)
+//                              (postojeća komanda LIDAR ON/OFF upload servera; ESP je odbija dok taktika radi, dok je
+//                              naoružan ili meč traje — upload.py BUSY_OK — pa je dugme tada sivo sa razlogom; natpis
+//                              prati stanje lidara iz telemetrije kad ga ima, inače ono što je panel poslao)
 //                              i „Snimi krugove“ (simulator/lidar/<vreme>.jsonl.gz, isti format kao lidarsrc.FileLidar)
 //   lidar (glavni region)      sto (u stolu puno, van stola sivo prazno, grupe krstić + mm) i radar oko robota (napred
 //                              gore; radi i bez poze). Svoje platno, ne FieldView: Test dela ne otima sto Vožnji.
@@ -12,7 +14,7 @@
 // kroz store.lidarReply. Međukoraci se traže samo dok je Test dela prikazan (jedan zahtev odjednom, poslednji krug).
 import { registerPanel } from '../core/panels.js';
 import { api, esc } from '../core/api.js';
-import { LAYERS, RANGES, STALE_MS, scanPose, radarView, radarXY, tableView, tableXY, layerItems, playIndex,
+import { LAYERS, RANGES, STALE_MS, robotLidarView, scanPose, radarView, radarXY, tableView, tableXY, layerItems, playIndex,
   fmtGroup, statsRows, loadPrefs, savePrefs } from '../core/lidar.js';
 
 const COL = { bg: '#12151a', table: '#1b232c', edge: '#5a6675', grid: '#26303b', in: '#3ee0ff', out: '#8a96a5',
@@ -23,7 +25,7 @@ const TABLE_MARGIN_MM = 350;          // prostor oko stola na crtežu: tačke va
 const HINT = {
   noSession: 'Nijedna sesija ne radi. Pokreni sesiju u Vožnji (SIM: ESP meni → Lidar test; ROBOT: Upali lidar) ili izaberi Snimak.',
   sim: 'Krugova nema: u Vožnji, na ESP-u izaberi Meni → Lidar test (ili hibrid sa pravim lidarom / snimkom iz Izvora).',
-  robot: 'Krugova nema: Upali lidar (lidar ne radi dok je robot naoružan ili u meču).',
+  robot: 'Krugova nema: Upali lidar (ESP ga ne pali dok taktika radi, dok je naoružan ili dok meč traje).',
   noFiles: 'Nema snimaka u simulator/lidar/: snimaju se sa „Snimi krugove“ uz robota ili u hibridu sa pravim lidarom.',
 };
 
@@ -173,14 +175,17 @@ function mountTools(el, ctx) {
     setPrefs({ loop: E.liLoop.checked });
     if (S.file && E.liLoop.checked) { const per = S.file.scans[S.file.scans.length - 1].t + 100; p.pos = el2 % per; p.start = performance.now() - p.pos; }
   };
-  E.liOn.onclick = () => { if (ctx.command(['lidar', S.robot.on ? 'off' : 'on'])) E.liOn.disabled = true; };
+  E.liOn.onclick = () => {
+    const v = robotLidarView(ctx.store.get(), S.robot);
+    if (ctx.command(['lidar', v.on ? 'off' : 'on'])) E.liOn.disabled = true;
+  };
   E.liRec.onclick = () => { if (ctx.command(['lidar', 'rec', !S.robot.rec])) E.liRec.disabled = true; };
 }
 
 function renderTools() {
   const E = S.els;
   if (!E.liSrc) return;
-  const src = S.prefs.src, ses = session(), robot = !!(ses && ses.kind === 'robot');
+  const src = S.prefs.src;
   for (const b of E.liSrc.children) {
     b.classList.toggle('on', b.dataset.v === src);
     b.setAttribute('aria-pressed', b.dataset.v === src ? 'true' : 'false');
@@ -196,16 +201,17 @@ function renderTools() {
   E.liPlay.title = S.play.on ? 'Pauziraj snimak' : 'Pusti snimak';
   E.liLoop.checked = S.prefs.loop;
   E.liRobotBox.hidden = src !== 'sesija';
-  const why = robot ? '' : ses ? 'samo uz ROBOT sesiju (u simulaciji: ESP meni → Lidar test)' : 'samo uz ROBOT sesiju (Vožnja → ROBOT → Pokreni sesiju)';
-  const R = S.robot;
-  E.liOn.textContent = R.on ? 'Ugasi lidar' : 'Upali lidar';
-  E.liOn.disabled = !robot;
-  E.liOn.title = robot ? (R.on ? 'LIDAR OFF na robotu' : 'LIDAR ON na robotu (postojeća komanda upload servera; ESP ga sam gasi kad je naoružan ili u meču)')
-    + (R.state ? ` · stanje: ${R.state}` : '') : why;
-  E.liRec.textContent = R.rec ? `■ Zaustavi snimanje` : '● Snimi krugove';
+  const R = S.robot, v = robotLidarView(S.ctx.store.get(), R), state = v.state;
+  E.liOn.textContent = v.on ? 'Ugasi lidar' : 'Upali lidar';
+  E.liOn.disabled = v.onDisabled;
+  E.liOn.title = !v.robot || v.reason ? v.reason
+    : (v.on ? 'LIDAR OFF na robotu' : 'LIDAR ON na robotu (postojeća komanda upload servera; ESP je odbija dok taktika radi, dok je naoružan ili dok meč traje)')
+      + (state ? ` · stanje: ${state}` : '');
+  E.liRec.textContent = R.rec ? '■ Zaustavi snimanje' : '● Snimi krugove';
   E.liRec.classList.toggle('on', !!R.rec);
-  E.liRec.disabled = !robot;
-  E.liRec.title = robot ? (R.rec ? `snima u simulator/lidar/${R.rec}` : 'Krugovi sa robota u simulator/lidar/<vreme>.jsonl.gz (pušta ih Snimak i hibrid)') : why;
+  E.liRec.disabled = v.recDisabled;
+  E.liRec.title = !v.robot ? v.reason : R.rec ? `snima u simulator/lidar/${R.rec}`
+    : v.reason || 'Krugovi sa robota u simulator/lidar/<vreme>.jsonl.gz (pušta ih Snimak i hibrid)';
 }
 
 function renderPos(el) {
@@ -408,7 +414,8 @@ function start(ctx) {
       if (L.saved) refreshFiles();
       renderTools();
     }
-    if (st.lidarFiles !== prev.lidarFiles) renderTools();
+    if (st.lidarFiles !== prev.lidarFiles || st.running !== prev.running || st.robotMec !== prev.robotMec
+      || st.robotLidar !== prev.robotLidar || st.robotLidarSeen !== prev.robotLidarSeen) renderTools();
     if (st.ws !== prev.ws && st.ws === 'test') { compute(); draw(); renderInfo(); }
   });
   api('/api/info').then(i => { if (i.profile && i.profile.body) S.body = i.profile.body; draw(); }).catch(() => {});

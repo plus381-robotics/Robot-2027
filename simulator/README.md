@@ -150,9 +150,10 @@ odvojeno pokazuje ESP-ovu najbližu tačku.
 - Kartica **Lidar**: slojevi (sirovo / van stola / grupe), Hz, broj tačaka (u stolu / van), starost kruga, poza,
   najbliža grupa (laptop), najbliža tačka (ESP), spisak grupa.
 - Izvor **Sesija**: krugovi sesije koja radi. SIM: na ESP-u Meni → Lidar test (ili hibrid iz Izvora). ROBOT:
-  **Upali lidar** / **Ugasi lidar** (postojeća komanda `LIDAR ON` / `LIDAR OFF` upload servera; ESP ga sam gasi kad je
-  naoružan ili u meču, i kad niko ne gleda telemetriju) i **● Snimi krugove** (u `simulator/lidar/<vreme>.jsonl.gz`,
-  isti format kao snimak hibrida, uz pozu iz telemetrije).
+  **Upali lidar** / **Ugasi lidar** (postojeća komanda `LIDAR ON` / `LIDAR OFF` upload servera; ESP je odbija dok
+  taktika radi, dok je robot naoružan ili dok meč traje, pa je dugme tada sivo sa razlogom; lidar sam gasi i kad niko ne
+  gleda telemetriju; natpis prati stanje lidara iz telemetrije) i **● Snimi krugove** (u
+  `simulator/lidar/<vreme>.jsonl.gz`, isti format kao snimak hibrida, uz pozu iz telemetrije).
 - Izvor **Snimak**: snimak iz `simulator/lidar/` pušta se svojim tempom (▶/⏸, u krug).
 
 ### Poređenje (Snimci: 📌 Referenca / Uporedi sa…)

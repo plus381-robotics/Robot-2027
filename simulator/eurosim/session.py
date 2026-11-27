@@ -243,8 +243,9 @@ class RobotSource(Source):
         return self.reply(c, ok, lines)
 
     async def _lidar(self, c):
-        """LIDAR ON/OFF: postojeća komanda upload servera (ESP pali lidar za laptop, sam ga gasi kad je naoružan ili u
-        meču, i kad niko ne gleda telemetriju). rec: „Snimi krugove“ (robotlink.RobotLink.record_lidar)."""
+        """LIDAR ON/OFF: postojeća komanda upload servera (ESP pali lidar za laptop). Dok taktika radi, dok je robot
+        naoružan ili meč traje ESP je odbija (upload.py BUSY_OK) i lidar sam gasi; gasi ga i kad niko ne gleda
+        telemetriju. rec: „Snimi krugove“ (robotlink.RobotLink.record_lidar)."""
         arg = str(c[1]).lower() if len(c) > 1 else ""
         if arg in ("on", "off"):
             ok, lines = await self.link.cmd("LIDAR", arg.upper())

@@ -29,11 +29,13 @@ const $ = id => document.getElementById(id);
 // Referenca (?ref=1) se učitava bez menjanja serverovog „poslednjeg“ snimka: Sačuvaj snimak čuva ono što se gleda.
 // repo: null kad aplikacija nije u timskom repou (stavka Repo se ne vidi), inače značka za stavku Repo (web/repo.js).
 // Test dela → Lidar (panels/lidar.js): lidarScan = poslednji krug sesije (događaj "lidar" + wall: performance.now(), kind),
-// lidarReply = poslednji odgovor na komandu ["lidar", ...] (ROBOT: Upali lidar, Snimi krugove).
+// lidarReply = poslednji odgovor na komandu ["lidar", ...] (ROBOT: Upali lidar, Snimi krugove); robotMec, robotLidar,
+// robotLidarSeen = stanje meča i lidara iz poslednjeg paketa telemetrije (ROBOT; i bez STM32-a).
 const store = createStore({ ws: 'taktike', drive: 'sim', session: null, caps: null, paused: false, speed: null, telemetry: null,
   linkAge: null, linkState: null, connAge: null, snap: null, notice: null, edUnsaved: false, running: null,
   runs: null, runName: null, refName: null, refLabel: null, repo: null,
-  sources: loadSources(), lidarFiles: [], helloSource: null, lidarScan: null, lidarReply: null });
+  sources: loadSources(), lidarFiles: [], helloSource: null, lidarScan: null, lidarReply: null,
+  robotMec: null, robotLidar: null, robotLidarSeen: false });
 const SIDE_NAME = { plava: 'Blue', zuta: 'Yellow' };     // kartica rezultata (#result) i naslovi taktika u Koracima
 const STRANA = { zuta: 'Žuta', plava: 'Plava' };
 const REASON = { BLOCKED: 'blocked', TIMEOUT: 'timeout', PREEMPTED: 'preempted', MATCH_OVER: 'match over',
@@ -341,7 +343,7 @@ function bridgeSession() {                      // sesija počela / završila: t
   store.set({ session: L ? { kind: L.kind === 'robot' ? 'robot' : 'sim', host: L.host || null, virtual: !!L.virtual,
     lidar: L.lidarSrc || 'sim', edText: !!L.edText } : null, caps: null,
     paused: false, speed: null, telemetry: null, linkAge: null, linkState: null, connAge: null, running: null,
-    runName: null, helloSource: null, lidarScan: null, lidarReply: null });   // sesija nije sačuvan snimak (Snimci ga ne ističu)
+    runName: null, helloSource: null, lidarScan: null, lidarReply: null, robotMec: null, robotLidar: null, robotLidarSeen: false });   // sesija nije sačuvan snimak (Snimci ga ne ističu)
   $('speed').hidden = !!L;                     // brzina puštanja snimka; u sesiji važi brzina iz reda komandi Vožnja
   if (L) {                                      // nova sesija kreće na ×1, bez pauze: red komandi to i pokazuje
     $('pace').value = '1';
@@ -1063,7 +1065,8 @@ function startRobot(host, password, label, virtual = false) {
     if (!mine()) return;
     const f = liveData(m);
     store.set({ telemetry: m.age != null, linkAge: m.age ?? null,      // age null = još nijedan paket (traka: Veza)
-      running: m.running || null });                                   // taktika koja radi na robotu (traka: Izvor)
+      running: m.running || null,                                      // taktika koja radi na robotu (traka: Izvor)
+      robotMec: m.esp_mec ?? null, robotLidar: m.lidar_state ?? null, robotLidarSeen: !!m.lidar_seen });   // Test dela → Lidar
     if (f && live.follow) $('time').textContent = `${secs(f.t)} s · robot`;
   });
   s.on('state', m => {                            // server: veza ok / stale (> 1.5 s) / lost (> 5 s), šalje se na promenu
