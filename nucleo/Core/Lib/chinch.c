@@ -29,5 +29,5 @@ uint8_t get_chinch() {
 	return chinch_state_debounced;
 }
 void chinch_read() {
-	chinch = HAL_GPIO_ReadPin(CHINCH_GPIO_Port, CHINCH_Pin);
+	chinch = HAL_GPIO_ReadPin(Chinch_GPIO_Port, Chinch_Pin);
 }

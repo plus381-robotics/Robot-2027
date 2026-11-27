@@ -45,28 +45,34 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, IN_IR_2_Pin|Val3_Pin|Val2_Pin|Val4_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, Val3_Pin|Val2_Pin|Val4_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, Val5_Pin|Val1_Pin|Vac3_Pin|Vac2_Pin
-                          |Vac1_Pin|Val6_Pin|SLP_L_Pin, GPIO_PIN_RESET);
+                          |Vac1_Pin|Val6_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, DIR_M_R_Pin|DIR_M_L_Pin|SLP_R_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, DIR_M_R_Pin|DIR_M_L_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : IN_IR_2_Pin Val3_Pin Val2_Pin Val4_Pin */
-  GPIO_InitStruct.Pin = IN_IR_2_Pin|Val3_Pin|Val2_Pin|Val4_Pin;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(SLP_R_GPIO_Port, SLP_R_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(SLP_L_GPIO_Port, SLP_L_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pins : IN_IR_2_Pin IN_IR_6_Pin IN_IR_7_Pin IN_IR_4_Pin
+                           IN_IR_5_Pin OUT_MSW_1_Pin OUT_MSW_2_Pin */
+  GPIO_InitStruct.Pin = IN_IR_2_Pin|IN_IR_6_Pin|IN_IR_7_Pin|IN_IR_4_Pin
+                          |IN_IR_5_Pin|OUT_MSW_1_Pin|OUT_MSW_2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : Val3_Pin Val2_Pin Val4_Pin */
+  GPIO_InitStruct.Pin = Val3_Pin|Val2_Pin|Val4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : IN_IR_6_Pin IN_IR_7_Pin IN_IR_4_Pin IN_IR_5_Pin
-                           OUT_MSW_1_Pin OUT_MSW_2_Pin */
-  GPIO_InitStruct.Pin = IN_IR_6_Pin|IN_IR_7_Pin|IN_IR_4_Pin|IN_IR_5_Pin
-                          |OUT_MSW_1_Pin|OUT_MSW_2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : IN_IR_8_Pin IN_IR_1_Pin */
