@@ -138,6 +138,23 @@ iz `ESP32/webrepl_cfg.py` (ili upiši).
   telemetrijom nad simuliranim STM32) i poveže se na njega. Isto iz terminala: `python simulator/sim.py robot`,
   pa `python tools/tactic.py primer --host 127.0.0.1 --password eurosim` i `python tools/watch.py --host 127.0.0.1`.
 
+### Test dela → Lidar
+
+Prostor **Test dela**, podkartica **Lidar** (Pogon, Mehanizmi i IR dolaze sa Fazom 6). Jedan krug lidara korak po
+korak: sirove tačke → u stolu / van stola (sudija pored stola nije protivnik; odbačene tačke sivo i prazno) → grupe
+(krstić, udaljenost od centra robota; najbliža crveno). Međukorake računa **laptop** (`eurosim/lidarview.py`, POST
+`/api/lidar/stages`), jer ESP danas ima samo binove i najbližu tačku; kartica Lidar to i piše („izračunao laptop“) i
+odvojeno pokazuje ESP-ovu najbližu tačku.
+- **Sto** (koordinate stola, po pozi robota) i **radar** oko robota (napred gore; domet 1 / 2 / 4 m). Bez poze
+  (STM32 nije povezan, snimak bez poze) piše „nema poze“ i radi samo radar.
+- Kartica **Lidar**: slojevi (sirovo / van stola / grupe), Hz, broj tačaka (u stolu / van), starost kruga, poza,
+  najbliža grupa (laptop), najbliža tačka (ESP), spisak grupa.
+- Izvor **Sesija**: krugovi sesije koja radi. SIM: na ESP-u Meni → Lidar test (ili hibrid iz Izvora). ROBOT:
+  **Upali lidar** / **Ugasi lidar** (postojeća komanda `LIDAR ON` / `LIDAR OFF` upload servera; ESP ga sam gasi kad je
+  naoružan ili u meču, i kad niko ne gleda telemetriju) i **● Snimi krugove** (u `simulator/lidar/<vreme>.jsonl.gz`,
+  isti format kao snimak hibrida, uz pozu iz telemetrije).
+- Izvor **Snimak**: snimak iz `simulator/lidar/` pušta se svojim tempom (▶/⏸, u krug).
+
 ### Poređenje (Snimci: 📌 Referenca / Uporedi sa…)
 
 U redu komandi prostora Snimci: **📌 Referenca** (snimak koji gledaš) ili **Uporedi sa…** (sačuvan snimak; u listi

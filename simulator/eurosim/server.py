@@ -13,7 +13,7 @@ import webbrowser
 from aiohttp import web
 
 from . import field, paths, profile as profmod, session, tactics as tacmod
-from .api import profile as profapi, repo as repoapi, runs, scenarios, tactics as tacapi
+from .api import lidar as lidarapi, profile as profapi, repo as repoapi, runs, scenarios, tactics as tacapi
 from .api._util import STATE, _dumps, _elements_arg, _tactic_names, columns, pack
 from .api.runs import RUN_TIMEOUT_S, _live_worker, _runs, run_in_process      # noqa: F401  (testovi: server.*)
 
@@ -286,6 +286,9 @@ def make_app(prof=None):
     app.router.add_post("/api/vrobot", vrobot)
     app.router.add_get("/api/profile", profapi.profile_get)
     app.router.add_post("/api/profile", profapi.profile_set)
+    app.router.add_post("/api/lidar/stages", lidarapi.stages)
+    app.router.add_get("/api/lidar/files", lidarapi.files_list)
+    app.router.add_get("/api/lidar/files/{name}", lidarapi.file_get)
     app.router.add_static("/", paths.WEB, show_index=False)
     return app
 

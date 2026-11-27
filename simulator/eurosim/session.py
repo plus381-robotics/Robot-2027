@@ -219,8 +219,10 @@ class RobotSource(Source):
         k = c[0] if c else ""
         if self.closed:
             return self.ended(c)
-        if k not in self.capabilities or k == "lidar":
+        if k not in self.capabilities:
             return self.unsupported(c)
+        if k == "lidar":                              # Test dela → Lidar: ["lidar", "on"|"off"] | ["lidar", "rec", da/ne]
+            return await self._lidar(c)
         if k == "push":                               # ["push", ime, tekst ili None = fajl iz ESP32/tactics]
             name, src = (c[1] if len(c) > 1 else None), (c[2] if len(c) > 2 else None)
             if not tacmod.NAME_RE.match(name or ""):
@@ -239,6 +241,19 @@ class RobotSource(Source):
         else:
             ok, lines = await self.link.cmd("STOP")
         return self.reply(c, ok, lines)
+
+    async def _lidar(self, c):
+        """LIDAR ON/OFF: postojeća komanda upload servera (ESP pali lidar za laptop, sam ga gasi kad je naoružan ili u
+        meču, i kad niko ne gleda telemetriju). rec: „Snimi krugove“ (robotlink.RobotLink.record_lidar)."""
+        arg = str(c[1]).lower() if len(c) > 1 else ""
+        if arg in ("on", "off"):
+            ok, lines = await self.link.cmd("LIDAR", arg.upper())
+            state = lines[-1][3:].strip() if ok and lines else None        # "OK <stanje lidara>"
+            return {**self.reply(c, ok, lines), "lidar": {"on": arg == "on" if ok else None, "state": state}}
+        if arg == "rec":
+            ok, lines, st = self.link.record_lidar(bool(c[2]) if len(c) > 2 else True)
+            return {**self.reply(c, ok, lines), "lidar": st}
+        return self.reply(c, False, ["lidar on | off | rec da/ne"])
 
     async def close(self):
         self.closed = True

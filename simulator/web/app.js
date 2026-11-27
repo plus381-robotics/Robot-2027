@@ -28,10 +28,12 @@ const $ = id => document.getElementById(id);
 // referenca (null: nesačuvan, npr. simulacija ili sesija), refLabel = ime reference za prikaz (i nesačuvane; null = nema).
 // Referenca (?ref=1) se učitava bez menjanja serverovog „poslednjeg“ snimka: Sačuvaj snimak čuva ono što se gleda.
 // repo: null kad aplikacija nije u timskom repou (stavka Repo se ne vidi), inače značka za stavku Repo (web/repo.js).
+// Test dela → Lidar (panels/lidar.js): lidarScan = poslednji krug sesije (događaj "lidar" + wall: performance.now(), kind),
+// lidarReply = poslednji odgovor na komandu ["lidar", ...] (ROBOT: Upali lidar, Snimi krugove).
 const store = createStore({ ws: 'taktike', drive: 'sim', session: null, caps: null, paused: false, speed: null, telemetry: null,
   linkAge: null, linkState: null, connAge: null, snap: null, notice: null, edUnsaved: false, running: null,
   runs: null, runName: null, refName: null, refLabel: null, repo: null,
-  sources: loadSources(), lidarFiles: [], helloSource: null });
+  sources: loadSources(), lidarFiles: [], helloSource: null, lidarScan: null, lidarReply: null });
 const SIDE_NAME = { plava: 'Blue', zuta: 'Yellow' };     // kartica rezultata (#result) i naslovi taktika u Koracima
 const STRANA = { zuta: 'Žuta', plava: 'Plava' };
 const REASON = { BLOCKED: 'blocked', TIMEOUT: 'timeout', PREEMPTED: 'preempted', MATCH_OVER: 'match over',
@@ -339,7 +341,7 @@ function bridgeSession() {                      // sesija počela / završila: t
   store.set({ session: L ? { kind: L.kind === 'robot' ? 'robot' : 'sim', host: L.host || null, virtual: !!L.virtual,
     lidar: L.lidarSrc || 'sim', edText: !!L.edText } : null, caps: null,
     paused: false, speed: null, telemetry: null, linkAge: null, linkState: null, connAge: null, running: null,
-    runName: null, helloSource: null });                           // sesija nije sačuvan snimak (Snimci ga ne ističu)
+    runName: null, helloSource: null, lidarScan: null, lidarReply: null });   // sesija nije sačuvan snimak (Snimci ga ne ističu)
   $('speed').hidden = !!L;                     // brzina puštanja snimka; u sesiji važi brzina iz reda komandi Vožnja
   if (L) {                                      // nova sesija kreće na ×1, bez pauze: red komandi to i pokazuje
     $('pace').value = '1';
@@ -955,6 +957,7 @@ async function startLive() {
         else if (e[1] === 'lidar') L.lidar = { t: e[0], ...e[2] };
         else if (e[1] === 'buzzer') esp.buzz(e[2], m.speed || 1);
       }
+      lidarToStore(m.events, 'sim');
     }
     if (L.follow) {
       if (L.screen) esp.setScreen(L.screen);
@@ -996,6 +999,13 @@ function setRealtime(on, source) {
   if (on) { $('pace').value = '1'; msg('uživo sa pravim lidarom (' + source + '): radi na ×1, bez pauze'); }
 }
 
+function lidarToStore(events, kind) {           // poslednji krug iz paketa -> Test dela → Lidar (store.lidarScan)
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e[1] === 'lidar') { store.set({ lidarScan: { t: e[0], ...e[2], wall: performance.now(), kind } }); return; }
+  }
+}
+
 function fillLidarSources() {                   // snimci lidara za Izvori (lidar: snimak)
   store.set({ lidarFiles: info.lidar_files || [] });
 }
@@ -1023,6 +1033,7 @@ function liveData(m) {                          // shared by Live and Robot: app
   if (m.events.length) {
     L.raw.events.push(...m.events); L.dirty = true;
     for (const e of m.events) if (e[1] === 'lidar') { L.lidar = { t: e[0], ...e[2] }; L.lidarWall = performance.now(); }   // lidar pravog robota
+    lidarToStore(m.events, 'robot');
   }
   const f = m.frames[m.frames.length - 1];
   if (L.follow && f) view.setPose(f);
@@ -1062,6 +1073,7 @@ function startRobot(host, password, label, virtual = false) {
     if (!mine()) return;
     const text = `${m.cmd}: ${m.ok ? 'OK' : 'ERR'} ${(m.lines || []).slice(-2).join(' · ')}`;
     msg(text, !m.ok);
+    if (m.cmd === 'lidar') store.set({ lidarReply: m });            // Test dela → Lidar: Upali lidar, Snimi krugove
     if (m.cmd === 'STAT' && m.ok) msg(`robot ${host}: povezan · ` + (m.lines || []).slice(0, 3).join(' · '));
   });
   s.on('end', m => {

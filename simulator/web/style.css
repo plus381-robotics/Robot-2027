@@ -249,7 +249,7 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 
 /* ---------- okvir varijante A: statusna traka, bočna traka (Zadatak 3.2) ---------- */
 #strip [hidden], #rail [hidden], .rl-help[hidden], .st-notice[hidden] { display: none !important; }
-#strip, #rail, .rl-help, .st-notice, .ws-empty { font-size: 16px; line-height: 1.35; }
+#strip, #rail, .rl-help, .st-notice { font-size: 16px; line-height: 1.35; }
 
 /* Traka: jedan red, nikad se ne prelama. Korak i Detekcija dobijaju samo ostatak širine i skraćuju se sa „…“;
    Veza, Poza i podnaslov izvora se skraćuju posle njih; Meč, ⚠ i STOP se ne skupljaju, STOP je uvek desno. */
@@ -353,11 +353,6 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 .izv-conn .row[hidden] { display: none; }
 #izvoriBtn { min-width: 205px; text-align: left; }   /* „▶ Pokreni sesiju“ ne skače kad se natpis promeni (a / b / d) */
 
-/* Prazan glavni prostor (Test dela do Faze 5). */
-.ws-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--dim);
-  background: var(--bg); }
-.ws-empty h2 { margin: 0 0 8px; color: var(--text); font-size: 22px; }
-.ws-empty p { margin: 0; font-size: 18px; }
 
 /* ---------- regioni radnog prostora (shell/layout.js, Zadatak 4.1) ---------- */
 #ws-tool, #ws-bottom { flex: none; min-width: 0; }
@@ -374,7 +369,6 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 #ws-main > #ws-editor { flex: 0 0 45%; min-width: 420px; }
 #ws-main > #ws-editor.ed-closed { display: none; }
 #ws-editor > #editorPane { flex: 1; }
-#ws-test-dela > .ws-empty { flex: 1; }
 #ws-vreme > #timeline { border-top: 0; }
 #ws-grafici { padding: 0 12px 4px; }
 /* Kartice (bočna kolona; donji sklopivi paneli): naslov, broj, razlog kad je siva, ▾/▸. */
@@ -475,3 +469,40 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 .sn-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin: 0 0 1px 5px; vertical-align: middle; }
 .sn-dot.zuta { background: var(--yellow); } .sn-dot.plava { background: var(--blue); }
 .sn-empty { color: var(--dim); font-size: 12px; padding: 4px 2px; }
+
+/* ---------- Test dela (Zadatak 5.2): podkartice, Lidar (panels/test-dela.js, panels/lidar.js) ---------- */
+.td-tabs button:disabled { opacity: .4; cursor: not-allowed; }
+.td-tabs button.on:disabled { opacity: 1; }
+#ws-lidar-alati .li-inline { display: inline-flex; align-items: center; gap: 8px; }
+#ws-lidar-alati label { display: inline-flex; align-items: center; gap: 4px; color: var(--dim); }
+#liFile { max-width: 190px; }
+#liPos { min-width: 120px; }
+#liRec.on { background: var(--fail); border-color: var(--fail); color: #fff; }
+#ws-lidar { background: var(--bg); }
+.li-main { flex: 1; display: flex; gap: 8px; padding: 8px; min-width: 0; min-height: 0; }
+.li-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.li-col-table { flex: 1.45 1 0; }
+.li-col-radar { flex: 1 1 0; }
+.li-h { flex: none; display: flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 2px 4px; font-size: 13px; }
+.li-range { margin-left: auto; }
+.li-range button { padding: 1px 8px; font-size: 12px; }
+.li-box { flex: 1; position: relative; min-height: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.li-box canvas { position: absolute; left: 0; top: 0; display: block; }
+.li-over { position: absolute; left: 12px; right: 12px; bottom: 12px; padding: 6px 10px; border-radius: 5px; font-size: 13px;
+  line-height: 1.35; color: var(--warn); background: rgba(18, 21, 26, .85); border: 1px solid var(--line); pointer-events: none; }
+#ws-lidar-info { padding: 0 10px 8px; gap: 6px; overflow-y: auto; }
+.li-by { padding: 4px 8px; border-radius: 5px; background: #2a2416; color: var(--warn); font-size: 12px; }
+.li-by b { color: #ffd27a; }
+.li-layers { display: flex; gap: 12px; flex-wrap: wrap; }
+.li-layers label { display: inline-flex; align-items: center; gap: 4px; }
+.li-stats { border-collapse: collapse; width: 100%; font-size: 12px; }
+.li-stats th { text-align: left; font-weight: normal; color: var(--dim); padding: 1px 8px 1px 0; white-space: nowrap; }
+.li-stats td { padding: 1px 0; font-variant-numeric: tabular-nums; }
+.li-stats td.warn { color: var(--warn); } .li-stats td.hl { color: #ff8a80; font-weight: bold; }
+.li-g { font-size: 12px; font-variant-numeric: tabular-nums; }
+.li-g.hl { color: #ff8a80; }
+.li-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.li-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.li-k { display: inline-block; width: 9px; height: 9px; border-radius: 50%; font-style: normal; font-size: 11px; line-height: 9px; }
+.li-k.in { background: #3ee0ff; } .li-k.out { border: 1px solid #8a96a5; } .li-k.esp { border: 2px solid #ffd65a; }
+.li-k.gr { color: #ffb547; width: auto; height: auto; border-radius: 0; } .li-k.nr { color: #ff5c5c; width: auto; height: auto; border-radius: 0; }

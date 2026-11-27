@@ -4,6 +4,7 @@
 # Telemetrija se pretvara u isti snimak kao simulacija (frame-ovi, koraci, dnevnik), pa isti prikaz radi
 # za simulaciju i za robota, i može da se poredi.
 import asyncio
+import gzip
 import json
 import socket
 import sys
@@ -184,6 +185,7 @@ class RobotLink:
         self.packets = 0
         lp = prof.get("lidar", {})
         self.lidar_offset = (lp.get("x", 0), lp.get("y", 0), lp.get("z", 300))
+        self.lrec = None                         # „Snimi krugove“ (Test dela → Lidar): {"f", "file", "n"} dok snima
 
     def now(self):
         return int((time.monotonic() - self.t0) * 1000)
@@ -197,7 +199,47 @@ class RobotLink:
         info = await loop.getaddrinfo(self.host, self.telem_port, family=socket.AF_INET, type=socket.SOCK_DGRAM)
         self.addr = info[0][4]
         self.transport, _ = await loop.create_datagram_endpoint(
-            lambda: _Udp(self._on, lambda s: self.rec.feed_lidar(s, self.lidar_offset)), local_addr=("0.0.0.0", 0))
+            lambda: _Udp(self._on, self._on_lidar), local_addr=("0.0.0.0", 0))
+
+    def _on_lidar(self, s):
+        self.rec.feed_lidar(s, self.lidar_offset)
+        r = self.lrec
+        if r:                                     # isti red kao RobotLidar (FileLidar ga čita) + poza iz telemetrije
+            ev = self.rec.events[-1][2]
+            r["f"].write(json.dumps({"t": s["t"], "bins": s["bins"], "hz": s["hz"],
+                                     "near": list(s["near"]) if s["near"] else None,
+                                     "pose": None if ev.get("nopose") else ev["pose"]}) + "\n")
+            r["n"] += 1
+
+    def record_lidar(self, on):
+        """„Snimi krugove“: krugovi lidara sa robota u simulator/lidar/<vreme>.jsonl.gz (format lidarsrc.FileLidar,
+        uz pozu robota ili null). Vraća (ok, redovi, stanje {"rec": ime | None, "n": krugova})."""
+        from . import lidarsrc
+        r = self.lrec
+        if on:
+            if r:
+                return True, ["već snima: %s" % r["file"].name], {"rec": r["file"].name, "n": r["n"]}
+            d = lidarsrc.lidar_dir()
+            d.mkdir(parents=True, exist_ok=True)
+            base = time.strftime("%Y%m%d-%H%M%S")
+            f, k = d / (base + ".jsonl.gz"), 1
+            while f.exists():
+                k += 1
+                f = d / ("%s-%d.jsonl.gz" % (base, k))
+            fh = gzip.open(f, "wt", encoding="utf-8")
+            fh.write(json.dumps({"meta": {"source": "robot", "host": self.host, "start": time.time(),
+                                          "o": list(self.lidar_offset)}}) + "\n")
+            self.lrec = {"f": fh, "file": f, "n": 0}
+            return True, ["snima krugove: %s" % f.name], {"rec": f.name, "n": 0}
+        if not r:
+            return True, ["ne snima"], {"rec": None, "n": 0}
+        self.lrec = None
+        r["f"].close()
+        if not r["n"]:                            # prazan snimak ne ostaje (FileLidar ga ne bi pustio)
+            r["file"].unlink(missing_ok=True)
+            return True, ["nijedan krug nije stigao: ništa nije snimljeno"], {"rec": None, "n": 0, "saved": None}
+        return True, ["sačuvano: %s (%d krugova)" % (r["file"].name, r["n"])], \
+            {"rec": None, "n": r["n"], "saved": r["file"].name}
 
     async def run(self):
         """Pretplata na telemetriju i slanje novih podataka dok se ne otkaže."""
@@ -229,6 +271,7 @@ class RobotLink:
     def close(self):
         if self.transport:
             self.transport.close()
+        self.record_lidar(False)
         self.rec.finish()
 
     def recording(self):

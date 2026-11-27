@@ -32,7 +32,13 @@ const { chromium } = require('playwright');
     if (!(await p.isVisible('#stripStop'))) fail.push('STOP nije vidljiv');
     if ((await p.$eval('#strip', e => e.getBoundingClientRect().height)) !== 72) fail.push('traka nije visoka 72 px');
     await p.click('#rail [data-ws=test]');
-    if (!/Test dela dolazi u Fazi 5/.test(await p.textContent('#content'))) fail.push('Test dela: nema poruke');
+    // Test dela (Zadatak 5.2): podkartice (radi samo Lidar), sto + radar, kartica Lidar sa „izračunao laptop“
+    const tabs = await p.$$eval('#tdTabs button', l => l.map(b => [b.textContent.trim(), b.disabled]));
+    if (JSON.stringify(tabs) !== JSON.stringify([['Lidar', false], ['Pogon', true], ['Mehanizmi', true], ['IR', true]]))
+      fail.push('Test dela: podkartice ' + JSON.stringify(tabs));
+    if (!(await p.isVisible('#liTable')) || !(await p.isVisible('#liRadar'))) fail.push('Test dela → Lidar: nema stola ili radara');
+    if (!/izračunao laptop/.test(await p.textContent('#ws-lidar-info'))) fail.push('Test dela → Lidar: nema „izračunao laptop“');
+    if (!(await p.isDisabled('#liOn'))) fail.push('Test dela → Lidar: Upali lidar bez ROBOT sesije nije siv');
     if (await p.$('#bar, #ws-stari-alati, #repoBtn, #profBtn, .brand')) fail.push('stari red (#bar, Repo/Profile dugmad) još postoji');
     if (!(await p.$('#ws-tool:not([hidden]) #ws-poruka #msg'))) fail.push('Test dela: nema poruke u redu komandi');
     await p.click('#rail [data-act=profile]').catch(() => {});               // Profil se vidi i u Test dela (Zadatak 4.1)

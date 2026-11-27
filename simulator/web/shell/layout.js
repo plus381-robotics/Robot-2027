@@ -13,7 +13,7 @@
 // Stavke bočne trake:
 //   Taktike -> otvoren editor (sesija, ako radi, nastavlja da radi, traka i njen STOP takođe);
 //   Vožnja -> SIM ili ROBOT (izbor ispod stavke, store.drive): red komandi Vožnja (panels/voznja-alati.js) i kartice
-//             idu za njim;  Snimci -> lista sačuvanih snimaka (osveži je: legacy.openRuns);  Test dela -> „Test dela dolazi u Fazi 5“.
+//             idu za njim;  Snimci -> lista sačuvanih snimaka (osveži je: legacy.openRuns);  Test dela -> podkartice, Lidar (panels/lidar.js).
 // Dok sesija radi, prelaz SIM <-> ROBOT se odbija porukom „Sesija radi: prvo je završi“; traka i njen STOP (i Esc)
 // rade u svakom prostoru. Tastatura (core/keys.js): Alt+1..4 = prostori (redom kao u bočnoj traci), „?“ = prečice.
 //   mountShell({store, command, legacy}) -> {go, setDrive, setBadge, openCard}
