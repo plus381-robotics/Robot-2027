@@ -109,3 +109,42 @@ def test_robot_source_preko_virtuelnog_robota():
     assert nope["ok"] is False and nope["lines"] == ["nepodržano"]
     assert frames and last["age"] is not None and last["age"] < 3000
     assert not th.is_alive()
+
+
+def test_buffer_prazan_poll_cuva_stanje():
+    from eurosim.session import Buffer
+    b = Buffer()
+    b.add({"frames": [{"t": 690}], "events": [[1, "log", "a"]], "meta": {"side": "zuta"}, "t": 690,
+           "paused": False, "speed": 1.0, "running": "primer", "mec": "NEMA"})
+    first = b.take(None)
+    again = b.take(None)
+    assert first["t"] == 690 and first["paused"] is False and first["meta"] == {"side": "zuta"}
+    for k in ("t", "paused", "speed", "running", "mec"):
+        assert again[k] == first[k]
+    assert again["frames"] == [] and again["events"] == [] and again["meta"] is None
+
+
+def test_buffer_novija_meta_pobedjuje():
+    from eurosim.session import Buffer
+    b = Buffer()
+    b.add({"frames": [], "events": [], "meta": {"side": "zuta"}, "t": 1})
+    b.add({"frames": [], "events": [], "meta": {"side": "plava"}, "t": 2})
+    b.add({"frames": [], "events": [], "meta": None, "t": 3})
+    assert b.take(None)["meta"] == {"side": "plava"}
+
+
+def test_sim_source_pad_procesa_postavlja_error():
+    class Dead:
+        def poll(self, t=0):
+            return True
+
+        def recv(self):
+            raise EOFError
+
+    async def go():
+        s = SimSource({"name": "primer"})
+        s.conn = Dead()
+        s.proc = type("P", (), {"is_alive": lambda self: False})()
+        return await s.poll()
+    d = asyncio.run(go())
+    assert d["final"] is True and d["error"] == "proces simulacije je stao"

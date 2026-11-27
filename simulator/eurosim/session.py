@@ -18,15 +18,16 @@ class Buffer:
     """Skuplja podatke oblika {"frames", "events", "meta", "t", ...} između dva poll()-a."""
 
     def __init__(self):
+        self.t, self.extra = None, {}          # zadnje stanje preživljava prazne poll()-ove
         self.reset()
 
     def reset(self):
-        self.frames, self.events, self.meta, self.t, self.extra = [], [], None, 0, {}
+        self.frames, self.events, self.meta = [], [], None
 
     def add(self, d):
         self.frames += d.get("frames") or []
         self.events += d.get("events") or []
-        if self.meta is None and d.get("meta"):
+        if d.get("meta"):                      # novija slika meta podataka pobeđuje
             self.meta = d["meta"]
         self.t = d.get("t", self.t)
         for k, v in d.items():
@@ -34,8 +35,8 @@ class Buffer:
                 self.extra[k] = v
 
     def take(self, age, final=False):
-        out = {**self.extra, "frames": self.frames, "events": self.events, "meta": self.meta, "t": self.t,
-               "age": age, "final": final}
+        out = {**self.extra, "frames": self.frames, "events": self.events, "meta": self.meta,
+               "t": self.t if self.t is not None else 0, "age": age, "final": final}
         self.reset()
         return out
 
@@ -106,6 +107,7 @@ class SimSource(Source):
                     return
                 kind, d = self.conn.recv()
             except (EOFError, OSError):
+                self.error = self.error or "proces simulacije je stao"
                 self.done = True
                 return
             if kind == "data":
