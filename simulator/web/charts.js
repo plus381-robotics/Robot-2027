@@ -1,13 +1,15 @@
 import { colHasData } from './core/run.js';
-// Time charts (uPlot): speed, turn rate, wheels. A vertical line shows the current time;
-// clicking a chart seeks there.
-const DEFS = [
-  { title: 'Speed [m/s]', series: [['v', 'v', '#ffffff'], ['v_ref', 'v ref', '#4aa3ff']] },
-  { title: 'Turn rate [rad/s]', series: [['w', 'ω', '#ffffff'], ['w_ref', 'ω ref', '#4aa3ff']] },
-  { title: 'Wheels [m/s]', series: [['vl', 'left', '#3ecf8e'], ['vr', 'right', '#ff9f43']] },
+// Grafici u vremenu (uPlot): brzina, ugaona brzina, točkovi, ugao θ. Uspravna linija pokazuje trenutno vreme;
+// klik na grafik skače na to vreme. Grafik čija kolona nema podataka (robot je ne šalje) se ne crta.
+export const DEFS = [
+  { title: 'Brzina [m/s]', series: [['v', 'v', '#ffffff'], ['v_ref', 'v zadato', '#4aa3ff']] },
+  { title: 'Ugaona brzina [rad/s]', series: [['w', 'ω', '#ffffff'], ['w_ref', 'ω zadato', '#4aa3ff']] },
+  { title: 'Točkovi [m/s]', series: [['vl', 'levi', '#3ecf8e'], ['vr', 'desni', '#ff9f43']] },
+  { title: 'Ugao θ [°]', series: [['th', 'θ', '#ffd166']] },
 ];
 
 const hasData = (c, d) => d.series.some(([k]) => colHasData(c, k));
+export const chartDefs = cols => DEFS.filter(d => hasData(cols, d));     // grafici koji imaju podatke, redom
 
 export class Charts {
   constructor(el, onSeek) {
@@ -20,7 +22,7 @@ export class Charts {
     this.plots = []; this.lines = []; this.stepEls = [];     // svi nizovi po grafiku ostaju poravnati sa this.defs
     const c = run.cols;
     const t = c.t.map(v => v / 1000);
-    this.defs = DEFS.filter(d => hasData(c, d));            // grafik bez podataka (robot ih ne šalje) se ne crta
+    this.defs = chartDefs(c);                              // grafik bez podataka (robot ih ne šalje) se ne crta
     for (const d of this.defs) {
       const div = document.createElement('div');
       this.el.appendChild(div);
@@ -58,7 +60,7 @@ export class Charts {
 
   update(run) {                      // live: new data in existing charts
     const c = run.cols, t = c.t.map(v => v / 1000);
-    const want = DEFS.filter(d => hasData(c, d));
+    const want = chartDefs(c);
     if (!this.plots.length || want.length !== this.defs.length || want.some((d, i) => d !== this.defs[i])) return this.setRun(run);
     this.defs.forEach((d, i) => this.plots[i].setData([t, ...d.series.map(([k]) => c[k] || t.map(() => null))]));
     this._placeSteps();

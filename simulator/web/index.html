@@ -11,12 +11,21 @@
 <script src="vendor/uPlot.iife.min.js"></script>
 </head>
 <body>
-<!-- Okvir varijante A (shell/layout.js): bočna traka levo, statusna traka gore, glavni prostor po radnom prostoru.
-     Prelazni korak: stari UI (#bar, #main, #timeline) je sadržaj #legacy; svi stari id-jevi ostaju. -->
+<!-- Okvir varijante A (shell/layout.js): bočna traka levo, statusna traka gore, a u #content regioni radnog prostora
+     (#ws-tool, #ws-body = #ws-main + #ws-side, #ws-bottom). Delovi starog UI-ja čekaju u #parts dok ih paneli iz
+     web/panels/ ne premeste u svoje korene (svi id-jevi ostaju, app.js radi kao pre); #parts se zatim briše. -->
 <nav id="rail"></nav>
 <header id="strip"></header>
 <div id="content">
-<div id="legacy" class="ws-panel">
+<div id="repoBanner" hidden>
+  <span id="repoBannerText"></span>
+  <button id="rbClone" title="Download the team repo from GitHub into a folder (needs Git)">Clone repo…</button>
+  <button id="rbOpen" title="Use a Robot-2027 folder that is already on this computer">Open repo folder…</button>
+  <button id="rbLocal" title="Keep working without the repo: files are saved only on this computer">Continue without repo</button>
+</div>
+</div>
+
+<div id="parts" hidden>
 <header id="bar">
   <div class="bar-row">
     <span class="brand">Eurosim</span>
@@ -74,43 +83,6 @@
   </div>
 </header>
 
-<div id="repoBanner" hidden>
-  <span id="repoBannerText"></span>
-  <button id="rbClone" title="Download the team repo from GitHub into a folder (needs Git)">Clone repo…</button>
-  <button id="rbOpen" title="Use a Robot-2027 folder that is already on this computer">Open repo folder…</button>
-  <button id="rbLocal" title="Keep working without the repo: files are saved only on this computer">Continue without repo</button>
-</div>
-
-<div id="repoDialog" class="overlay pop" hidden>
-  <div class="ov-title">Team repo <span id="repoRoot" class="dim small"></span><button id="repoClose">✕</button></div>
-  <div id="repoBody" class="small"></div>
-  <div class="row"><button id="repoFetch" title="Check GitHub for news (git fetch)">Check for updates</button>
-    <button id="repoPull" title="Get the latest tactics and robot profile (git pull)">⭳ Pull latest</button></div>
-  <div class="row"><input id="repoMsg" placeholder="what did you change? (e.g. x100: faster approach)">
-    <button id="repoSave" class="primary" title="Commit your tactics and profile changes and push them to GitHub">⭱ Save to GitHub</button></div>
-  <div class="dim small">Save sends only ESP32/tactics and simulator/profiles. Needs Git (GitHub Desktop or Git for Windows).</div>
-</div>
-
-<div id="robotConnect" class="overlay pop" hidden>
-  <div class="ov-title">Connect to the robot</div>
-  <div class="ov-grid">
-    <label class="wide">host <input id="rHost" value="eurokik.local" placeholder="eurokik.local or IP from the VEZA screen"></label>
-    <label class="wide">password <input id="rPass" type="password" placeholder="empty = from ESP32/webrepl_cfg.py"></label>
-  </div>
-  <div class="row"><button id="rConnect" class="primary">Connect</button>
-    <button id="rVirtual" title="Start a virtual robot on this computer (real ESP code + simulated STM32) and connect to it">Virtual robot</button>
-    <button id="rCancel">Cancel</button></div>
-  <div class="dim small">Uses the ESP upload server (TCP 8267) and telemetry (UDP 8268), like tools/tactic.py and
-    tools/watch.py. The laptop must be on the robot's network.</div>
-</div>
-<div id="profDialog" class="overlay pop" hidden>
-  <div class="ov-title">Robot profile <select id="profFile"></select> <span id="profPath" class="dim small"></span>
-    <button id="profClose">✕</button></div>
-  <div id="profBody"></div>
-  <div class="row"><button id="profSave" class="primary">Save &amp; use</button>
-    <span class="dim small">(P) = assumption, to be measured. Saved into the .toml file (comments are kept); next simulation uses it.</span></div>
-</div>
-<main id="main">
   <section id="editorPane" hidden>
     <div class="ed-bar">
       <button id="edNew" title="New tactic from a template">New</button>
@@ -130,12 +102,12 @@
   </section>
   <section id="viewwrap">
     <div id="view"></div>
-    <div id="legend" title="What is drawn on the table">
-      <span><i class="lg-dot"></i>step point (number = step; ring: <b class="ok">OK</b> <b class="fail">failed</b> <b class="run">now</b>)</span>
-      <span><i class="lg-path"></i>path, one color per step</span>
-      <span><i class="lg-odom"></i>odometry</span>
-      <span><i class="lg-draft"></i>draft from the editor</span>
-      <span><i class="lg-ir"></i>IR (red = sees something)</span>
+    <div id="legend" title="Šta je nacrtano na stolu">
+      <span><i class="lg-dot"></i>tačka koraka (broj = korak; prsten: <b class="ok">OK</b> <b class="fail">neuspeh</b> <b class="run">sada</b>)</span>
+      <span><i class="lg-path"></i>putanja, jedna boja po koraku</span>
+      <span><i class="lg-odom"></i>odometrija</span>
+      <span><i class="lg-draft"></i>nacrt iz editora</span>
+      <span><i class="lg-ir"></i>IR (crveno = vidi nešto)</span>
     </div>
     <aside id="apiDrawer" hidden>
       <div class="drawer-head"><b>Gambit Micro</b> <span class="dim">commands</span>
@@ -143,20 +115,20 @@
       <div id="apiList"></div>
     </aside>
     <div id="viewtools">
-      <button id="cam3d" class="on">3D</button><button id="cam2d">Top</button>
-      <button id="viewMenuBtn" title="What is drawn on the table">Show ▾</button>
+      <button id="cam3d" class="on" title="Kamera u prostoru (prevuci = okreni)">3D</button><button id="cam2d" title="Pogled odozgo">Odozgo</button>
+      <button id="viewMenuBtn" title="Šta se crta na stolu">Prikaz ▾</button>
       <div id="viewMenu" class="menu" hidden>
-        <label><input type="checkbox" id="showOdom" checked> odometry (what the robot thinks)</label>
-        <label><input type="checkbox" id="showTargets" checked> step points (where each step takes the robot)</label>
-        <label>step labels <select id="labelMode" title="Name next to the step points"><option value="none">none</option><option value="current" selected>current step</option><option value="all">all</option></select></label>
-        <label><input type="checkbox" id="showLegend" checked> legend</label>
-        <label title="IR sensor rays: grey = nothing within range, red = sees something (stops the robot)"><input type="checkbox" id="showIr" checked> IR sensor rays</label>
-        <label title="Lidar: the last full scan as the ESP measured it (cyan dots at lidar height), nearest point = yellow ring. Shown while the lidar runs (e.g. ESP menu, Lidar test)"><input type="checkbox" id="showLidar" checked> lidar points</label>
-        <label title="Draft path from the editor text (dashed purple)"><input type="checkbox" id="showDraft" checked> draft path from the editor</label>
-        <label>markers <select id="markSize" title="Size of step points and target labels"><option value="0.7">small</option><option value="1" selected>normal</option><option value="1.5">large</option></select></label>
-        <label title="Table look: drawing from the 2027 rules or a plain grid"><input type="checkbox" id="rulesLook" checked> rules table</label>
-        <label title="Game elements of 2027 (10 stone quarries x 3 stones): obstacles for the robot and IR"><input type="checkbox" id="showElements" checked> game elements</label>
-        <label><input type="checkbox" id="follow"> follow the robot</label>
+        <label><input type="checkbox" id="showOdom" checked> odometrija (gde robot misli da je)</label>
+        <label><input type="checkbox" id="showTargets" checked> tačke koraka (kuda koji korak vodi robota)</label>
+        <label>imena koraka <select id="labelMode" title="Ime pored tačaka koraka"><option value="none">bez</option><option value="current" selected>trenutni korak</option><option value="all">sva</option></select></label>
+        <label><input type="checkbox" id="showLegend" checked> legenda</label>
+        <label title="Zraci IR senzora: sivo = ništa u dometu, crveno = vidi nešto (zaustavlja robota)"><input type="checkbox" id="showIr" checked> zraci IR senzora</label>
+        <label title="Lidar: the last full scan as the ESP measured it (cyan dots at lidar height), nearest point = yellow ring. Shown while the lidar runs (e.g. ESP menu, Lidar test)"><input type="checkbox" id="showLidar" checked> tačke lidara</label>
+        <label title="Nacrt putanje iz teksta u editoru (ljubičasto isprekidano)"><input type="checkbox" id="showDraft" checked> nacrt putanje iz editora</label>
+        <label>oznake <select id="markSize" title="Veličina tačaka koraka i natpisa ciljeva"><option value="0.7">male</option><option value="1" selected>srednje</option><option value="1.5">velike</option></select></label>
+        <label title="Izgled stola: crtež iz pravila 2027 ili obična mreža"><input type="checkbox" id="rulesLook" checked> sto iz pravila</label>
+        <label title="Elementi igre 2027 (10 kamenoloma x 3 kamena): prepreke za robota i IR"><input type="checkbox" id="showElements" checked> elementi igre</label>
+        <label><input type="checkbox" id="follow"> Kamera prati robota</label>
       </div>
       <button id="addOpp" title="Add an opponent (drag it on the table)">+ Opponent</button>
       <button id="addPami" title="Add a PAMI (small opponent robot): waits, moves in the last 15 s of the match">+ PAMI</button>
@@ -230,29 +202,58 @@
       <div id="log" class="mono"></div>
     </div>
   </aside>
-</main>
 
 <footer id="timeline">
   <div class="controls">
-    <button id="prevStep" title="Previous step (Shift+←)">⏮</button>
-    <button id="prevFrame" title="Back 1 frame (←)">◀</button>
-    <button id="play" title="Play / pause (Space)">▶</button>
-    <button id="nextFrame" title="Forward 1 frame (→)">▶|</button>
-    <button id="nextStep" title="Next step (Shift+→)">⏭</button>
-    <select id="speed" title="Playback speed">
+    <button id="prevStep" title="Prethodni korak (Shift+←)">⏮</button>
+    <button id="prevFrame" title="Nazad 1 frejm (←)">◀</button>
+    <button id="play" title="Pusti / pauza (razmak)">▶</button>
+    <button id="nextFrame" title="Napred 1 frejm (→)">▶|</button>
+    <button id="nextStep" title="Sledeći korak (Shift+→)">⏭</button>
+    <select id="speed" title="Brzina puštanja">
       <option value="0.25">×0.25</option><option value="0.5">×0.5</option><option value="1" selected>×1</option>
       <option value="2">×2</option><option value="5">×5</option><option value="10">×10</option><option value="25">×25</option>
     </select>
     <span id="time" class="mono">0.00 / 0.00 s</span>
     <span id="matchtime" class="mono dim"></span>
   </div>
-  <div id="band" title="Steps of the tactic: click one to jump to it"><div id="bandSteps"></div><div id="bandFlags"></div>
-    <button id="bandCord" hidden title="Pull the start cord: the match starts now (100 s)">⏵ PULL CORD · robot is armed and waits</button></div>
+  <div id="band" title="Koraci taktike: klik na korak skače na njega"><div id="bandSteps"></div><div id="bandFlags"></div>
+    <button id="bandCord" hidden title="Povuci startni činč: meč počinje sada (100 s)">⏵ POVUCI ČINČ · robot je naoružan i čeka</button></div>
   <div id="scrub"><div id="marks"></div><input type="range" id="slider" min="0" max="0" value="0" step="1"></div>
   <div id="bandAxis" class="mono dim"></div>
   <div id="charts"></div>
 </footer>
 </div>
+
+<!-- Dijalozi (position: fixed) na nivou strane: vide se u svakom radnom prostoru. -->
+<div id="repoDialog" class="overlay pop" hidden>
+  <div class="ov-title">Team repo <span id="repoRoot" class="dim small"></span><button id="repoClose">✕</button></div>
+  <div id="repoBody" class="small"></div>
+  <div class="row"><button id="repoFetch" title="Check GitHub for news (git fetch)">Check for updates</button>
+    <button id="repoPull" title="Get the latest tactics and robot profile (git pull)">⭳ Pull latest</button></div>
+  <div class="row"><input id="repoMsg" placeholder="what did you change? (e.g. x100: faster approach)">
+    <button id="repoSave" class="primary" title="Commit your tactics and profile changes and push them to GitHub">⭱ Save to GitHub</button></div>
+  <div class="dim small">Save sends only ESP32/tactics and simulator/profiles. Needs Git (GitHub Desktop or Git for Windows).</div>
+</div>
+
+<div id="robotConnect" class="overlay pop" hidden>
+  <div class="ov-title">Connect to the robot</div>
+  <div class="ov-grid">
+    <label class="wide">host <input id="rHost" value="eurokik.local" placeholder="eurokik.local or IP from the VEZA screen"></label>
+    <label class="wide">password <input id="rPass" type="password" placeholder="empty = from ESP32/webrepl_cfg.py"></label>
+  </div>
+  <div class="row"><button id="rConnect" class="primary">Connect</button>
+    <button id="rVirtual" title="Start a virtual robot on this computer (real ESP code + simulated STM32) and connect to it">Virtual robot</button>
+    <button id="rCancel">Cancel</button></div>
+  <div class="dim small">Uses the ESP upload server (TCP 8267) and telemetry (UDP 8268), like tools/tactic.py and
+    tools/watch.py. The laptop must be on the robot's network.</div>
+</div>
+<div id="profDialog" class="overlay pop" hidden>
+  <div class="ov-title">Robot profile <select id="profFile"></select> <span id="profPath" class="dim small"></span>
+    <button id="profClose">✕</button></div>
+  <div id="profBody"></div>
+  <div class="row"><button id="profSave" class="primary">Save &amp; use</button>
+    <span class="dim small">(P) = assumption, to be measured. Saved into the .toml file (comments are kept); next simulation uses it.</span></div>
 </div>
 
 <script type="module" src="app.js"></script>

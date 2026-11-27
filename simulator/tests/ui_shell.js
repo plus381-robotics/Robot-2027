@@ -33,6 +33,23 @@ const { chromium } = require('playwright');
     await p.click('#rail [data-ws=test]');
     if (!/Test dela dolazi u Fazi 5/.test(await p.textContent('#content'))) fail.push('Test dela: nema poruke');
     if (await p.isVisible('#bar')) fail.push('Test dela: stari UI se vidi');
+    await p.click('#rail [data-act=profile]').catch(() => {});               // Profil se vidi i u Test dela (Zadatak 4.1)
+    if (!(await p.isVisible('#profDialog'))) fail.push('Test dela: Profil se ne vidi');
+    await p.click('#profClose').catch(() => {});
+
+    // --- regioni (Zadatak 4.1): teren u glavnom delu, vreme + grafici dole, grafici sklopivi i zapamćeni ---
+    await p.click('#rail [data-ws=taktike]');
+    await p.waitForSelector('#ws-editor:not(.ed-closed)', { timeout: 10000 }).catch(() => fail.push('Taktike: editor se nije otvorio'));
+    for (const id of ['#ws-teren #viewwrap', '#ws-editor #editorPane', '#ws-vreme #timeline', '#ws-grafici #charts', '#ws-stari-alati #bar',
+      '#ws-side #side-panel']) if (!(await p.$(id))) fail.push('region: nema ' + id);
+    if (!(await p.$eval('#card-grafici', e => e.classList.contains('closed')))) fail.push('Taktike: grafici nisu sklopljeni');
+    const terenH = await p.$eval('#ws-teren', e => e.getBoundingClientRect().height);
+    if (terenH < 420) fail.push('teren nizak: ' + terenH);
+    await p.click('#card-grafici .ws-card-h');
+    if (!(await p.isVisible('#charts'))) fail.push('grafici se ne otvaraju');
+    await p.reload(); await p.waitForSelector('#tactic option', { state: 'attached' });
+    if (await p.$eval('#card-grafici', e => e.classList.contains('closed'))) fail.push('grafici: stanje nije zapamćeno');
+    await p.click('#card-grafici .ws-card-h');
 
     // --- Live: Esc šalje STOP, i iz editora sa otvorenim popupom dopune ---
     await p.click('#rail [data-ws=voznja]');

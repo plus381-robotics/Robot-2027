@@ -482,7 +482,7 @@ export class FieldView {
     // Koraci na mapi (plan E1): JEDNA mala oznaka po koraku koji pomera robota, na mestu gde ga korak vodi
     // (cilj GOTO, ili gde je robot bio na kraju MOVE). Okreti i aktuatori nemaju oznaku (vide se na timeline-u).
     // Boja = boja koraka (ista kao putanja i traka na timeline-u); obod = ishod. Natpis: tekući korak, hover ili
-    // "all" (Show ▾ -> labels). Iznad svega (depthTest false).
+    // "all" (Prikaz ▾ -> imena koraka). Iznad svega (depthTest false).
     const over = o => { o.renderOrder = 6; if (o.material) o.material.depthTest = false; return o; };
     this.targets = this.stepMarks;                     // jedna grupa (stari prekidač "targets" je skriva)
     for (const s of run.steps) {

@@ -1,10 +1,14 @@
 // Registar panela (okvir varijante A): panel se prijavi jednom, okvir ga prikaže u radnim prostorima koje navodi.
 //   registerPanel({id, title, workspaces: ['taktike', ...], region: 'main'|'side'|'bottom'|'tool', priority,
 //                  needs: [cap|dataKey], open, mount(el, ctx), update(state)})
+//     open: true/false ili lista prostora u kojima je kartica podrazumevano otvorena (core/regions.js);
+//     dodatno (shell/layout.js): collapsible (donji panel kao kartica), grow (kartica popunjava bočnu kolonu),
+//     shown(el, ctx) posle svakog prikaza (npr. teren: ponovo izmeri sto)
 //   panelsFor(workspace, caps) -> [panel]   po regionu, pa po priority (manji broj = važniji, ide prvi);
 //                                            needs koji nije u caps -> {..., disabled: true, reason: 'potrebno: ...'}
-//   ctx = { store, command(c), go(workspace) }
-// U Zadatku 3.2 ovde su samo delovi okvira (stari prikaz, mesto za Test dela); paneli prelaze u Fazi 4.
+//   allPanels() -> [panel]                     svi prijavljeni (okvir ih montira jednom, na početku)
+//   ctx = { store, command(c), go(workspace), setDrive, openSources, setBadge(id, text), legacy }
+// Paneli su u web/panels/ (jedan fajl po panelu, prijava pri uvozu panels/index.js).
 // Bez DOM-a na nivou modula, da ga uveze i `node --test`.
 
 export const WORKSPACES = ['taktike', 'test', 'voznja', 'snimci'];
@@ -45,6 +49,7 @@ const registry = createRegistry();
 export const registerPanel = p => registry.registerPanel(p);
 export const panelsFor = (workspace, caps) => registry.panelsFor(workspace, caps);
 export const getPanel = id => registry.get(id);
+export const allPanels = () => registry.all();
 
 // Radni prostor u localStorage (svaki pristup u try/catch: privatni prozor, blokiran storage).
 export function loadWorkspace(storage = globalThis.localStorage, def = 'taktike') {

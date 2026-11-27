@@ -8,6 +8,7 @@ import { buildRun, appendRun, snapshotRun, LIDAR_HOLD_MS } from './core/run.js';
 import { createStore } from './core/store.js';
 import { connect } from './core/session.js';
 import { mountShell } from './shell/layout.js';
+import './panels/index.js';                    // paneli okvira (prijava pri uvozu)
 import { snapshotAt } from './shell/strip.js';
 
 const $ = id => document.getElementById(id);
@@ -129,7 +130,7 @@ function renderState(i) {
   $('stepnext').textContent = s ? (active ? `running ${secs(t - s.t)} s${s.timeout ? ' / timeout ' + secs(s.timeout) + ' s' : ''}` :
     `finished: ${s.ok ? 'OK' : (REASON[s.reason] || s.reason || 'fail')}`) + (s.next ? ` · next: ${s.next}` : '') : '';
   const m = c.match[i];
-  $('matchtime').textContent = m == null ? '' : `match ${secs(m)} s`;
+  $('matchtime').textContent = m == null ? '' : `meč ${secs(m)} s`;
 }
 
 function renderSteps() {
@@ -858,7 +859,7 @@ function toggleCommands(show) {
 
 async function toggleEditor() {
   if (ed) {
-    $('editorPane').hidden = true; $('main').classList.remove('editing'); $('edBtn').classList.remove('on');
+    $('editorPane').hidden = true; $('edBtn').classList.remove('on');      // panel editor prati hidden
     view.setPreview(null); view.setCursorPoint(null); clearTimeout(autoSimTimer); toggleCommands(false);
     ed.editor.view.destroy(); ed = null;
     fillTacticSelects();
@@ -866,7 +867,7 @@ async function toggleEditor() {
   }
   const { TacticEditor } = await import('./editor.js');
   const tapi = await api('/api/tacapi');
-  $('editorPane').hidden = false; $('main').classList.add('editing'); $('edBtn').classList.add('on');
+  $('editorPane').hidden = false; $('edBtn').classList.add('on');
   ed = { api: tapi, name: $('tactic').value, sha: null, saved: '' };
   ed.editor = new TacticEditor($('edHost'), { api: tapi, onChange: edChanged, onRun: () => simulate(), onSave: () => edSave(), onSaveAs: () => edSaveAs(),
     onEdit: () => edPreview(), onCursor: line => edCursor(line) });
@@ -1145,10 +1146,10 @@ async function saveProfile() {
 function showRepoBanner() {
   const w = info.where || {};
   const b = $('repoBanner');
-  if (w.mode === 'repo') { b.hidden = true; document.body.classList.remove('has-banner'); document.title = 'Eurosim'; return; }
+  if (w.mode === 'repo') { b.hidden = true; document.title = 'Eurosim'; return; }
   let local = false;
   try { local = sessionStorage.getItem('eurosim.norepo') === '1'; } catch (e) { /* ignore */ }
-  b.hidden = false; document.body.classList.add('has-banner');
+  b.hidden = false;
   b.classList.toggle('local', local);
   $('rbLocal').hidden = local;
   $('repoBannerText').textContent = local
@@ -1281,6 +1282,7 @@ async function main() {
     },
     openRepo: () => $('repoBtn').click(),
     openProfile: () => $('profBtn').click(),
+    resizeView: () => { view.resize(); charts.resize(); },        // panel teren posle premeštanja
     showErrors: () => {
       const errs = $('log').querySelectorAll('div.err');
       if (errs.length) errs[errs.length - 1].scrollIntoView({ block: 'nearest' });
@@ -1426,7 +1428,7 @@ async function main() {
   $('showTargets').onchange = vis;
   $('showIr').onchange = e => view.setShowIr(e.target.checked);
   $('showLidar').onchange = e => view.setShowLidar(e.target.checked);
-  const pref = (k, el, apply) => {                 // izbor u Show ▾ se pamti (localStorage)
+  const pref = (k, el, apply) => {                 // izbor u Prikaz ▾ se pamti (localStorage)
     try { const v = localStorage.getItem('eurosim.' + k); if (v != null) { if (el.type === 'checkbox') el.checked = v === '1'; else el.value = v; } } catch (er) { /* ignore */ }
     const go = () => { apply(el.type === 'checkbox' ? el.checked : el.value);
       try { localStorage.setItem('eurosim.' + k, el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value); } catch (er) { /* ignore */ } };
