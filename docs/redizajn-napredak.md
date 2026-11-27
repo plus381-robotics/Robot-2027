@@ -9,11 +9,14 @@ Grana: `redizajn-ui` (lokalna). Maketa: varijanta A (`~/makete-ui/varijanta-a.ht
 - **Faza 1 — gotova** (1.1 snimak v2 sa `meta.origin`, bez lažnih polja sa robota; 1.2 server po modulima `eurosim/api/`).
 - **Faza 2 — gotova** (2.1 `eurosim/session.py`: `SimSource`, `RobotSource`, `ReplaySource`; 2.2 `/ws/session`
   sa porukama `hello` i `state` (`ok`/`stale`/`lost`), `/ws/live` i `/ws/robot` su alijasi, stari UI radi bez izmena).
-- Testovi: `simulator/.venv/bin/python -m pytest -q simulator/tests` → 145 passed (polazno 119).
+- **Faza 3 — gotova** (3.1 `web/core/run.js` (inkrementalni snimak, `hasData`), `core/store.js`, `core/session.js`;
+  3.2 okvir varijante A: statusna traka, bočna traka, registar panela `core/panels.js`, `web/shell/`; stari UI je
+  montiran ispod; Esc = STOP odasvud, i iz editora; Live i Robot idu preko `/ws/session`).
+- Testovi: `simulator/.venv/bin/python -m pytest -q simulator/tests` → 145 passed (polazno 119);
+  `node --test simulator/tests/js/` → 25 passed.
 - Ručno u browseru (1366×768): brza simulacija, Live (Naoruži, činč, Esc = STOP, End), virtuelni robot
   (Push & Run, Esc, Disconnect), robot koji se ne javlja („no telemetry“, STOP se i dalje šalje) — bez grešaka.
-- **Sledeće: Faza 3** (3.1 `store`, klijent sesije, inkrementalni snimak; 3.2 okvir varijante A: traka, bočna traka,
-  registar panela).
+- **Sledeće: Faza 4** (prenos postojećih panela jedan po jedan u novi okvir, pa brisanje starog UI-ja).
 
 ## Pravila izrade (od korisnika)
 
@@ -50,6 +53,13 @@ Grana: `redizajn-ui` (lokalna). Maketa: varijanta A (`~/makete-ui/varijanta-a.ht
 - 2.2: robot ima dva tajmera od 100 ms (neravnomerni paketi); izuzetak u pumpi se ne loguje; tekst greške
   „ne mogu da nađem …“ važi i za sim; snimak bez `run` piše „nema snimka None“; STAT ide paralelno sa komandama
   (dobro za STOP, više TCP veza ka ESP-u).
+
+- 3.1: `buildRun`/`appendRun` menjaju ulaz (komentar); `hasData` ponovo skenira sve-null kolone; test „bez ponovnog
+  skeniranja“ je slab.
+- 3.2 (vidljivo u prelaznom periodu): Profil i Repo se ne vide u „Test dela“; Taktike tokom sesije pišu „end Live
+  first“; STOP bi mogao biti odsečen ako fontovi budu širi; Repo u bočnoj traci vidljiv i van repo režima; klik na
+  stare kartice Live/Robot ne menja izbor u bočnoj traci; Meč je krupniji od Izvora; uz otvoren editor stari raspored je
+  tesan na 768 px (rešava Faza 4).
 
 ## Nastavak na drugom računaru
 
