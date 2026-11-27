@@ -148,3 +148,146 @@ def test_sim_source_pad_procesa_postavlja_error():
         return await s.poll()
     d = asyncio.run(go())
     assert d["final"] is True and d["error"] == "proces simulacije je stao"
+
+
+# ---------------- /ws/session (server.session_ws) ----------------
+
+def _ws_run(path_fn, scenario):
+    """Podigne aplikaciju u istoj petlji, otvori WebSocket na path_fn(base) i pozove scenario(ws)."""
+    import pytest
+    aiohttp = pytest.importorskip("aiohttp")
+    from aiohttp.test_utils import TestServer
+    from eurosim import server
+
+    async def go():
+        srv = TestServer(server.make_app())
+        await srv.start_server()
+        try:
+            async with aiohttp.ClientSession() as cs:
+                async with cs.ws_connect(path_fn("ws://127.0.0.1:%d" % srv.port)) as ws:
+                    return await scenario(ws)
+        finally:
+            await srv.close()
+    return asyncio.run(go())
+
+
+def test_ws_session_hello_pa_podaci():
+    async def scenario(ws):
+        got = []
+        t0 = time.time()
+        while time.time() - t0 < 20:
+            m = await ws.receive_json(timeout=10)
+            got.append(m)
+            if m["type"] == "data" and m["frames"]:
+                break
+        await ws.send_json(["quit"])
+        while got[-1]["type"] not in ("end", "error"):
+            got.append(await ws.receive_json(timeout=15))
+        return got
+    got = _ws_run(lambda b: b + "/ws/session?engine=sim&tactic=primer&side=zuta", scenario)
+    h = got[0]
+    assert h["type"] == "hello" and h["source"]["engine"] == "sim" and "parts" in h["source"]
+    assert "pause" in h["capabilities"] and "stop" in h["capabilities"]
+    data = [m for m in got if m["type"] == "data"]
+    assert data and all(k in data[0] for k in ("frames", "events", "t", "meta", "final"))
+    assert got[-1]["type"] == "end" and got[-1]["run"]["cols"]["t"]
+
+
+def _robot_tihi(monkeypatch, calls):
+    """RobotLink čija telemetrija ćuti (UDP nikad ne stiže), a cmd samo beleži poziv."""
+    from eurosim import robotlink, server
+    monkeypatch.setattr(server, "STALE_MS", 300)
+    monkeypatch.setattr(server, "LOST_MS", 900)
+
+    async def cmd(self, *args, data=b""):
+        calls.append(args)
+        return True, ["OK"]
+    monkeypatch.setattr(robotlink.RobotLink, "cmd", cmd)
+    return free_port(socket.SOCK_DGRAM)
+
+
+def test_link_stale_pa_lost(monkeypatch):
+    calls = []
+    tp = _robot_tihi(monkeypatch, calls)
+
+    async def scenario(ws):
+        states, datas, first = [], 0, None
+        t0 = time.time()
+        while time.time() - t0 < 10 and [s["link"] for s in states][-1:] != ["lost"]:
+            m = await ws.receive_json(timeout=5)
+            first = first or m
+            if m["type"] == "state":
+                states.append(m)
+            elif m["type"] == "data":
+                datas += 1
+        await asyncio.sleep(0.5)                       # sesija je još živa: nema end/error
+        await ws.send_json(["quit"])
+        last = None
+        while last is None or last["type"] not in ("end", "error"):
+            last = await ws.receive_json(timeout=5)
+        return first, states, datas, last
+    first, states, datas, last = _ws_run(
+        lambda b: b + "/ws/session?engine=robot&host=127.0.0.1&password=pw&telem=%d" % tp, scenario)
+    assert first["type"] == "hello" and first["source"]["engine"] == "robot"
+    assert [s["link"] for s in states] == ["stale", "lost"] and states[0]["age"] > 300 and states[1]["age"] > 900
+    assert datas > 3 and last["type"] == "end"
+    assert calls[0] == ("STAT",)
+
+
+def test_stop_radi_i_kad_je_veza_izgubljena(monkeypatch):
+    calls = []
+    tp = _robot_tihi(monkeypatch, calls)
+
+    async def scenario(ws):
+        while True:
+            m = await ws.receive_json(timeout=5)
+            if m["type"] == "state" and m["link"] == "lost":
+                break
+        await ws.send_json(["stop"])
+        while True:
+            m = await ws.receive_json(timeout=5)
+            if m["type"] == "reply" and m["cmd"] == "stop":
+                break
+        await ws.send_json(["quit"])
+        return m
+    m = _ws_run(lambda b: b + "/ws/robot?host=127.0.0.1&password=pw&telem=%d" % tp, scenario)
+    assert m["ok"] is True and ("STOP",) in calls
+
+
+def test_ws_robot_nepoznat_host_daje_error():
+    async def scenario(ws):
+        return await ws.receive_json(timeout=10)
+    m = _ws_run(lambda b: b + "/ws/robot?host=nema-takvog-hosta.invalid", scenario)
+    assert m["type"] == "error" and "ne mogu da nađem nema-takvog-hosta.invalid" in m["error"]
+
+
+def test_ws_replay_snimak(tmp_path):
+    from eurosim import server
+    r = record.Recording({"origin": {"engine": "sim", "parts": {"pogon": "sim"}}})
+    r.frames = [{"t": 0, "x": 1}, {"t": 20, "x": 2}]
+    server.RUNS = tmp_path
+    try:
+        r.save(tmp_path / "snimak1.json.gz")
+
+        async def scenario(ws):
+            return [await ws.receive_json(timeout=10) for _ in range(3)]
+        got = _ws_run(lambda b: b + "/ws/session?engine=replay&run=snimak1", scenario)
+    finally:
+        server.RUNS = None
+    assert [m["type"] for m in got] == ["hello", "data", "end"]
+    assert got[0]["source"]["engine"] == "replay" and got[0]["source"]["parts"] == {"pogon": "sim"}
+    assert len(got[1]["frames"]) == 2 and got[2]["run"]["cols"]["t"] == [0, 20]
+
+
+def test_komanda_posle_kraja_ima_razlog():
+    async def go():
+        s = SimSource({"name": "primer"})
+        s.done = True
+        r1 = await s.command(["pause", True])
+        rb = RobotSource("h", "pw", P.load(paths.DEFAULT_PROFILE))
+        await rb.close()
+        r2 = await rb.command(["stop"])
+        return r1, r2
+    r1, r2 = asyncio.run(go())
+    assert r1["ok"] is False and r1["lines"] == ["sesija je završena"]
+    assert r2["ok"] is False and r2["lines"] == ["sesija je završena"]

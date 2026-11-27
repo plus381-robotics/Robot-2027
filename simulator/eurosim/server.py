@@ -12,7 +12,7 @@ import webbrowser
 
 from aiohttp import web
 
-from . import field, paths, profile as profmod, tactics as tacmod
+from . import field, paths, profile as profmod, session, tactics as tacmod
 from .api import profile as profapi, repo as repoapi, runs, scenarios, tactics as tacapi
 from .api._util import STATE, _dumps, _elements_arg, _tactic_names, columns, pack
 from .api.runs import RUN_TIMEOUT_S, _live_worker, _runs, run_in_process      # noqa: F401  (testovi: server.*)
@@ -47,11 +47,13 @@ async def info(request):
 # ---------------- scenariji: izmenjen sto (kamenolomi) i protivnici, plan E3 ----------------
 
 
-async def live(request):
-    """WebSocket /ws/live?tactic=..&side=..: interaktivna simulacija u stvarnom vremenu.
-    Klijent šalje JSON liste (komande, vidi Sim.command), server šalje {"type": "data"|"end"|"error", ...}."""
-    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=32 * 1024 * 1024)
-    await ws.prepare(request)
+# ---------------- sesija: jedan WebSocket za simulaciju, pravog robota i snimak ----------------
+
+STALE_MS, LOST_MS = 1500, 5000       # starost poslednjeg paketa telemetrije: "stale" / "lost" (veza se ne zatvara)
+POLL_S = 0.1
+
+
+def _sim_source(request):
     q = request.query
     names = _tactic_names()
     tactic = q.get("tactic") if q.get("tactic") in names else None
@@ -66,103 +68,85 @@ async def live(request):
         kw["name"], kw["source"] = staged
     if q.get("lidar") and q.get("lidar") != "sim":   # hibridna simulacija: lidar sa robota ili iz snimka
         kw["lidar_spec"], kw["lidar_pw"] = q.get("lidar"), q.get("lidar_pw") or None
-    ctx = mp.get_context("spawn")
-    a, b = ctx.Pipe()
-    p = ctx.Process(target=_live_worker, args=(b, kw), daemon=True)
-    p.start()
-    b.close()
-    loop = asyncio.get_running_loop()
-
-    async def outgoing():
-        while True:
-            try:
-                has = await loop.run_in_executor(None, a.poll, 0.2)
-                if not has:
-                    if not p.is_alive():
-                        await ws.send_str(_dumps({"type": "error", "error": "proces simulacije je stao"}))
-                        return
-                    continue
-                kind, d = a.recv()
-            except (EOFError, OSError):
-                return
-            if ws.closed:
-                return
-            if kind == "data":
-                await ws.send_str(_dumps({"type": "data", **d}))
-            elif kind == "end":
-                request.app[STATE]["last"] = d
-                await ws.send_str(_dumps({"type": "end", "run": pack(d)}))
-                return
-            else:
-                await ws.send_str(_dumps({"type": "error", "error": d}))
-                return
-
-    task = asyncio.create_task(outgoing())
-    try:
-        async for msg in ws:
-            if msg.type == web.WSMsgType.TEXT:
-                try:
-                    a.send(tuple(json.loads(msg.data)))
-                except (ValueError, OSError, BrokenPipeError):
-                    pass
-            if task.done():
-                break
-    finally:
-        if p.is_alive():
-            try:
-                a.send(("quit",))
-            except (OSError, BrokenPipeError):
-                pass
-        try:
-            await asyncio.wait_for(task, 5)
-        except (asyncio.TimeoutError, Exception):
-            task.cancel()
-        p.join(1)
-        if p.is_alive():
-            p.kill()
-        if not ws.closed:
-            await ws.close()
-    return ws
+    return session.SimSource(kw)
 
 
-# ---------------- repo kao radni prostor (plan S10) ----------------
+def _robot_host(request):
+    return request.query.get("host") or "eurokik.local"
 
 
-# ---------------- pravi robot (F5) ----------------
-
-async def robot_ws(request):
-    """WebSocket /ws/robot?host=..&password=..: telemetrija robota + komande (push, run, stop).
-    Isti oblik podataka kao /ws/live; na kraju {"type": "end", "run": snimak}."""
+def _robot_source(request):
     from . import robotlink
-    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=32 * 1024 * 1024)
-    await ws.prepare(request)
     q = request.query
-    host = q.get("host") or "eurokik.local"
-    pw = q.get("password") or robotlink.default_password()
-
-    async def emit(d):
-        if not ws.closed:
-            await ws.send_str(_dumps({"type": "data", **d}))
-
-    link = robotlink.RobotLink(host, pw, emit, request.app[STATE]["profile"],
+    return session.RobotSource(_robot_host(request), q.get("password") or robotlink.default_password(),
+                               request.app[STATE]["profile"],
                                upload_port=int(q.get("port") or robotlink.UPLOAD_PORT),
                                telem_port=int(q.get("telem") or robotlink.TELEM_PORT))
-    try:
-        await link.start()
-    except OSError as e:
-        await ws.send_str(_dumps({"type": "error", "error": "ne mogu da nađem %s: %s (probaj IP adresu sa ekrana "
-                                                        "VEZA)" % (host, e)}))
+
+
+def _replay_source(request):
+    f = runs._runs_dir() / (runs._safe_name(request.query.get("run") or "") + ".json.gz")
+    return session.ReplaySource(f) if f.exists() else None
+
+
+def _link_state(age):
+    return "lost" if age > LOST_MS else "stale" if age > STALE_MS else "ok"
+
+
+async def session_ws(request, engine=None):
+    """WebSocket /ws/session?engine=sim|robot|replay&..: jedan oblik poruka za sva tri izvora.
+    Server šalje {"type": "hello"|"data"|"reply"|"state"|"end"|"error", ...}, klijent JSON liste (komande).
+    /ws/live i /ws/robot su isti handler sa engine=sim / engine=robot."""
+    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=32 * 1024 * 1024)
+    await ws.prepare(request)
+    engine = engine or request.query.get("engine") or "sim"
+
+    async def send(o):
+        if not ws.closed:
+            await ws.send_str(_dumps(o))
+
+    async def refuse(text):
+        await send({"type": "error", "error": text})
         await ws.close()
         return ws
-    pump = asyncio.create_task(link.run())
-
-    async def reply(c, ok, lines):
-        if not ws.closed:
-            await ws.send_str(_dumps({"type": "reply", "cmd": c, "ok": ok, "lines": lines}))
 
     try:
-        ok, lines = await link.cmd("STAT")
-        await reply("STAT", ok, lines)
+        source = {"sim": _sim_source, "robot": _robot_source, "replay": _replay_source}.get(engine, lambda r: None)(request)
+    except ValueError as e:
+        return await refuse("neispravni parametri: %s" % e)
+    if source is None:
+        return await refuse("nema snimka %s" % request.query.get("run") if engine == "replay"
+                            else "nepoznat izvor: %s" % engine)
+    try:
+        await source.start()
+    except OSError as e:
+        await source.close()
+        return await refuse("ne mogu da nađem %s: %s (probaj IP adresu sa ekrana VEZA)" % (_robot_host(request), e))
+    except Exception as e:
+        await source.close()
+        return await refuse(str(e))
+    await send({"type": "hello", "source": {"engine": source.kind, "parts": source.parts},
+                "capabilities": sorted(source.capabilities)})
+
+    async def pump():
+        """Skuplja podatke izvora i šalje ih; vraća True ako je izvor javio grešku, False kad je gotov (final)."""
+        link = "ok"
+        while True:
+            d = await source.poll()
+            err = d.pop("error", None)
+            if source.kind != "replay" or d["frames"] or d["events"] or d["meta"]:
+                await send({"type": "data", **d})
+            if source.kind == "robot" and d["age"] is not None and _link_state(d["age"]) != link:
+                link = _link_state(d["age"])
+                await send({"type": "state", "link": link, "age": d["age"]})
+            if err:
+                await send({"type": "error", "error": err})
+                return True
+            if d["final"]:
+                return False
+            await asyncio.sleep(POLL_S)
+
+    async def reader():
         async for msg in ws:
             if msg.type != web.WSMsgType.TEXT:
                 continue
@@ -170,35 +154,54 @@ async def robot_ws(request):
                 c = json.loads(msg.data)
             except ValueError:
                 continue
-            k = c[0]
-            if k == "quit":
-                break
-            if k == "push":                       # ["push", ime, tekst ili null = fajl iz ESP32/tactics]
-                name, src = c[1], c[2] if len(c) > 2 else None
-                if not tacmod.NAME_RE.match(name or ""):
-                    await reply(k, False, ["neispravno ime"])
-                    continue
-                if src is None:
-                    src = (paths.TACTICS / (name + ".py")).read_text(encoding="utf-8")
-                data = src.encode("utf-8")
-                ok, lines = await link.cmd("PUT", "/tactics/%s.py" % name, len(data), data=data)
-                await reply(k, ok, lines)
-            elif k == "run":
-                ok, lines = await link.cmd("RUN", c[1], c[2] if len(c) > 2 else "")
-                await reply(k, ok, lines)
-            elif k == "stop":
-                ok, lines = await link.cmd("STOP")
-                await reply(k, ok, lines)
+            if not isinstance(c, list) or not c:
+                continue
+            if c[0] == "quit":
+                return
+            try:
+                r = await source.command(c)
+            except Exception as e:
+                r = {"cmd": str(c[0]), "ok": False, "lines": [str(e)]}
+            await send({"type": "reply", **r})
+
+    failed = False
+    pumping = asyncio.create_task(pump())
+    reading = asyncio.create_task(reader())
+    try:
+        if source.kind == "robot":                    # UI iz STAT odgovora vidi "connected"
+            ok, lines = await source.link.cmd("STAT")
+            await send({"type": "reply", "cmd": "STAT", "ok": ok, "lines": lines})
+        await asyncio.wait({pumping, reading}, return_when=asyncio.FIRST_COMPLETED)
     finally:
-        pump.cancel()
-        link.close()
-        res = link.recording()
-        if res["frames"]:
-            request.app[STATE]["last"] = res
+        reading.cancel()
+        if pumping.done():
+            failed = not pumping.cancelled() and pumping.exception() is None and pumping.result()
+        else:
+            pumping.cancel()                           # prvo stop poll-a, tek onda close()
+        await asyncio.gather(pumping, reading, return_exceptions=True)
+        rec = await source.close()
+        if rec.get("frames"):
+            request.app[STATE]["last"] = rec
+        if not failed:
+            await send({"type": "end", "run": pack(rec) if rec.get("frames") else None})
         if not ws.closed:
-            await ws.send_str(_dumps({"type": "end", "run": pack(res) if res["frames"] else None}))
             await ws.close()
     return ws
+
+
+async def live(request):
+    """WebSocket /ws/live?tactic=..&side=..: stari naziv za /ws/session?engine=sim."""
+    return await session_ws(request, "sim")
+
+
+async def robot_ws(request):
+    """WebSocket /ws/robot?host=..&password=..: stari naziv za /ws/session?engine=robot."""
+    return await session_ws(request, "robot")
+
+
+# ---------------- repo kao radni prostor (plan S10) ----------------
+
+
 
 
 def _vrobot_worker(kw):
@@ -258,6 +261,7 @@ def make_app(prof=None):
     app.router.add_get("/api/runs", runs.runs_list)
     app.router.add_post("/api/runs/save", runs.run_save)
     app.router.add_get("/api/runs/{name}", runs.run_load)
+    app.router.add_get("/ws/session", session_ws)
     app.router.add_get("/ws/live", live)
     app.router.add_get("/api/tacapi", tacapi.tac_api_h)
     app.router.add_get("/api/tactic/{name}", tacapi.tactic_get)

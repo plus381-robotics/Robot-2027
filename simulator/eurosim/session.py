@@ -12,6 +12,7 @@ CAPS = frozenset({"pause", "speed", "esp_screen", "esp_buttons", "arm", "cord", 
                   "opponents", "lidar", "manual", "seek"})
 
 UNSUPPORTED = ["nepodržano"]
+ENDED = ["sesija je završena"]
 
 
 class Buffer:
@@ -44,6 +45,8 @@ class Buffer:
 class Source:
     kind = ""
     capabilities = frozenset()
+    parts = {}                                   # šta je stvarno, a šta simulirano (za "hello")
+    closed = False
 
     async def start(self):
         pass
@@ -60,6 +63,10 @@ class Source:
     @staticmethod
     def unsupported(c):
         return {"cmd": str(c[0]) if c else "", "ok": False, "lines": list(UNSUPPORTED)}
+
+    @staticmethod
+    def ended(c):
+        return {"cmd": str(c[0]) if c else "", "ok": False, "lines": list(ENDED)}
 
     @staticmethod
     def reply(c, ok=True, lines=()):
@@ -83,6 +90,8 @@ class SimSource(Source):
         if str(self.kw.get("lidar_spec") or "").startswith("robot"):      # pravi lidar: ×1, bez pauze
             caps -= {"pause", "speed"}
         self.capabilities = frozenset(caps)
+        spec = str(self.kw.get("lidar_spec") or "")
+        self.parts = {"pogon": "sim", "lidar": "pravi" if spec.startswith("robot") else "snimak" if spec else "sim"}
         self.buf = Buffer()
         self.proc = self.conn = None
         self.rec = None              # završni snimak ("end")
@@ -126,7 +135,9 @@ class SimSource(Source):
 
     async def command(self, c):
         k = c[0] if c else ""
-        if SIM_CMD_CAP.get(k) not in self.capabilities or self.done:
+        if self.done or self.closed:
+            return self.ended(c)
+        if SIM_CMD_CAP.get(k) not in self.capabilities:
             return self.unsupported(c)
         try:
             self.conn.send(tuple(c))
@@ -135,6 +146,7 @@ class SimSource(Source):
         return self.reply(c)
 
     async def close(self):
+        self.closed = True
         if self.proc is None:
             return self.rec or {}
         loop = asyncio.get_running_loop()
@@ -171,6 +183,7 @@ class RobotSource(Source):
     """robotlink.RobotLink iza Source oblika. Komande kao /ws/robot: push, run, stop."""
     kind = "robot"
     capabilities = frozenset({"push", "run", "stop", "lidar"})
+    parts = {"pogon": "pravi", "lidar": "pravi"}
 
     def __init__(self, host, pw, prof, upload_port=None, telem_port=None):
         from . import robotlink
@@ -199,6 +212,8 @@ class RobotSource(Source):
 
     async def command(self, c):
         k = c[0] if c else ""
+        if self.closed:
+            return self.ended(c)
         if k not in self.capabilities or k == "lidar":
             return self.unsupported(c)
         if k == "push":                               # ["push", ime, tekst ili None = fajl iz ESP32/tactics]
@@ -221,6 +236,7 @@ class RobotSource(Source):
         return self.reply(c, ok, lines)
 
     async def close(self):
+        self.closed = True
         if self.pump:
             self.pump.cancel()
             try:
@@ -244,6 +260,7 @@ class ReplaySource(Source):
 
     async def start(self):
         self.rec = await asyncio.get_running_loop().run_in_executor(None, Recording.load, self.path)
+        self.parts = dict(((self.rec.meta or {}).get("origin") or {}).get("parts") or {})
 
     async def poll(self):
         if self.rec is None or self.sent:
@@ -254,9 +271,12 @@ class ReplaySource(Source):
                 "t": r.frames[-1]["t"] if r.frames else 0, "age": None, "final": True}
 
     async def command(self, c):
+        if self.closed:
+            return self.ended(c)
         if c and c[0] == "stop":
             return self.reply(c)
         return self.unsupported(c)
 
     async def close(self):
+        self.closed = True
         return self.rec.to_dict() if self.rec else {}
