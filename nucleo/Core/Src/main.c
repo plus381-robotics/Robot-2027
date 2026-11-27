@@ -21,7 +21,6 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -97,10 +96,10 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 	time_start();
-	//encoder_init();
+	encoder_init();
 	pwm_init();
-	//ax_init ();
-	//pneumatika_init();
+	ax_init ();
+	pneumatika_init();
 	//comm_init();      // ESP na USART1; bez ESP-a Nucleo radi isto kao ranije
 	//watchdog_init();  // poslednje, posle sporih inicijalizacija
 
