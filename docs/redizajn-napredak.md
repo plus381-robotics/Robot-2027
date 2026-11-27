@@ -1,6 +1,6 @@
 # Redizajn UI: napredak izrade
 
-Stanje 2026-11-26. Plan: `docs/plan-implementacija-redizajna.md`. Spec: `docs/redizajn-ui.md`.
+Stanje 2026-11-28 (posle noći). Plan: `docs/plan-implementacija-redizajna.md`. Spec: `docs/redizajn-ui.md`.
 Grana: `redizajn-ui` (lokalna). Maketa: varijanta A (`~/makete-ui/varijanta-a.html`, van repoa).
 
 ## Gde je stalo
@@ -23,7 +23,21 @@ Grana: `redizajn-ui` (lokalna). Maketa: varijanta A (`~/makete-ui/varijanta-a.ht
   Završi / Prekini vezu), ESP i Postavka stola kao kartice, prostor Snimci (lista sa filterom, učitavanje, referenca,
   poređenje, „Otvori u Snimcima“), poruke desno u redu alata, Prikaz ▾ u dve grupe, Alt+1..4 i „?“ prečice. Stari UI
   (#bar, kartice Simulate/Live/Robot, stari STOP-ovi, ⋯ Runs) je obrisan. Testovi: pytest 149, JS 65.
-- **Sledeće: Faza 5** (5.1 Izvori, 5.2 Test dela → Lidar).
+- **Faza 5 (5.1, 5.2) — gotova (preko noći, oznaka `posle-faza-5`)**: blok **Izvori** (iz bočne trake i iz Vožnje:
+  a sve sim, b hibrid sa lidarom sa robota ili iz snimka, d sve pravo; nedostupno sivo sa razlogom; veza sa robotom na
+  istom mestu; tokom sesije samo čitanje). **Test dela → Lidar**: sto i radar oko robota (radi i bez poze), slojevi
+  u stolu / van stola / grupe, Hz, broj tačaka, starost kruga, najbliža grupa, oznaka „izračunao laptop“; izvori:
+  sesija (SIM ili ROBOT) ili snimak krugova; za ROBOT „Upali lidar“ (postojeća komanda `LIDAR ON`, siva dok taktika
+  radi / naoružan / meč) i „Snimi krugove“ u `simulator/lidar/`. Pogon, Mehanizmi i IR su sivi: „dolazi sa Fazom 6
+  (ESP)“.
+- **Završni pregled noćne grane** je našao jednu pravu grešku (klik na snimak ili „Sačuvaj snimak“ tokom sesije je
+  radio nad pogrešnim snimkom) i ostatke engleskog; sve popravljeno (`1afed01`): Snimci su zaključani tokom sesije sa
+  razlogom, natpisi su na srpskom, `localStorage` u try/catch.
+- Testovi na kraju noći: pytest **162 passed**, JS **86 passed**. Playwright skripte su ažurirane ali nisu pokrenute.
+- **Prva upotrebljiva verzija je gotova.** Kasnije: 5.3 poređenje sim/robot (tabela koraka, „Simuliraj isto“),
+  5.4 automatsko snimanje sesija sa robotom, Faza 6 (ESP: telemetrija v2, ručne komande, lažirani delovi).
+- Otvoreno (nije popravljeno): `core/panels.js`, `core/lidar.js`, `core/regions.js` čitaju `localStorage` van
+  try/catch u podrazumevanom parametru — u browseru sa blokiranim podacima sajta stranica ne bi krenula. Mali zadatak.
 
 ## Pravila izrade (od korisnika)
 
