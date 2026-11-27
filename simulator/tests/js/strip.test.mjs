@@ -93,6 +93,29 @@ test('sourceView: SIM / HIBRID / ROBOT / SNIMAK sa bojama', () => {
   assert.deepEqual(sourceView({ session: null, snap: { label: 'primer' } }), { kind: 'SNIMAK', sub: 'primer', color: '#3a4250' });
 });
 
+test('snapshotAt.tactic: taktika koja je poslednja krenula do t (i druga, npr. sa ESP menija)', () => {
+  const run = buildRun(fixture());                           // događaj "tactic" u 1330 ms
+  assert.equal(snapshotAt(run, 1000).tactic, null);
+  assert.equal(snapshotAt(run, 1330).tactic, 'sve_komande');
+  assert.equal(snapshotAt(run, 5000).tactic, 'sve_komande');
+  const two = buildRun({ meta: { tactic: 'primer' }, result: {}, cols: { t: [0, 100, 200, 300], x: [1, 1, 1, 1], y: [1, 1, 1, 1], th: [0, 0, 0, 0] },
+    events: [[50, 'tactic', ['primer', 'zuta']], [210, 'tactic', ['kamenolomi', 'zuta']]] });
+  assert.equal(snapshotAt(two, 100).tactic, 'primer');
+  assert.equal(snapshotAt(two, 300).tactic, 'kamenolomi');    // meta.tactic (prva) je zastareo, ovo nije
+  assert.equal(snapshotAt(two, 300).label, 'primer');
+});
+
+test('sourceView: u sesiji podnaslov nosi taktiku koja radi (ROBOT: running, SIM: snimak sesije)', () => {
+  const rob = { kind: 'robot', host: '127.0.0.1', virtual: true };
+  assert.equal(sourceView({ session: rob, running: 'primer', snap: { tactic: 'stara' } }).sub, 'virtuelni · primer');
+  assert.equal(sourceView({ session: rob, running: null, snap: { tactic: 'stara' } }).sub, 'virtuelni');   // ne radi nijedna
+  assert.equal(sourceView({ session: { kind: 'robot', host: 'eurokik.local' }, running: 'x' }).sub, 'eurokik.local · x');
+  assert.equal(sourceView({ session: { kind: 'sim', lidar: 'sim' }, snap: { tactic: 'kamenolomi' } }).sub, 'Live · kamenolomi');
+  assert.equal(sourceView({ session: { kind: 'sim', lidar: 'sim' }, snap: { tactic: null } }).sub, 'Live');
+  assert.equal(sourceView({ session: { kind: 'sim', lidar: 'robot' }, snap: { tactic: 'a' } }).sub, 'lidar sa robota · a');
+  assert.equal(sourceView({ session: null, running: 'x', snap: { label: 'primer', tactic: 'primer' } }).sub, 'primer');   // snimak: kao pre
+});
+
 test('stripView: poza, korak, polja bez podatka se ne prikazuju, STOP neaktivan bez sesije', () => {
   const snap = { pose: { x: 1240.4, y: 829.6, th: 91.7 }, match: { state: 'MEC', ms: 37200 },
     step: { idx: 7, n: 15, name: 'ka_kamenolomu_2', active: true, frac: 0.4, ok: null }, det: null, errors: 2, label: 'x' };

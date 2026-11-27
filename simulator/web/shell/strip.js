@@ -1,13 +1,15 @@
 // Statusna traka (varijanta A): Izvor · Veza · Poza · Meč · Korak · Detekcija · ⚠ n · ■ STOP.
 // Traka prati sesiju uživo; bez sesije pokazuje snimak u trenutku kursora. Polje bez podatka se ne prikazuje, a
 // Izvor, Veza, Meč i STOP su uvek tu.
-//   snapshotAt(run, t, {irNames})  -> {pose, match, step, det, errors, label, robot}   (čisto, bez DOM-a)
+//   snapshotAt(run, t, {irNames})  -> {pose, match, step, det, errors, label, robot, tactic}   (čisto, bez DOM-a)
+//                                     tactic = ime taktike koja je poslednja krenula do t (događaj "tactic"), ili null
 //   stripView(state)               -> tekstovi i klase za svako polje                  (čisto, bez DOM-a)
 //   mountStrip(el, ctx)            -> crta traku iz ctx.store; STOP = ctx.command(['stop'])
 // Stanje (store) piše app.js (most ka starom UI-ju):
 //   session   null | {kind: 'sim'|'robot', host, virtual, lidar}    sesija radi
 //   paused, speed                                                    sim sesija (poruke data)
 //   telemetry null (još nema poruke data) | false (nijedan paket robota) | true
+//   running   ROBOT: taktika koja na robotu sada radi (data.running; null = nijedna)
 //   linkAge   ms od poslednjeg paketa robota (data.age), linkState/connAge: poruka "state" servera
 //   snap      snapshotAt(...) ili null;  notice {text, err, id}: kratka poruka ispod trake
 
@@ -41,9 +43,11 @@ export function snapshotAt(run, t, opts = {}) {
   }
   let errors = 0;
   for (const e of run.log) { if (e.t > t) break; if (e.cls === 'err') errors++; }
+  let tactic = null;                                           // taktika koja stvarno radi (i ona pokrenuta sa ESP menija)
+  for (const k of run.tactics || []) { if (k.t <= t) tactic = k.name; else break; }
   const meta = run.meta || {};
   return { pose, match: { state: at('mec'), ms: at('match') }, step, det, errors,
-    label: meta.tactic || '', robot: !!meta.host };
+    label: meta.tactic || '', robot: !!meta.host, tactic };
 }
 
 export function matchView(m) {
@@ -73,6 +77,8 @@ export function linkView(st) {
   return { cls: 'ok', text: 'povezan' };
 }
 
+// U sesiji podnaslov nosi i taktiku koja radi: ROBOT iz telemetrije (running; null = ne radi nijedna), SIM iz
+// snimka sesije (poslednji događaj "tactic"), npr. „virtuelni · primer“, „Live · kamenolomi“.
 export function sourceView(st) {
   const s = st.session, snap = st.snap;
   let v;
@@ -81,6 +87,8 @@ export function sourceView(st) {
   else if (s) v = { kind: 'SIM', sub: 'Live' };
   else if (snap) v = { kind: 'SNIMAK', sub: snap.label || '' };
   else v = { kind: 'SIM', sub: 'spremno' };
+  const tac = !s ? null : s.kind === 'robot' ? st.running : snap && snap.tactic;
+  if (tac) v.sub = v.sub ? `${v.sub} · ${tac}` : tac;
   return { ...v, color: SRC_COLOR[v.kind] };
 }
 
