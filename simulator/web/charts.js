@@ -1,3 +1,4 @@
+import { colHasData } from './core/run.js';
 // Time charts (uPlot): speed, turn rate, wheels. A vertical line shows the current time;
 // clicking a chart seeks there.
 const DEFS = [
@@ -6,7 +7,7 @@ const DEFS = [
   { title: 'Wheels [m/s]', series: [['vl', 'left', '#3ecf8e'], ['vr', 'right', '#ff9f43']] },
 ];
 
-const hasData = (c, d) => d.series.some(([k]) => c[k] && c[k].some(v => v != null));
+const hasData = (c, d) => d.series.some(([k]) => colHasData(c, k));
 
 export class Charts {
   constructor(el, onSeek) {

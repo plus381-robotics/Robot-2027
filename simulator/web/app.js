@@ -4,12 +4,12 @@ import { FieldView } from './view3d.js';
 import { Charts } from './charts.js';
 import { EspPanel } from './esp.js';
 import { mirrorX } from './side.js';
+import { buildRun, appendRun, hasData, LIDAR_HOLD_MS } from './core/run.js';
 
 const $ = id => document.getElementById(id);
 const SIDE_NAME = { plava: 'Blue', zuta: 'Yellow' };
 const REASON = { BLOCKED: 'blocked', TIMEOUT: 'timeout', PREEMPTED: 'preempted', MATCH_OVER: 'match over',
   STOPPED: 'stopped', INVALID: 'rejected', NOREPLY: 'no reply', SUPERSEDED: 'superseded', STOP: 'STOP' };
-const LIDAR_HOLD_MS = 400;          // tačke lidara se brišu kad ovoliko nema novog kruga (lidar stao)
 let REF_SIDE = 'zuta';                // strana za koju se pišu taktike (ESP32/lib/tac.py), stiže sa servera
 
 let info, view, charts, esp, run = null;
@@ -20,69 +20,6 @@ let live = null;                       // {ws, raw: {meta, frames, events}, foll
 const play = { t: 0, playing: false, speed: 1, last: 0 };
 
 // ---------------- recording -> run ----------------
-
-// Kolone koje robot ne šalje (snimak v2 ih nema): ponašaju se kao sve-null ("–" u tabeli, bez grafika).
-const OPT_COLS = ['ox', 'oy', 'oth', 'w', 'vl', 'vr', 'v_ref', 'w_ref', 'reg', 'ms', 'stuck', 'ir'];
-
-function buildRun(d) {
-  const cols = d.cols, ts = cols.t;
-  for (const k of OPT_COLS) if (!cols[k]) cols[k] = ts.map(() => null);
-  const frameAt = t => {                                   // last frame with t <= t
-    let lo = 0, hi = ts.length - 1;
-    if (hi < 0) return 0;
-    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (ts[m] <= t) lo = m; else hi = m - 1; }
-    return lo;
-  };
-  const steps = [], byIdx = {}, tactics = [], pendingLine = {}, excLines = [];
-  for (const [t, kind, x] of d.events) {
-    if (kind === 'line') { pendingLine[x[0]] = x[1]; continue; }
-    if (kind === 'exception') { if (x.line) excLines.push(x.line); continue; }
-    if (kind === 'tactic') {
-      tactics.push({ t, name: x[0], side: x[1] });
-      for (const k in byIdx) delete byIdx[k];
-    } else if (kind === 'step') {
-      const s = { idx: x[0], name: x[1], timeout: x[2], next: x[3], t, end: null, ok: null, reason: null, dur: null,
-        target: null, line: pendingLine[x[0]] || null };
-      delete pendingLine[x[0]];
-      steps.push(s); byIdx[x[0]] = s;
-    } else if (kind === 'step_end') {
-      const s = byIdx[x[0]];
-      if (s) Object.assign(s, { end: t, ok: x[2], reason: x[3], dur: x[4] });
-    }
-  }
-  for (const [t, kind, x] of d.events) {                     // GOTO target -> step started at that time
-    if (kind !== 'rx' || x.name !== 'GOTO') continue;
-    let s = null;
-    for (const c of steps) if (c.t <= t + 1) s = c;
-    if (s && !s.target) s.target = [x.f.x, x.f.y, x.f.flags & 2 ? null : x.f.theta / 100];   // 2 = NO_THETA
-  }
-  const log = [];
-  for (const [t, kind, x] of d.events) {
-    if (kind === 'log') log.push({ t, cls: /^GRESKA|PREKID/.test(x) ? 'err' : '', text: x });
-    else if (kind === 'sim') log.push({ t, cls: 'sim', text: '[sim] ' + x.text });
-    else if (kind === 'buzzer') log.push({ t, cls: 'sim', text: '[buzzer] ' + x.kind });
-    else if (kind === 'rx' || kind === 'tx') {
-      const f = Object.entries(x.f || {}).map(([k, v]) => `${k}=${v}`).join(' ');
-      log.push({ t, cls: 'proto', proto: true,
-        text: `${kind === 'rx' ? 'ESP→STM' : 'STM→ESP'} ${x.name} #${x.seq} ${f}` });
-    }
-  }
-  const elEvents = d.events.filter(e => e[1] === 'elements').map(([t, , x]) => ({ t, list: x }));   // gurnuti kamenolomi
-  const screens = d.events.filter(e => e[1] === 'screen').map(([t, , x]) => ({ t, ...x }));
-  const screenAt = t => {
-    let r = null;
-    for (const sc of screens) { if (sc.t <= t) r = sc; else break; }
-    return r;
-  };
-  const lidars = d.events.filter(e => e[1] === 'lidar').map(([t, , x]) => ({ t, ...x }));   // krugovi lidara
-  const lidarAt = t => {                         // poslednji krug do t; posle LIDAR_HOLD_MS bez novog: lidar ne radi
-    let r = null;
-    for (const s of lidars) { if (s.t <= t) r = s; else break; }
-    return r && t - r.t <= LIDAR_HOLD_MS ? r : null;
-  };
-  return { ...d, frameAt, steps, tactics, excLines, log, screens, screenAt, lidars, lidarAt, elEvents,
-           duration: ts.length ? ts[ts.length - 1] : 0 };
-}
 
 // ---------------- formatting ----------------
 
@@ -142,8 +79,10 @@ function buildIrBox() {
   };
 }
 
-function renderIr(raw, mask) {
-  irState = { raw, mask };
+function renderIr(raw, mask) {                                 // raw == null: robot ne šalje IR, bez lažne nule
+  const none = raw == null;
+  irState = { raw: none ? 0 : raw, mask };
+  raw = irState.raw;
   const sens = info.profile.ir_sensors || [], blue = (run && run.meta && run.meta.side) === 'plava';
   const name = s => (blue ? irMirror(s.name) : s.name);       // imena kao u taktici (žuta)
   $('irBox').querySelectorAll('.ir-s').forEach(g => {
@@ -151,18 +90,18 @@ function renderIr(raw, mask) {
     g.className = 'ir-s ' + (on ? (sees ? 'hit' : 'on') : (sees ? 'off hit' : 'off')) + (live && !live.kind ? ' click' : '');
     g.textContent = name(sens[k]);
     g.title = `${name(sens[k])}: ${sens[k].z > 200 ? 'upper (over the boxes)' : 'lower'} · ${on ? 'on' : 'off'}` +
-      (sees ? ' · sees something' : '') + (live && !live.kind ? ' · click to switch' : '');
+      (none ? ' · nema podataka sa robota' : sees ? ' · sees something' : '') + (live && !live.kind ? ' · click to switch' : '');
   });
   $('irBox').querySelectorAll('.ir-ct').forEach(t => { t.textContent = name(sens[+t.dataset.k]).slice(0, 2); });
   const off = sens.filter((s, k) => !(mask & (1 << k))).map(name), sees = sens.filter((s, k) => raw & (1 << k)).map(name);
   $('irText').innerHTML = `<span class="dim">F/B front/back · L/R left/right · U upper (over the boxes) / D lower</span><br>` +
-    `sees: <b>${sees.join(' ') || '–'}</b> · off: <b>${off.join(' ') || '–'}</b>` +
+    `sees: <b>${none ? 'nema podataka sa robota' : sees.join(' ') || '–'}</b> · off: <b>${off.join(' ') || '–'}</b>` +
     (blue ? ' <span class="dim">(blue: names as in the tactic, L/R swapped)</span>' : '');
 }
 
 function renderState(i) {
   const c = run.cols;
-  renderIr(c.ir[i] || 0, c.irm && c.irm[i] != null ? c.irm[i] : 0xFF);
+  renderIr(hasData(run, 'ir') ? (c.ir[i] || 0) : null, c.irm && c.irm[i] != null ? c.irm[i] : 0xFF);
   $('stgrid').innerHTML = stateCells(c, i).map(([k, v, cls]) =>
     `<span class="k">${k}</span><span class="v ${cls || ''}">${v}</span>`).join('');
   const t = c.t[i];
@@ -905,21 +844,15 @@ function setFollow(on) {
   $('play').textContent = on ? '⏸' : '▶';
 }
 
-function liveColumns(frames) {
-  const cols = {};
-  const keys = new Set();
-  for (const f of frames) for (const k in f) keys.add(k);
-  for (const k of keys) cols[k] = frames.map(f => f[k] ?? null);
-  return cols;
-}
-
 function liveRebuild() {
   const L = live;
   if (!L || !L.dirty || !L.raw.frames.length) return;
   L.dirty = false;
-  const d = { meta: L.raw.meta || {}, result: {}, events: L.raw.events, cols: liveColumns(L.raw.frames) };
   const first = !run || run.live !== L;
-  run = buildRun(d);
+  if (first) { run = buildRun({ meta: {}, result: {}, events: [], cols: {} }); L.done = { f: 0, e: 0 }; }
+  run = appendRun(run, L.raw.frames.slice(L.done.f), L.raw.events.slice(L.done.e));   // samo ono što je novo
+  L.done = { f: L.raw.frames.length, e: L.raw.events.length };
+  run.meta = L.raw.meta || {};
   run.live = L;
   view.setRun(run);
   view.setVisibility({ odom: $('showOdom').checked, targets: $('showTargets').checked });
