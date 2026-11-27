@@ -127,10 +127,15 @@ export class TacticEditor {
       }
       if (!u.docChanged || this.silent) return;
       clearTimeout(timer);
-      timer = setTimeout(() => self.opts.onChange(self.text()), 600);
+      timer = setTimeout(() => { timer = null; self.opts.onChange(self.text()); }, 600);
       clearTimeout(fast);                                  // nacrt putanje: brže od provere
       if (self.opts.onEdit) fast = setTimeout(() => self.opts.onEdit(self.text()), 200);
     });
+    // Pre zatvaranja: izmena koja još čeka (do 600 ms) ide u onChange odmah (nacrt u localStorage), tajmeri se gase.
+    this.flush = () => {
+      clearTimeout(fast); fast = null;
+      if (timer) { clearTimeout(timer); timer = null; self.opts.onChange(self.text()); }
+    };
 
     this.view = new EditorView({
       parent: root,

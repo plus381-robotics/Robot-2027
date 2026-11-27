@@ -879,7 +879,9 @@ function openEditor() {
 async function toggleEditor() {
   if (ed) {
     $('editorPane').hidden = true; edToolbar(false);                     // panel editor prati hidden
-    view.setPreview(null); view.setCursorPoint(null); clearTimeout(autoSimTimer);
+    view.setPreview(null); view.setCursorPoint(null);
+    ed.editor.flush();                                                   // poslednje izmene (< 600 ms) u nacrt
+    clearTimeout(autoSimTimer);                                          // (flush može da pokrene edCheck, ne i auto-sim)
     ed.editor.view.destroy(); ed = null;
     fillTacticSelects();
     return;
@@ -1337,7 +1339,7 @@ async function main() {
   $('oppClose').onclick = () => { oppSel = -1; refreshOpponents(); };       // samo zatvori: protivnik ostaje
   for (const id of ['oppX', 'oppY', 'oppW', 'oppH', 'oppTh', 'oppZ', 'oppRound']) $(id).onchange = editOpponent;
   $('liveBtn').onclick = () => (live ? liveSend(['quit']) : startLive());
-  for (const id of ['tabSim', 'tabLive', 'tabRobot']) $(id).title = { tabSim: 'Fast simulation: the whole match in a few seconds, then play it back',
+  for (const id of ['tabSim', 'tabLive', 'tabRobot']) $(id).title = { tabSim: 'Brza simulacija: vodi u Taktike (▶ Pokreni: ceo meč za par sekundi, pa puštanje)',
     tabLive: 'Real-time simulation: ESP screen and buttons, cord, STOP, move the opponent while it drives',
     tabRobot: 'The real robot (or a virtual one) over WiFi: push and run tactics, live telemetry' }[id];
   $('robotBtn').onclick = () => { $('robotConnect').hidden = !$('robotConnect').hidden; };
