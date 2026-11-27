@@ -11,6 +11,12 @@
 <script src="vendor/uPlot.iife.min.js"></script>
 </head>
 <body>
+<!-- Okvir varijante A (shell/layout.js): bočna traka levo, statusna traka gore, glavni prostor po radnom prostoru.
+     Prelazni korak: stari UI (#bar, #main, #timeline) je sadržaj #legacy; svi stari id-jevi ostaju. -->
+<nav id="rail"></nav>
+<header id="strip"></header>
+<div id="content">
+<div id="legacy" class="ws-panel">
 <header id="bar">
   <div class="bar-row">
     <span class="brand">Eurosim</span>
@@ -246,6 +252,8 @@
   <div id="bandAxis" class="mono dim"></div>
   <div id="charts"></div>
 </footer>
+</div>
+</div>
 
 <script type="module" src="app.js"></script>
 </body>

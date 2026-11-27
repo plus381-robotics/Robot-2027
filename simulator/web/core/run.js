@@ -2,6 +2,7 @@
 //   buildRun(d)                      d = {meta, result, events, cols}: ceo snimak odjednom
 //   appendRun(run, frames, events)   dopuna novim frame-ovima (liste dict-ova) i događajima; stare događaje ne prolazi ponovo
 //   hasData(run, key)                kolona postoji i nije sva null
+//   snapshotRun(run)                 nezavisna kopija (appendRun deli nizove sa živim snimkom koji i dalje raste)
 
 export const LIDAR_HOLD_MS = 400;     // tačke lidara se brišu kad ovoliko nema novog kruga (lidar stao)
 
@@ -128,4 +129,12 @@ export function appendRun(run, frames, events) {
     addEvents(run, events);
   }
   return finish({ ...run });
+}
+
+// Nezavisna kopija snimka: kolone i događaji se kopiraju, koraci/log se prave iznova (kao buildRun). Za "zakači kao
+// referencu" tokom Live-a: rezultat appendRun deli nizove sa snimkom koji i dalje raste.
+export function snapshotRun(run) {
+  const cols = {};
+  for (const k of Object.keys(run.cols)) cols[k] = run.cols[k].slice();
+  return buildRun({ meta: { ...(run.meta || {}) }, result: run.result || {}, events: run.events.slice(), cols });
 }

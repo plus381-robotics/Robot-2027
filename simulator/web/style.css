@@ -2,11 +2,22 @@
   --bg: #12151a; --panel: #1a1f26; --panel2: #222832; --line: #2e3642; --text: #dfe5ec; --dim: #8a96a5;
   --accent: #4aa3ff; --ok: #3ecf8e; --fail: #ff5c5c; --warn: #ffb547; --blue: #2f7fc1; --yellow: #f7b500;
   --true: #ffffff; --odom: #ff9f43;
+  --stop: #ff3b30; --src-sim: #1f5f99; --src-robot: #c62828; --src-hib: #8a5a00; --src-rec: #3a4250; --srcc: var(--src-sim);
+  --strip-h: 72px; --rail-w: 100px;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
   font: 13px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-body { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; overflow: hidden; }
+/* Okvir varijante A: bočna traka (cela visina) levo, statusna traka gore desno, ispod glavni prostor. */
+body { display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr); grid-template-rows: var(--strip-h) minmax(0, 1fr);
+  height: 100vh; overflow: hidden; }
+#rail { grid-column: 1; grid-row: 1 / 3; }
+#strip { grid-column: 2; grid-row: 1; }
+#content { grid-column: 2; grid-row: 2; display: grid; min-width: 0; min-height: 0; position: relative; }
+#content > .ws-panel { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+#content > .ws-panel.ws-off { display: none !important; }
+/* Stari UI (prelazni korak): isti raspored kao ranije telo strane. */
+#legacy { display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
 .mono { font-family: ui-monospace, "JetBrains Mono", Consolas, monospace; font-size: 12px; }
 .dim { color: var(--dim); } .small { font-size: 11px; font-weight: normal; }
 button, select, input[type=number] { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
@@ -169,11 +180,11 @@ button.danger { background: #b3261e; border-color: #e5484d; color: #fff; font-we
 /* ---------- F4/F5: robot, profile, compare ---------- */
 .pill { padding: 2px 8px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--line); font-size: 12px; }
 .pill.ok { border-color: var(--ok); color: var(--ok); } .pill.bad { border-color: var(--fail); color: var(--fail); }
-.overlay.pop { position: fixed; top: 46px; z-index: 50; box-shadow: 0 8px 30px #000a; }
+.overlay.pop { position: fixed; top: calc(var(--strip-h) + 46px); z-index: 50; box-shadow: 0 8px 30px #000a; }
 #robotConnect { left: 50%; transform: translateX(-50%); width: 430px; }
 #robotConnect input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
 .overlay .row { display: flex; gap: 8px; align-items: center; margin: 8px 0 4px; flex-wrap: wrap; }
-#profDialog { right: 12px; width: 560px; max-height: calc(100vh - 70px); display: flex; flex-direction: column; }
+#profDialog { right: 12px; width: 560px; max-height: calc(100vh - var(--strip-h) - 70px); display: flex; flex-direction: column; }
 #profDialog[hidden] { display: none; }
 #profBody { overflow-y: auto; flex: 1; }
 #profBody h4 { margin: 10px 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--accent); }
@@ -237,7 +248,7 @@ button.danger { background: #b3261e; border-color: #e5484d; color: #fff; font-we
 .cstep { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed var(--c); pointer-events: none; opacity: .7; }
 .cstep.fail { border-left-color: var(--fail); }
 .cstep span { position: absolute; top: 0; left: 2px; font-size: 9px; color: var(--c); }
-body.has-banner { grid-template-rows: auto auto 1fr auto; }
+body.has-banner #legacy { grid-template-rows: auto auto 1fr auto; }
 #repoBanner { display: flex; gap: 8px; align-items: center; padding: 6px 12px; background: #8b1e1e; color: #fff; font-weight: 600; flex-wrap: wrap; }
 #repoBanner[hidden] { display: none; }
 #repoBanner.local { background: #6b5200; }
@@ -278,3 +289,79 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 #irBox .ir-s.click { cursor: pointer; } #irBox .ir-s.click:hover { filter: brightness(1.25); }
 #irText { color: var(--dim); line-height: 1.4; margin-top: 6px; }
 #irText b { color: var(--text); font-weight: 600; }
+
+/* ---------- okvir varijante A: statusna traka, bočna traka (Zadatak 3.2) ---------- */
+#strip [hidden], #rail [hidden], .rl-help[hidden], .st-notice[hidden] { display: none !important; }
+#strip, #rail, .rl-help, .st-notice, .ws-empty { font-size: 16px; line-height: 1.35; }
+
+/* Traka: jedan red, nikad se ne prelama. Korak i Detekcija dobijaju samo ostatak širine i skraćuju se sa „…“;
+   Veza i podnaslov izvora se skraćuju posle njih; Meč, Poza i STOP se ne skupljaju, STOP je uvek desno. */
+#strip { display: flex; flex-wrap: nowrap; align-items: center; gap: 18px; height: var(--strip-h); padding: 0 12px 0 16px;
+  background: var(--panel); border-top: 5px solid var(--srcc); border-bottom: 1px solid var(--line); white-space: nowrap;
+  overflow: hidden; min-width: 0; }
+#strip > * { min-width: 0; }
+#strip .st-src { flex: 0 1 auto; display: inline-flex; align-items: baseline; min-width: 150px; max-width: 240px; font-size: 24px; font-weight: 800;
+  letter-spacing: .04em; padding: 6px 14px; border-radius: 8px; background: var(--srcc); color: #fff; cursor: default; overflow: hidden; }
+.st-src b { flex: none; }
+.st-src small { font-size: 14px; font-weight: 600; opacity: .9; margin-left: 6px; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; }
+.st-f { display: flex; flex-direction: column; gap: 2px; flex: none; }
+.st-f .k { font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--dim); }
+.st-f .v { font-size: 18px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.st-f .v.warn { color: var(--warn); }
+#strip .mono { font-family: ui-monospace, "JetBrains Mono", Consolas, monospace; font-size: 18px; font-variant-numeric: tabular-nums; }
+#strip .st-link { flex: 0 1 auto; min-width: 120px; }
+.st-link .v { display: block; }
+.st-match .v { font-size: 26px !important; font-weight: 800; }
+.st-match.run .v { color: #fff; } .st-match.armed .v { color: var(--warn); } .st-match.end .v { color: var(--text); }
+.st-match.idle .v { color: var(--dim); font-size: 22px !important; }
+#strip .st-shrink { flex: 1 1 0; min-width: 90px; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; background: var(--ok); }
+.dot.warn { background: var(--warn); } .dot.bad { background: var(--fail); } .dot.idle { background: var(--dim); }
+.st-stepbar { height: 4px; background: var(--line); border-radius: 2px; margin-top: 3px; overflow: hidden; }
+.st-stepbar i { display: block; height: 100%; width: 0; background: var(--accent); }
+.st-stepbar i.over { background: var(--fail); }
+#strip button.st-err { flex: none; margin-left: auto; background: var(--fail); color: #fff; font-weight: 800; border: 0; min-height: 40px; padding: 0 12px;
+  font-size: 17px; border-radius: 6px; }
+#strip button.st-stop { flex: none; margin-left: auto; height: 54px; min-width: 150px; background: var(--stop); border: 0; color: #fff;
+  font-size: 22px; font-weight: 800; letter-spacing: .04em; border-radius: 8px; box-shadow: 0 0 0 3px #ff3b3033; padding: 0 18px; }
+#strip button.st-stop:hover { background: #ff5147; }
+#strip button.st-err:not([hidden]) + .st-stop { margin-left: 0; }      /* ⚠ i STOP zajedno desno */
+#strip button.st-stop.idle { background: #5a2a2a; color: #e9c9c9; box-shadow: none; }
+.st-notice { position: fixed; top: calc(var(--strip-h) + 8px); right: 12px; z-index: 70; max-width: 520px; background: #14243a;
+  border: 2px solid var(--accent); color: #fff; font-weight: 600; padding: 10px 14px; border-radius: 8px; box-shadow: 0 10px 40px #000a; }
+.st-notice.err { background: #3a1414; border-color: var(--stop); }
+
+/* Bočna traka: 100 px, ikona + naziv; izabrana stavka ima levu ivicu 4 px u boji akcenta. */
+#rail { display: flex; flex-direction: column; gap: 4px; padding: 10px 0; background: #0f1216; border-right: 1px solid var(--line);
+  overflow-y: auto; overflow-x: hidden; min-height: 0; }
+#rail button { border: 0; background: transparent; border-radius: 0; display: flex; flex-direction: column; align-items: center;
+  gap: 6px; padding: 12px 4px; min-height: 84px; font-size: 14px; font-weight: 600; color: var(--dim);
+  border-left: 4px solid transparent; flex: none; }
+#rail button svg { width: 28px; height: 28px; }
+#rail button.on { color: #fff; background: #18202b; border-left-color: var(--accent); }
+#rail button:hover:not(.on) { color: var(--text); }
+#rail .rl-grow { flex: 1; min-height: 8px; }
+#rail button.rl-mini { min-height: 62px; font-size: 12px; font-weight: 500; padding: 8px 4px; }
+#rail button.rl-mini svg { width: 22px; height: 22px; }
+#rail .rl-drive { display: flex; flex-direction: column; margin: 0 10px 6px; border: 1px solid var(--line); border-radius: 6px;
+  overflow: hidden; flex: none; }
+#rail .rl-drive button { min-height: 40px; font-size: 13px; font-weight: 700; padding: 0; border-left: 0; color: var(--text);
+  justify-content: center; }
+#rail .rl-drive button + button { border-top: 1px solid var(--line); }
+#rail .rl-drive button.on { background: var(--srcc); color: #fff; }
+#rail .rl-drive button[data-drive=sim].on { background: var(--src-sim); }
+#rail .rl-drive button[data-drive=robot].on { background: var(--src-robot); }
+.rl-help { position: fixed; left: calc(var(--rail-w) + 8px); bottom: 12px; z-index: 70; width: 420px; background: #1a1f26f7;
+  border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; box-shadow: 0 10px 40px #0008; }
+.rl-help-h { display: flex; align-items: center; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim);
+  margin-bottom: 8px; }
+.rl-help-h button { margin-left: auto; min-height: 32px; }
+.rl-help td { padding: 4px 10px 4px 0; vertical-align: top; }
+.rl-help kbd { font-family: ui-monospace, Consolas, monospace; background: var(--panel2); border: 1px solid var(--line);
+  border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+
+/* Prazan glavni prostor (Test dela do Faze 5). */
+.ws-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--dim);
+  background: var(--bg); }
+.ws-empty h2 { margin: 0 0 8px; color: var(--text); font-size: 22px; }
+.ws-empty p { margin: 0; font-size: 18px; }

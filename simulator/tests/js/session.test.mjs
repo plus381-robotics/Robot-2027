@@ -65,3 +65,32 @@ test('neispravna poruka se ignoriše', () => {
   FakeWS.last.onmessage({ data: 'nije json' });
   assert.equal(s.capabilities.size, 0);
 });
+
+test('command vraća false kad je veza zatvorena (STOP ne sme da propadne nečujno)', () => {
+  const s = connect({ engine: 'robot' }, { WebSocket: FakeWS, location: loc });
+  const ws = FakeWS.last;
+  assert.equal(s.command(['stop']), true);          // čeka otvaranje: u redu
+  assert.equal(s.open, true);
+  ws.open();
+  assert.equal(s.command(['stop']), true);
+  assert.deepEqual(ws.sent, ['["stop"]', '["stop"]']);
+  ws.readyState = 2;                                 // zatvara se
+  assert.equal(s.command(['stop']), false);
+  ws.readyState = 3;
+  assert.equal(s.command(['stop']), false);
+  assert.equal(s.open, false);
+  assert.equal(ws.sent.length, 2);
+});
+
+test('onerror ide slušaocima "error"; close nosi code/reason i neposlate komande iz reda', () => {
+  const s = connect({ engine: 'robot' }, { WebSocket: FakeWS, location: loc });
+  const ws = FakeWS.last, errs = [], closes = [];
+  s.on('error', m => errs.push(m));
+  s.on('close', m => closes.push(m));
+  s.command(['stop']);                               // veza se nije ni otvorila
+  ws.onerror({});
+  assert.deepEqual(errs, [{ type: 'error', error: 'greška veze sa serverom', transport: true }]);
+  ws.readyState = 3;
+  ws.onclose({ code: 1006, reason: '', wasClean: false });
+  assert.deepEqual(closes, [{ code: 1006, reason: '', wasClean: false, unsent: [['stop']] }]);
+});

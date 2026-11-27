@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildRun, appendRun, hasData } from '../../web/core/run.js';
+import { buildRun, appendRun, hasData, snapshotRun } from '../../web/core/run.js';
 
 const fixture = () => JSON.parse(readFileSync(new URL('./fixtures/run_sve_komande.json', import.meta.url), 'utf8'));
 
@@ -90,4 +90,22 @@ test('hasData je false za kolonu koje nema i za sve-null kolonu', () => {
   assert.equal(hasData(run, 'ox'), false);                                // opciona, popunjena nulama
   const r2 = appendRun(run, [{ t: 30, x: 4, ir: 5 }], []);
   assert.equal(hasData(r2, 'ir'), true);                                  // keš se osvežava kad stignu podaci
+});
+
+test('snapshotRun: kopija ne raste sa živim snimkom (zakači referencu tokom Live-a)', () => {
+  const { events, frames } = recording();
+  const k = Math.floor(frames.length / 2), ke = events.findIndex(e => e[0] > frames[k - 1].t);
+  let live = appendRun(buildRun({ meta: { tactic: 'x' }, result: {}, events: [], cols: {} }), frames.slice(0, k), events.slice(0, ke));
+  const snap = snapshotRun(live);
+  assertSame(snap, live);
+  const n = { t: snap.cols.t.length, ev: snap.events.length, steps: snap.steps.length, log: snap.log.length };
+  live = appendRun(live, frames.slice(k), events.slice(ke));
+  assert.ok(live.cols.t.length > n.t && live.events.length > n.ev);
+  assert.equal(snap.cols.t.length, n.t);
+  assert.equal(snap.cols.x.length, n.t);
+  assert.equal(snap.events.length, n.ev);
+  assert.equal(snap.steps.length, n.steps);
+  assert.equal(snap.log.length, n.log);
+  assert.equal(snap.frameAt(1e12), n.t - 1);
+  assert.equal(snap.meta.tactic, 'x');
 });
