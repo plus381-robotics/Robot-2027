@@ -1474,4 +1474,8 @@ async function main() {
 }
 
 window.eurosim = { get ed() { return ed; }, get run() { return run; }, get view() { return view; }, play, edMarks, store };   // za testove i konzolu
-main().catch(e => msg('cannot start: ' + e.message, true));
+main().catch(e => {
+  msg('cannot start: ' + e.message, true);
+  const bar = $('bar');                           // greška pre mountShell: #bar (sa porukom) je još u skrivenom #parts
+  if (bar && bar.closest('#parts')) $('content').prepend(bar);
+});

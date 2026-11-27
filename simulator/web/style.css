@@ -386,10 +386,15 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 .ws-card-why { text-transform: none; letter-spacing: 0; }
 .ws-card-arrow { margin-left: auto; font-size: 13px; }
 .ws-card.closed > .ws-panel { display: none; }
-.ws-card.grow:not(.closed) { flex: 1 0 auto; min-height: 320px; }
+/* Određena visina = ostatak kolone (osnova 0, ne sadržaj): Koraci i Dnevnik u njoj skroluju sami, kao ranije u
+   #side-panel fiksne visine; kolona zato ne skroluje i State/IR ostaju na vrhu. */
+.ws-card.grow:not(.closed) { flex: 1 1 0; min-height: 0; }
 .ws-card.grow > .ws-panel { flex: 1; display: flex; flex-direction: column; }
 .ws-card.ws-dis > .ws-panel { opacity: .45; pointer-events: none; }
 .ws-card-bottom { border-radius: 0; border: 0; border-top: 1px solid var(--line); background: var(--panel); }
 .ws-card-bottom > .ws-card-h { padding: 3px 12px; border-radius: 0; }
 /* Prelazno: stara desna kolona u kartici „Stari paneli (prelazno)“. */
 #ws-stari-paneli > #side-panel { flex: 1; padding: 0 8px 8px; border-left: 0; background: none; }
+/* Kad nema mesta za sve, State (+ IR, korak sada) se skupi i skroluje sam; Steps i Log zadržavaju svojih min. 120 px.
+   Tako #side-panel ne prelazi svoju visinu i scrollIntoView reda u Steps/Log ne gura State van pogleda. */
+#ws-stari-paneli #status { flex: 0 1 auto; min-height: 0; overflow-y: auto; }

@@ -14,7 +14,7 @@ function registry41() {
   r.registerPanel({ id: 'editor', workspaces: all, region: 'main', priority: 10, open: true });
   r.registerPanel({ id: 'stari-paneli', workspaces: all, region: 'side', priority: 90, open: true, grow: true });
   r.registerPanel({ id: 'vreme', workspaces: all, region: 'bottom', priority: 10, open: true });
-  r.registerPanel({ id: 'grafici', workspaces: all, region: 'bottom', priority: 20, collapsible: true, open: ['voznja', 'snimci'] });
+  r.registerPanel({ id: 'grafici', workspaces: all, region: 'bottom', priority: 20, collapsible: true, open: ['snimci'] });
   r.registerPanel({ id: 'test-dela', workspaces: ['test'], region: 'main', priority: 1, open: true });
   return r;
 }
@@ -46,7 +46,8 @@ test('isCard / defaultOpen: bočni uvek kartica, donji samo sklopiv; open = bool
   assert.equal(isCard(get('teren')), false);
   assert.equal(isCard(get('stari-alati')), false);
   assert.equal(defaultOpen(get('grafici'), 'taktike'), false);   // grafici sklopljeni u Taktikama
-  assert.equal(defaultOpen(get('grafici'), 'voznja'), true);
+  assert.equal(defaultOpen(get('grafici'), 'voznja'), false);   // i u Vožnji (spec)
+  assert.equal(defaultOpen(get('grafici'), 'snimci'), true);
   assert.equal(defaultOpen(get('stari-paneli'), 'snimci'), true);
   assert.equal(defaultOpen({ open: false }, 'voznja'), false);
 });
@@ -57,9 +58,10 @@ test('cardsOpen: zapamćeno stanje ima prednost, inače podrazumevano; drugi pro
   assert.deepEqual(cardsOpen(tk, 'taktike', {}), { 'stari-paneli': true, grafici: false });
   const saved = setCard({}, 'taktike', 'grafici', true);
   assert.deepEqual(cardsOpen(tk, 'taktike', saved), { 'stari-paneli': true, grafici: true });
-  assert.deepEqual(cardsOpen(r.panelsFor('voznja'), 'voznja', saved), { 'stari-paneli': true, grafici: true });
-  const s2 = setCard(saved, 'voznja', 'grafici', false);
-  assert.equal(cardsOpen(r.panelsFor('voznja'), 'voznja', s2).grafici, false);
+  assert.deepEqual(cardsOpen(r.panelsFor('voznja'), 'voznja', saved), { 'stari-paneli': true, grafici: false });
+  assert.equal(cardsOpen(r.panelsFor('snimci'), 'snimci', saved).grafici, true);
+  const s2 = setCard(saved, 'snimci', 'grafici', false);
+  assert.equal(cardsOpen(r.panelsFor('snimci'), 'snimci', s2).grafici, false);
   assert.equal(cardsOpen(tk, 'taktike', s2).grafici, true);
   assert.deepEqual(saved, { taktike: { grafici: true } });                  // setCard ne menja staro stanje
   assert.deepEqual(cardsOpen(r.panelsFor('test'), 'test', s2), {});
