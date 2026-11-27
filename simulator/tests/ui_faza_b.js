@@ -61,7 +61,7 @@ const { chromium } = require('playwright');
     await p.waitForFunction(() => document.querySelectorAll('.bstep').length >= 4, null, { timeout: 20000 })
       .catch(() => fail.push('S9: nema traka koraka'));
     const flags = await p.$$eval('#bandFlags .flag', l => l.map(x => x.textContent));
-    if (!flags.includes('CORD') || !flags.includes('ARMED')) fail.push('S9 zastavice: ' + flags);
+    if (!flags.includes('ČINČ') || !flags.includes('NAORUŽAN')) fail.push('S9 zastavice: ' + flags);
     await p.click('.bstep >> nth=1');
     const t2 = await ev(() => [window.eurosim.play.t, window.eurosim.run.steps[1].t]);
     if (t2[0] !== t2[1]) fail.push('S9 klik na korak: ' + t2);

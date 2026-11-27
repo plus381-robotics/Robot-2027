@@ -185,6 +185,7 @@ class RobotSource(Source):
     kind = "robot"
     capabilities = frozenset({"push", "run", "stop", "lidar"})
     parts = {"pogon": "pravi", "lidar": "pravi", "ir": "pravi", "mehanizmi": "pravi", "protivnici": "pravi"}   # d: sve pravo
+    # (isto kao robotlink.PARTS, koje ide u snimak; test_session proverava da su isti)
 
     def __init__(self, host, pw, prof, upload_port=None, telem_port=None):
         from . import robotlink

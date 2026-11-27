@@ -1,12 +1,12 @@
 // Snimci (Zadatak 4.5): lista sačuvanih snimaka (simulator/runs/) — red: izvor S / R / H, taktika, strana, ime, datum,
 // ishod (ostalo u title); filter po izvoru i tekstu; klik = učitaj (app.js loadRun, isti put kao stari „Load run…“); snimak
-// koji se gleda je istaknut, referenca ima 📌. Podaci: store.runs (GET /api/runs?detail=1, app.js refreshRuns),
-// store.runName (učitan sačuvan snimak), store.refName (sačuvan snimak koji je referenca). Logika liste: core/snimci.js.
+// koji se gleda je istaknut, referenca ima 📌; dok sesija radi redovi su prigušeni, a klik odbija loadRun (core/snimci.js
+// sessionLock). Podaci: store.runs (GET /api/runs?detail=1, app.js refreshRuns), store.runName (učitan sačuvan snimak),
+// store.refName (sačuvan snimak koji je referenca), store.session. Logika liste: core/snimci.js.
 import { registerPanel } from '../core/panels.js';
-import { IZVORI, IZVOR_NAME, izvorOf, ishodOf, fmtDate, fmtDuration, sideName, filterRuns, countByIzvor }
+import { IZVORI, IZVOR_NAME, izvorOf, ishodOf, fmtDate, fmtDuration, sideName, filterRuns, countByIzvor, sessionLock }
   from '../core/snimci.js';
-
-const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+import { esc } from '../core/api.js';
 
 registerPanel({
   id: 'snimci', title: 'Snimci', workspaces: ['snimci'], region: 'side', priority: 5, open: true, grow: true,
@@ -32,7 +32,8 @@ registerPanel({
         b.setAttribute('aria-pressed', b.dataset.v === filter.izvor ? 'true' : 'false');
         if (b.dataset.v) b.querySelector('small').textContent = counts[b.dataset.v] || '';
       }
-      const rows = filterRuns(all, filter);
+      const rows = filterRuns(all, filter), lock = sessionLock(st.session);
+      list.classList.toggle('locked', !!lock);          // sesija radi: redovi prigušeni, klik odbija app.js loadRun
       list.innerHTML = rows.map(r => {
         const iz = izvorOf(r), is = ishodOf(r);
         const cur = r.name === st.runName, isRef = r.name === st.refName;
@@ -40,7 +41,7 @@ registerPanel({
         const side = r.side ? `<span class="sn-dot ${esc(r.side)}" title="${esc(sideName(r.side))}"></span>` : '';
         const title = `${r.name}\n${IZVOR_NAME[iz]} · ${r.tactic || '?'} · ${sideName(r.side)} · ${r.mode || ''} · ${is.text}` +
           `\n${r.date || ''}${r.duration_ms != null ? ' · ' + fmtDuration(r.duration_ms) : ''}` +
-          `${cur ? '\n(učitan)' : ''}${isRef ? '\n(referenca)' : ''}`;
+          `${cur ? '\n(učitan)' : ''}${isRef ? '\n(referenca)' : ''}${lock ? '\n' + lock.load : ''}`;
         return `<button type="button" role="listitem" class="sn-row${cur ? ' cur' : ''}" data-name="${esc(r.name)}"` +
           `${cur ? ' aria-current="true"' : ''} title="${esc(title)}">` +
           `<span class="sn-src ${iz === '?' ? 'U' : iz}">${iz}</span>` +
@@ -70,7 +71,8 @@ registerPanel({
       if (b) ctx.legacy.loadRun(b.dataset.name);
     };
     ctx.store.subscribe((st, prev) => {
-      if (st.runs !== prev.runs || st.runName !== prev.runName || st.refName !== prev.refName) render();
+      if (st.runs !== prev.runs || st.runName !== prev.runName || st.refName !== prev.refName ||
+        !st.session !== !prev.session) render();
     });
     render();
   },

@@ -30,7 +30,7 @@ const { chromium } = require('playwright');
   await p.click('#endBtn');
   await p.waitForFunction(() => document.getElementById('result').style.display === 'block', null, { timeout: 15000 });
   const steps = await p.$$eval('#steps tbody tr', r => r.map(x => x.textContent));
-  if (!steps.length || !/blocked/.test(steps[0])) fail.push('live: prvi korak nije blocked: ' + steps);
+  if (!steps.length || !/blokiran/.test(steps[0])) fail.push('live: prvi korak nije blokiran: ' + steps);
   // --- brzi režim: prevuci protivnika na put robota ---
   await p.evaluate(() => localStorage.clear());
   await p.reload();
@@ -48,7 +48,7 @@ const { chromium } = require('playwright');
   await p.mouse.move(cx, cy); await p.mouse.down();
   for (let k = 1; k <= 10; k++) await p.mouse.move(cx - k * 30, cy);
   await p.mouse.up();
-  await p.waitForFunction(() => /^NOT OK/.test(document.getElementById('result').textContent), null, { timeout: 15000 })
+  await p.waitForFunction(() => /^NIJE OK/.test(document.getElementById('result').textContent), null, { timeout: 15000 })
     .catch(() => fail.push('posle prevlačenja simulacija nije ponovljena'));
   if (process.argv[3]) await p.screenshot({ path: process.argv[3] });
   await b.close();

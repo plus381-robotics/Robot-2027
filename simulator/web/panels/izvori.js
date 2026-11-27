@@ -11,8 +11,7 @@
 // store.sources {lidar, file} (localStorage `eurosim.sources`).
 //   mountIzvori({store, setDrive(d) -> bool}) -> {open(anchor), close(), toggle(anchor), isOpen()}
 import { izvoriView, applyPreset, applyOption, izvoriLabel, normSources, saveSources } from '../core/izvori.js';
-
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+import { esc } from '../core/api.js';
 
 export function mountIzvori({ store, setDrive }) {
   const $ = id => document.getElementById(id);

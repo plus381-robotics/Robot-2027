@@ -40,7 +40,8 @@ def test_robot_recording_ima_origin():
     link = robotlink.RobotLink("h", "pw", None, {"name": "p", "body": {}, "drive": {}})
     d = link.recording()
     assert d["version"] == 2
-    assert d["meta"]["origin"] == {"engine": "robot", "parts": {"pogon": "pravi", "lidar": "pravi"}}
+    assert d["meta"]["origin"] == {"engine": "robot", "parts": {"pogon": "pravi", "lidar": "pravi", "ir": "pravi",
+                                                                "mehanizmi": "pravi", "protivnici": "pravi"}}
     assert d["meta"]["tactic_sha"] is None and d["meta"]["scenario"] is None
     assert d["result"]["robot"] is True
 

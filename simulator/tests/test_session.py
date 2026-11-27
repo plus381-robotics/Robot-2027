@@ -343,3 +343,45 @@ def test_hibrid_lidar_iz_snimka_kroz_sesiju(tmp_path):
     ev = lidar[-1][2]
     assert dict(zip(ev["pts"][::2], ev["pts"][1::2])) == {0: 777, 90: 444, 200: 1234}     # krugovi iz snimka
     assert last["type"] == "end" and last["run"]["meta"]["lidar_source"] == "snimak hib.jsonl.gz"
+
+
+def test_snimak_robota_ima_iste_delove_kao_hello():
+    """Snimak sa robota (meta.origin.parts) i hello sesije (RobotSource.parts) pokazuju istih pet delova (Izvori d)."""
+    from eurosim import robotlink
+    s = RobotSource("127.0.0.1", "pw", P.load(paths.DEFAULT_PROFILE), upload_port=free_port(),
+                    telem_port=free_port(socket.SOCK_DGRAM))
+    assert s.link.rec.meta["origin"] == {"engine": "robot", "parts": RobotSource.parts}
+    assert RobotSource.parts == robotlink.PARTS and len(RobotSource.parts) == 5
+    s.link.rec.meta["origin"]["parts"]["ir"] = "sim"                  # kopija: snimak ne menja zajednički rečnik
+    assert robotlink.PARTS["ir"] == "pravi"
+
+
+def test_pad_pumpe_sesije_se_loguje(monkeypatch, capsys):
+    """Izuzetak u pumpi sesije (server.session_ws) ne nestaje: ide na stderr sa traceback-om, a sesija se završi."""
+    from eurosim import server
+
+    class Bum:
+        kind, parts, capabilities = "sim", {}, frozenset()
+
+        async def start(self):
+            pass
+
+        async def poll(self):
+            raise RuntimeError("pumpa bum")
+
+        async def command(self, c):
+            return {"cmd": c[0], "ok": False, "lines": []}
+
+        async def close(self):
+            return {}
+    monkeypatch.setattr(server, "_sim_source", lambda request: Bum())
+
+    async def scenario(ws):
+        got = [await ws.receive_json(timeout=5)]
+        while got[-1]["type"] not in ("end", "error"):
+            got.append(await ws.receive_json(timeout=5))
+        return got
+    got = _ws_run(lambda b: b + "/ws/session?engine=sim", scenario)
+    assert got[0]["type"] == "hello" and got[-1] == {"type": "end", "run": None}
+    err = capsys.readouterr().err
+    assert "pumpa je pala" in err and "RuntimeError: pumpa bum" in err and "Traceback" in err

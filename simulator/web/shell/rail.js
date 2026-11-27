@@ -5,6 +5,8 @@
 // (store.repo != null, piše ga web/repo.js), sa značkom (↓ novo na GitHub-u, ! profil, ● izmenjeno).
 // Pomoć: prozorčić sa prečicama (core/keys.js SHORTCUTS); i taster „?“; zatvara ga ✕, Esc ili klik van njega.
 //   mountRail(el, ctx) -> {render, toggleHelp}
+//   railChanged(st, prev) -> true kad se promenilo nešto što traka crta (ws, drive, repo, vrsta sesije); store se menja
+//                            ~10 puta u sekundi tokom sesije (paketi lidara, telemetrija), a traka ne treba da se crta
 //   ctx = {store, go(ws), setDrive('sim'|'robot'), openSources(anchor), legacy: {openRepo, openProfile}}
 
 import { SHORTCUTS } from '../core/keys.js';
@@ -30,6 +32,10 @@ const MINI = [
   { act: 'help', name: 'Pomoć', title: 'Prečice sa tastature (?)',
     icon: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01"/>' },
 ];
+
+const sessionKind = st => (st.session ? st.session.kind : null);
+export const railChanged = (st, prev) => !prev || st.ws !== prev.ws || st.drive !== prev.drive || st.repo !== prev.repo ||
+  sessionKind(st) !== sessionKind(prev);
 
 const icon = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 
@@ -81,7 +87,7 @@ export function mountRail(el, ctx) {
     badge.textContent = (r && r.badge) || '';
     repoBtn.title = repoTitle + (r && r.title ? '\n' + r.title : '');
   }
-  ctx.store.subscribe(render);
+  ctx.store.subscribe((st, prev) => { if (railChanged(st, prev)) render(st); });
   render(ctx.store.get());
   return { render, toggleHelp };
 }

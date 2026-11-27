@@ -20,7 +20,7 @@ def password(arg=None):
     if arg:
         return arg
     cfg = ROOT / "ESP32" / "webrepl_cfg.py"
-    m = re.search(r"PASS\s*=\s*['\"](.*)['\"]", cfg.read_text()) if cfg.exists() else None
+    m = re.search(r"PASS\s*=\s*['\"](.*)['\"]", cfg.read_text(encoding="utf-8")) if cfg.exists() else None
     if not m:
         sys.exit("nema lozinke: napravi ESP32/webrepl_cfg.py ili daj --password")
     return m.group(1)

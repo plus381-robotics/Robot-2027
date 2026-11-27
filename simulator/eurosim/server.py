@@ -8,6 +8,8 @@
 import asyncio
 import json
 import multiprocessing as mp
+import sys
+import traceback
 import webbrowser
 
 from aiohttp import web
@@ -179,6 +181,10 @@ async def session_ws(request, engine=None):
         reading.cancel()
         if pumping.done():
             failed = not pumping.cancelled() and pumping.exception() is None and pumping.result()
+            if not pumping.cancelled() and pumping.exception() is not None:   # inače bi greška pumpe nestala bez traga
+                e = pumping.exception()
+                print("sesija (%s): pumpa je pala:" % engine, file=sys.stderr)
+                traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
         else:
             pumping.cancel()                           # prvo stop poll-a, tek onda close()
         await asyncio.gather(pumping, reading, return_exceptions=True)

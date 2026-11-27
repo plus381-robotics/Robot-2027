@@ -1,8 +1,8 @@
 // Testovi za web/core/snimci.js: izvor S / R / H, ishod, datum, filter liste u prostoru Snimci.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { izvorOf, ishodOf, fmtDate, fmtDuration, fold, filterRuns, countByIzvor, sideName, refTagView }
-  from '../../web/core/snimci.js';
+import { izvorOf, ishodOf, fmtDate, fmtDuration, fold, filterRuns, countByIzvor, sideName, refTagView, sessionLock,
+  SESSION_LOCK } from '../../web/core/snimci.js';
 
 // Redovi kao iz GET /api/runs?detail=1 (najnoviji prvi).
 const RUNS = [
@@ -82,4 +82,16 @@ test('refTagView: oznaka reference na stolu van Snimaka (u Snimcima je u redu ko
     assert.match(v.title, /pre_PID_fixa/);
   }
   assert.equal(refTagView('primer (mec)', 'voznja').text, 'referenca: primer (mec)');   // nesačuvana (📌 simulacija)
+});
+
+test('sessionLock: dok sesija (SIM ili ROBOT) radi, učitavanje i čuvanje iz Snimaka su zaključani sa razlogom', () => {
+  assert.equal(sessionLock(null), null);
+  assert.equal(sessionLock(undefined), null);
+  for (const kind of ['sim', 'robot']) {
+    const l = sessionLock({ kind });
+    assert.equal(l.load, 'Sesija radi: snimak učitaj posle Završi / Prekini vezu');
+    assert.match(l.save, /^Sesija radi: .*posle Završi \/ Prekini vezu$/);
+    assert.equal(l.run, 'Sesija radi: brza simulacija posle Završi');
+  }
+  assert.equal(sessionLock({ kind: 'sim' }), SESSION_LOCK);
 });

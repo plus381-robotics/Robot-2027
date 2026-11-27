@@ -19,6 +19,8 @@ import { mountProfile } from './profil.js';
 import { renderCommands } from './komande.js';
 import { mountIzvori } from './panels/izvori.js';
 import { loadSources, lidarSpec } from './core/izvori.js';
+import { SESSION_LOCK } from './core/snimci.js';      // dok sesija radi: Snimci zaključani, Sačuvaj i ▶ Pokreni sivi
+import { timeKey } from './core/keys.js';               // vreme (razmak, strelice) i Ctrl+Enter po prostoru
 
 const $ = id => document.getElementById(id);
 // Most ka novom okviru (statusna traka, bočna traka): stari kod piše ovde ono što traka treba. Polja: shell/strip.js.
@@ -36,10 +38,9 @@ const store = createStore({ ws: 'taktike', drive: 'sim', session: null, caps: nu
   runs: null, runName: null, refName: null, refLabel: null, repo: null,
   sources: loadSources(), lidarFiles: [], helloSource: null, lidarScan: null, lidarReply: null,
   robotMec: null, robotLidar: null, robotLidarSeen: false });
-const SIDE_NAME = { plava: 'Blue', zuta: 'Yellow' };     // kartica rezultata (#result) i naslovi taktika u Koracima
-const STRANA = { zuta: 'Žuta', plava: 'Plava' };
-const REASON = { BLOCKED: 'blocked', TIMEOUT: 'timeout', PREEMPTED: 'preempted', MATCH_OVER: 'match over',
-  STOPPED: 'stopped', INVALID: 'rejected', NOREPLY: 'no reply', SUPERSEDED: 'superseded', STOP: 'STOP' };
+const STRANA = { zuta: 'Žuta', plava: 'Plava' };        // i kartica rezultata (#result) i naslovi taktika u Koracima
+const REASON = { BLOCKED: 'blokiran', TIMEOUT: 'isteklo vreme', PREEMPTED: 'prekinut novom komandom', MATCH_OVER: 'kraj meča',
+  STOPPED: 'zaustavljen', INVALID: 'odbijen', NOREPLY: 'nema odgovora', SUPERSEDED: 'zamenjen', STOP: 'STOP' };
 let REF_SIDE = 'zuta';                // strana za koju se pišu taktike (ESP32/lib/tac.py), stiže sa servera
 
 let info, view, charts, esp, run = null;
@@ -101,7 +102,7 @@ function buildIrBox() {
     return `<div class="ir-cn ir-${side}"><span class="ir-ct" data-k="${ks[0]}">${key}</span>${rows}</div>`;
   };
   const box = $('irBox');
-  box.innerHTML = cell('FL', 'L') + '<div class="ir-robot" title="robot seen from above, front up">▲</div>' + cell('FR', 'R') +
+  box.innerHTML = cell('FL', 'L') + '<div class="ir-robot" title="robot odozgo, napred gore">▲</div>' + cell('FR', 'R') +
     cell('BL', 'L') + cell('BR', 'R');
   for (const g of box.querySelectorAll('.ir-s')) g.onclick = () => {
     if (!live || live.kind) return;                            // samo Live simulacija
@@ -119,8 +120,8 @@ function renderIr(raw, mask) {                                 // raw == null: r
     const k = +g.dataset.k, on = !!(mask & (1 << k)), sees = !!(raw & (1 << k));
     g.className = 'ir-s ' + (on ? (sees ? 'hit' : 'on') : (sees ? 'off hit' : 'off')) + (live && !live.kind ? ' click' : '');
     g.textContent = name(sens[k]);
-    g.title = `${name(sens[k])}: ${sens[k].z > 200 ? 'upper (over the boxes)' : 'lower'} · ${on ? 'on' : 'off'}` +
-      (none ? ' · nema podataka sa robota' : sees ? ' · sees something' : '') + (live && !live.kind ? ' · click to switch' : '');
+    g.title = `${name(sens[k])}: ${sens[k].z > 200 ? 'gornji (iznad kutija)' : 'donji'} · ${on ? 'uključen' : 'isključen'}` +
+      (none ? ' · nema podataka sa robota' : sees ? ' · nešto vidi' : '') + (live && !live.kind ? ' · klik: uključi / isključi' : '');
   });
   $('irBox').querySelectorAll('.ir-ct').forEach(t => { t.textContent = name(sens[+t.dataset.k]).slice(0, 2); });
   const off = sens.filter((s, k) => !(mask & (1 << k))).map(name), sees = sens.filter((s, k) => raw & (1 << k)).map(name);
@@ -149,7 +150,7 @@ function renderState(i) {
     bar.classList.remove('over');
   }
   $('stepnext').textContent = s ? (active ? `traje ${secs(t - s.t)} s${s.timeout ? ' / timeout ' + secs(s.timeout) + ' s' : ''}` :
-    `završen: ${s.ok ? 'OK' : (REASON[s.reason] || s.reason || 'fail')}`) + (s.next ? ` · sledeći: ${s.next}` : '') : '';
+    `završen: ${s.ok ? 'OK' : (REASON[s.reason] || s.reason || 'neuspeh')}`) + (s.next ? ` · sledeći: ${s.next}` : '') : '';
   const m = c.match[i];
   $('matchtime').textContent = m == null ? '' : `meč ${secs(m)} s`;
 }
@@ -161,13 +162,13 @@ function renderSteps() {
   for (const s of run.steps) {
     while (heads.length && heads[0].t <= s.t) {
       const h = heads.shift(), tr = document.createElement('tr');
-      tr.innerHTML = `<td></td><td colspan="3" class="dim">▶ ${h.name} · ${SIDE_NAME[h.side] || h.side} · ${secs(h.t)} s</td>`;
+      tr.innerHTML = `<td></td><td colspan="3" class="dim">▶ ${h.name} · ${STRANA[h.side] || h.side} · ${secs(h.t)} s</td>`;
       tr.onclick = () => seek(h.t);
       tb.appendChild(tr);
     }
     const tr = document.createElement('tr');
     const res = s.ok == null ? '<span class="res-run">…</span>' : s.ok ? '<span class="res-ok">OK</span>' :
-      `<span class="res-fail">${REASON[s.reason] || s.reason || 'FAIL'}</span>`;
+      `<span class="res-fail">${REASON[s.reason] || s.reason || 'neuspeh'}</span>`;
     tr.innerHTML = `<td><i class="swatch" style="background:${stepColor(s.idx)}"></i>${s.idx}</td><td title="${s.name}">${s.name}</td><td>${res}</td><td>${s.dur == null ? '' : secs(s.dur)}</td>`;
     tr.onmouseenter = () => view.highlightStep(s.idx);
     tr.onmouseleave = () => view.highlightStep(0);
@@ -222,22 +223,22 @@ function renderResult() {
     const done = run.steps.filter(s => s.ok === true).length, bad = run.steps.filter(s => s.ok === false);
     el.className = bad.length ? 'fail' : 'ok';
     el.style.display = 'block';
-    el.innerHTML = `<b>ROBOT</b> <span class="dim">${run.meta.host} · ${run.meta.tactic || 'no tactic'} · ${SIDE_NAME[run.meta.side] || ''}</span>
-      <div class="dim">${secs(run.duration)} s of telemetry · steps OK ${done}/${run.steps.length}${n >= 0 ? ` · last pose ${f0(c.x[n])}, ${f0(c.y[n])}, ${f1(c.th[n])}°` : ''}</div>
-      ${bad.map(s => `<div>step ${s.idx} “${s.name}”: ${REASON[s.reason] || s.reason}</div>`).join('')}
-      <div class="dim small">pose = robot odometry · 10 Hz telemetry: very short steps may be missed</div>`;
+    el.innerHTML = `<b>ROBOT</b> <span class="dim">${run.meta.host} · ${run.meta.tactic || 'bez taktike'} · ${STRANA[run.meta.side] || ''}</span>
+      <div class="dim">${secs(run.duration)} s telemetrije · koraci OK ${done}/${run.steps.length}${n >= 0 ? ` · poslednja poza ${f0(c.x[n])}, ${f0(c.y[n])}, ${f1(c.th[n])}°` : ''}</div>
+      ${bad.map(s => `<div>korak ${s.idx} „${s.name}“: ${REASON[s.reason] || s.reason}</div>`).join('')}
+      <div class="dim small">poza = odometrija robota · telemetrija 10 Hz: vrlo kratak korak može da se ne vidi</div>`;
     return;
   }
-  const fail = r.fail ? `<div>failed at step ${r.fail[0]} “${r.fail[1]}”: ${REASON[r.fail[2]] || r.fail[2]}</div>` : '';
+  const fail = r.fail ? `<div>neuspeh na koraku ${r.fail[0]} „${r.fail[1]}“: ${REASON[r.fail[2]] || r.fail[2]}</div>` : '';
   const warn = [];
-  if (r.start_in_zone === false) warn.push('robot does not start inside its own start zone');
+  if (r.start_in_zone === false) warn.push('robot ne kreće iz svoje startne zone');
   if (r.errors && r.errors.length) warn.push(...r.errors.slice(-3));
   el.className = r.ok ? 'ok' : 'fail';
   el.style.display = 'block';
-  el.innerHTML = `<b>${r.ok ? 'OK' : 'NOT OK'}</b> <span class="dim">${run.meta.tactic} · ${SIDE_NAME[run.meta.side]} · ${run.meta.mode === 'mec' ? 'match' : 'test'}</span>
-    ${r.how ? `<div>stopped: ${r.how}</div>` : ''}${fail}
-    <div class="dim">steps ${r.done ?? 0}/${r.steps ?? 0} · tactic ${r.ms != null ? secs(r.ms) + ' s' : '–'} · end ${f0(r.pose[0])}, ${f0(r.pose[1])}, ${f1(r.pose[2])}°
-    · in own zone at end: ${r.in_own_zone ? 'yes' : 'no'}</div>
+  el.innerHTML = `<b>${r.ok ? 'OK' : 'NIJE OK'}</b> <span class="dim">${run.meta.tactic} · ${STRANA[run.meta.side] || run.meta.side} · ${run.meta.mode === 'mec' ? 'meč' : 'test'}</span>
+    ${r.how ? `<div>taktika stala: ${r.how}</div>` : ''}${fail}
+    <div class="dim">koraci ${r.done ?? 0}/${r.steps ?? 0} · taktika ${r.ms != null ? secs(r.ms) + ' s' : '–'} · kraj ${f0(r.pose[0])}, ${f0(r.pose[1])}, ${f1(r.pose[2])}°
+    · na kraju u svojoj zoni: ${r.in_own_zone ? 'da' : 'ne'}</div>
     ${warn.map(w => `<div style="color:var(--warn)">⚠ ${w}</div>`).join('')}`;
 }
 
@@ -249,10 +250,10 @@ const stepColor = idx => STEP_COLORS[(idx - 1 + STEP_COLORS.length) % STEP_COLOR
 function runFlags(r) {
   const out = [];
   for (const l of r.log) {
-    if (/^NAORUZAN/.test(l.text)) out.push({ t: l.t, k: 'armed', label: 'ARMED', title: l.text });
-    else if (/^CINC: start/.test(l.text)) out.push({ t: l.t, k: 'cord', label: 'CORD', title: 'cord pulled: the match starts' });
+    if (/^NAORUZAN/.test(l.text)) out.push({ t: l.t, k: 'armed', label: 'NAORUŽAN', title: l.text });
+    else if (/^CINC: start/.test(l.text)) out.push({ t: l.t, k: 'cord', label: 'ČINČ', title: 'činč povučen: meč počinje' });
     else if (/STM32 restart|nema veze|pad veze|STM32 se ne javlja|ESP restart/.test(l.text)) out.push({ t: l.t, k: 'warn', label: '⚠', title: l.text });
-    else if (/^KRAJ meca/.test(l.text)) out.push({ t: l.t, k: 'end', label: 'END', title: 'match over' });
+    else if (/^KRAJ meca/.test(l.text)) out.push({ t: l.t, k: 'end', label: 'KRAJ', title: 'kraj meča' });
   }
   return out;
 }
@@ -268,7 +269,7 @@ function renderMarks() {
     b.style.setProperty('--c', stepColor(s.idx));
     b.textContent = `${s.idx} ${s.name}`;
     b.title = `${s.idx}. ${s.name}\n${secs(s.t)} s → ${s.end != null ? secs(s.end) + ' s' : '…'}` +
-      (s.ok === false ? `\nFAILED: ${s.reason || ''}` : s.ok ? '\nOK' : '') + '\nclick: jump here';
+      (s.ok === false ? `\nNEUSPEH: ${REASON[s.reason] || s.reason || ''}` : s.ok ? '\nOK' : '') + '\nklik: skoči ovde';
     b.onclick = () => seek(s.t);
     b.onmouseenter = () => view.highlightStep(s.idx);
     b.onmouseleave = () => view.highlightStep(0);
@@ -280,7 +281,7 @@ function renderMarks() {
   if (cord) {                                        // faza napada: 85..100 s od činča
     const a = document.createElement('div'); a.className = 'attack';
     a.style.left = pct(cord.t + 85000); a.style.width = `calc(${pct(cord.t + 100000)} - ${pct(cord.t + 85000)})`;
-    a.title = 'attack phase (85-100 s of the match)';
+    a.title = 'faza napada (85-100 s meča)';
     if (cord.t + 85000 < D) fl.appendChild(a);
   }
   for (const f of flags) {
@@ -293,7 +294,7 @@ function renderMarks() {
   const span = (D - (cord ? cord.t : 0)) / 1000;
   const t0 = cord ? cord.t : 0, stepS = span > 60 ? 10 : span > 15 ? 5 : 1;
   for (let s = 0; t0 + s * 1000 <= D; s += stepS) {
-    const e = document.createElement('span'); e.style.left = pct(t0 + s * 1000); e.textContent = s + (s === 0 ? (cord ? ' s match' : ' s') : '');
+    const e = document.createElement('span'); e.style.left = pct(t0 + s * 1000); e.textContent = s + (s === 0 ? (cord ? ' s meča' : ' s') : '');
     ax.appendChild(e);
   }
   charts.setSteps(run.steps.map(s => ({ t: s.t, idx: s.idx, color: stepColor(s.idx), fail: s.ok === false })));
@@ -345,6 +346,13 @@ function bridgeSession() {                      // sesija počela / završila: t
     paused: false, speed: null, telemetry: null, linkAge: null, linkState: null, connAge: null, running: null,
     runName: null, helloSource: null, lidarScan: null, lidarReply: null, robotMec: null, robotLidar: null, robotLidarSeen: false });   // sesija nije sačuvan snimak (Snimci ga ne ističu)
   $('speed').hidden = !!L;                     // brzina puštanja snimka; u sesiji važi brzina iz reda komandi Vožnja
+  // Dok sesija radi Sačuvaj snimak bi sačuvao serverov „poslednji“ snimak (ne sesiju na ekranu), a brza simulacija ne
+  // radi: oba dugmeta siva sa razlogom (lista Snimci je prigušena, klik odbija loadRun). Posle kraja sesije: kao pre.
+  const sv = $('save'), rb = $('run');
+  sv.dataset.title ??= sv.title; rb.dataset.title ??= rb.title;
+  sv.disabled = !!L || !run;
+  sv.title = L ? SESSION_LOCK.save : sv.dataset.title;
+  rb.title = L ? SESSION_LOCK.run : rb.dataset.title;
   if (L) {                                      // nova sesija kreće na ×1, bez pauze: red komandi to i pokazuje
     $('pace').value = '1';
     $('pauseBtn').textContent = '⏸ Pauza'; $('pauseBtn').classList.remove('on');
@@ -445,13 +453,13 @@ async function simulate(keepTime = null) {
   const seq = ++simSeq;
   const body = { tactic: $('tactic').value, side: $('side').value, mode: $('mode').value, obstacles: opponents,
     elements: elementsArg() };
-  localStorage.setItem('eurosim.sel', JSON.stringify(body));
+  try { localStorage.setItem('eurosim.sel', JSON.stringify(body)); } catch (e) { /* ignore */ }
   if (ed) { body.tactic = ed.name; body.source = ed.editor.text(); }
   $('run').disabled = true;
   msg(`simuliram ${body.tactic}…`);
   try {
     const d = await api('/api/run', body);
-    if (seq !== simSeq) return;                 // u međuvremenu pokrenuta novija (npr. izmena protivnika): ova je zastarela
+    if (seq !== simSeq || live) return;         // u međuvremenu pokrenuta novija (npr. izmena protivnika) ili sesija: zastarela
     load(d, `${body.tactic}: simulirano ${secs(d.result.sim_ms)} s za ${d.wall_s} s`, keepTime);
     if (ed && d.diagnostics) edDiagnostics(d.diagnostics);
   } catch (e) {
@@ -460,7 +468,7 @@ async function simulate(keepTime = null) {
     msg(e.message.split('\n')[0], true);
     console.error(e);
   } finally {
-    if (seq === simSeq) $('run').disabled = false;
+    if (seq === simSeq) $('run').disabled = !!live;
   }
 }
 
@@ -487,8 +495,15 @@ async function refreshRuns() {
   }
 }
 
-async function loadRun(n) {                     // klik u listi Snimci (ranije „Load run…“ u meniju „⋯ Runs“)
-  try { load(await api('/api/runs/' + encodeURIComponent(n)), `učitan snimak ${n}`, null, n); } catch (er) { msg(er.message, true); }
+// Klik u listi Snimci (ranije „Load run…“ u meniju „⋯ Runs“). Dok sesija radi odbija: učitavanje bi zamenilo snimak
+// sesije na stolu, protivnike (sledeći „+ Protivnik“ bi ih poslao u sesiju) i serverov „poslednji“ snimak.
+async function loadRun(n) {
+  if (live) { notice(SESSION_LOCK.load); return; }
+  try {
+    const d = await api('/api/runs/' + encodeURIComponent(n));
+    if (live) { notice(SESSION_LOCK.load); return; }          // sesija pokrenuta dok je snimak stizao
+    load(d, `učitan snimak ${n}`, null, n);
+  } catch (er) { msg(er.message, true); }
 }
 
 const OPEN_SNIMCI = { label: 'Otvori u Snimcima', title: 'Prostor Snimci: sačuvaj ovaj snimak, uporedi ga sa drugim (📌 Referenca, Uporedi sa…)',
@@ -722,7 +737,7 @@ function edCursor(line) {
   if (!c) { view.setCursorPoint(null); return; }
   const [fx, fy] = c.target;
   const tx = mirrorX(fx, side, REF_SIDE);          // u koordinatama taktike (žuta)
-  view.setCursorPoint([fx, fy], `x = ${Math.round(tx)} mm from the left edge · y = ${Math.round(fy)} mm from the bottom`);
+  view.setCursorPoint([fx, fy], `x = ${Math.round(tx)} mm od leve ivice · y = ${Math.round(fy)} mm od donje ivice`);
 }
 
 function edChanged(text) {
@@ -1125,8 +1140,7 @@ async function main() {
     const sel = JSON.parse(localStorage.getItem('eurosim.sel') || '{}');
     for (const k of ['tactic', 'side', 'mode']) if (sel[k]) $(k).value = sel[k];
   } catch (e) { /* ignore */ }
-  fillRuns(info.runs);
-  refreshRuns();
+  refreshRuns();                                  // Snimci i „Uporedi sa…“ (detaljna lista)
   const setInfo = i => { info = i; };
   repo = mountRepo({ store, msg, getInfo: () => info, setInfo, onPulled: fillTacticSelects });   // traka, dijalog, značka
   profile = mountProfile({ msg, setInfo });
@@ -1216,10 +1230,12 @@ async function main() {
   };
   $('rHost').onchange = () => { try { localStorage.setItem('eurosim.host', $('rHost').value); } catch (e) { /* ignore */ } };
   $('rConnect').onclick = () => {
-    localStorage.setItem('eurosim.host', $('rHost').value);
+    try { localStorage.setItem('eurosim.host', $('rHost').value); } catch (e) { /* ignore */ }
     startRobot($('rHost').value.trim(), $('rPass').value);
   };
-  $('rHost').value = localStorage.getItem('eurosim.host') || 'eurokik.local';
+  let host = null;
+  try { host = localStorage.getItem('eurosim.host'); } catch (e) { /* ignore */ }
+  $('rHost').value = host || 'eurokik.local';
   $('rVirtual').onclick = async () => {
     msg('pokrećem virtuelnog robota (pravi ESP kod, simuliran STM32) na 127.0.0.1…');
     try {
@@ -1342,12 +1358,13 @@ async function main() {
     if (tg.isContentEditable || (tg.closest && tg.closest('.cm-editor'))) return;
     if (tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' ||
         (tg.tagName === 'INPUT' && !['range', 'checkbox', 'button'].includes(tg.type))) return;
-    if (e.key === ' ') { e.preventDefault(); setPlaying(!play.playing); }
-    else if (e.key === 'ArrowLeft') { e.preventDefault(); e.shiftKey ? stepJump(-1) : frameJump(-1); }
-    else if (e.key === 'ArrowRight') { e.preventDefault(); e.shiftKey ? stepJump(1) : frameJump(1); }
-    else if (e.key === 'Home') seek(0);
-    else if (e.key === 'End') run && seek(run.duration);
-    else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) simulate();
+    const k = timeKey(e, store.get().ws);           // Test dela: vreme ne radi; Ctrl+Enter samo u Taktikama
+    if (k === 'play') { e.preventDefault(); setPlaying(!play.playing); }
+    else if (k === 'frame-' || k === 'frame+') { e.preventDefault(); frameJump(k === 'frame-' ? -1 : 1); }
+    else if (k === 'step-' || k === 'step+') { e.preventDefault(); stepJump(k === 'step-' ? -1 : 1); }
+    else if (k === 'home') seek(0);
+    else if (k === 'end') run && seek(run.duration);
+    else if (k === 'run') simulate();
     // Esc = STOP: shell/layout.js (hvatanje na window-u, radi i iz editora i polja), ne ovde
   });
   requestAnimationFrame(tick);

@@ -458,6 +458,7 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
   background: transparent; color: var(--text); width: 100%; flex: none; }
 .sn-row:hover { background: #ffffff0d; }
 .sn-row.cur { background: #1f4f7a66; box-shadow: inset 3px 0 0 var(--accent); }
+#snList.locked .sn-row { opacity: .45; cursor: not-allowed; }     /* sesija radi: klik odbija app.js loadRun */
 .sn-src { width: 18px; height: 18px; border-radius: 4px; display: inline-flex; align-items: center;
   justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
 .sn-src.S { background: #1f5f99; } .sn-src.R { background: #c62828; } .sn-src.H { background: #8a5a00; } .sn-src.U { background: #3a4250; }

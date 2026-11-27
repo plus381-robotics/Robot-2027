@@ -63,6 +63,16 @@ export function refTagView(label, ws) {
   return { text: `referenca: ${label}`, title: `Ljubičasta putanja i robot-duh: referenca „${label}“ (klik: Snimci, ✕: ukloni)` };
 }
 
+// Dok sesija radi (SIM ili ROBOT) lista Snimci je zaključana: učitan snimak bi zamenio sesiju na stolu, protivnike i
+// serverov „poslednji“ snimak, a Sačuvaj snimak bi sačuvao taj „poslednji“, ne sesiju. Referenca (Uporedi sa…) sme.
+//   sessionLock(session) -> null (nema sesije) | {load, save, run}: poruka / title sivog dugmeta
+export const SESSION_LOCK = {
+  load: 'Sesija radi: snimak učitaj posle Završi / Prekini vezu',
+  save: 'Sesija radi: snimak sačuvaj posle Završi / Prekini vezu',
+  run: 'Sesija radi: brza simulacija posle Završi',
+};
+export const sessionLock = session => (session ? SESSION_LOCK : null);
+
 // Broj snimaka po izvoru (za dugmad filtera).
 export function countByIzvor(list) {
   const out = { S: 0, R: 0, H: 0 };

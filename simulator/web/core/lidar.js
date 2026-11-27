@@ -88,13 +88,15 @@ export function fmtGroup(g) {
 }
 
 // Redovi kartice Lidar: [naziv, vrednost, klasa, title]. Podatak koji izvor nema: „nema sa robota“ (nikad lažna nula).
+// Hz meri samo lidar na ESP-u (scan.kind 'robot'); krug simulacije ili iz snimka bez hz: „nema“ (ne „sa robota“).
 export function statsRows(scan, stages, now) {
   if (!scan) return [];
   const n = Array.isArray(scan.pts) ? scan.pts.length >> 1 : 0;
   const s = stages || null, pose = scanPose(scan);
   const age = scan.wall == null ? null : now - scan.wall;
   const rows = [
-    ['Hz', typeof scan.hz === 'number' ? scan.hz.toFixed(1) : 'nema sa robota', '', 'krugova u sekundi (meri lidar na ESP-u)'],
+    ['Hz', typeof scan.hz === 'number' ? scan.hz.toFixed(1) : scan.kind === 'robot' ? 'nema sa robota' : 'nema', '',
+      'krugova u sekundi (meri lidar na ESP-u)'],
     ['tačaka', s && pose ? `${n} · u stolu ${s.in.length} · van ${s.out.length}` : String(n), '', 'tačke kruga (bin po stepenu)'],
     ['starost kruga', fmtAge(age), age > STALE_MS ? 'warn' : '', 'koliko je prošlo od poslednjeg kruga'],
     ['poza', pose ? `${Math.round(pose[0])}, ${Math.round(pose[1])} · ${Math.round(pose[2])}°` : 'nema poze', pose ? '' : 'warn',

@@ -93,7 +93,11 @@ test('statsRows: Hz, tačke, starost, poza, najbliža grupa (laptop) i tačka (E
   assert.equal(rows['najbliža tačka (ESP)'][1], '420 mm, 0°');
   const bare = Object.fromEntries(statsRows({ pts: [0, 500], hz: null, near: null, nopose: true, pose: [250, 1000, 0], wall: 0 },
     { ...STAGES, nearest: null }, 5000).map(r => [r[0], r]));
-  assert.equal(bare.Hz[1], 'nema sa robota');
+  assert.equal(bare.Hz[1], 'nema');                           // bez kind (ili sim / snimak): ne „sa robota“
+  const hz = kind => statsRows({ pts: [0, 500], hz: null, kind, wall: 0 }, null, 0).find(r => r[0] === 'Hz')[1];
+  assert.equal(hz('robot'), 'nema sa robota');
+  assert.equal(hz('sim'), 'nema');
+  assert.equal(hz('snimak'), 'nema');
   assert.equal(bare.poza[1], 'nema poze'); assert.equal(bare.poza[2], 'warn');
   assert.equal(bare['tačaka'][1], '1');                       // bez poze nema „u stolu / van“
   assert.equal(bare['starost kruga'][2], 'warn');             // > 1.5 s

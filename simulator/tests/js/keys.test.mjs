@@ -1,9 +1,9 @@
 // Testovi za web/core/keys.js (prečice) i shell/layout.js installKeys (Alt+1..4 prostori, „?“ spisak prečica).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { wsForKey, isHelpKey, isTyping, SHORTCUTS } from '../../web/core/keys.js';
+import { wsForKey, isHelpKey, isTyping, timeKey, SHORTCUTS } from '../../web/core/keys.js';
 import { installKeys } from '../../web/shell/layout.js';
-import { RAIL_ITEMS } from '../../web/shell/rail.js';
+import { RAIL_ITEMS, railChanged } from '../../web/shell/rail.js';
 
 const k = (key, extra = {}) => ({ key, code: '', altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, repeat: false, ...extra });
 
@@ -71,4 +71,39 @@ test('installKeys: Alt+1..4 menja prostor (preventDefault), „?“ spisak samo 
   off();
   win.dispatchEvent(ev('1', { altKey: true, code: 'Digit1' }));
   assert.deepEqual(went, ['voznja']);                                    // odjavljen
+});
+
+test('timeKey: vreme (razmak, strelice, Home/End) svuda osim u Testu dela; Ctrl+Enter samo u Taktikama', () => {
+  for (const ws of ['taktike', 'voznja', 'snimci']) {
+    assert.equal(timeKey(k(' '), ws), 'play');
+    assert.equal(timeKey(k('ArrowLeft'), ws), 'frame-');
+    assert.equal(timeKey(k('ArrowRight'), ws), 'frame+');
+    assert.equal(timeKey(k('ArrowLeft', { shiftKey: true }), ws), 'step-');
+    assert.equal(timeKey(k('ArrowRight', { shiftKey: true }), ws), 'step+');
+    assert.equal(timeKey(k('Home'), ws), 'home');
+    assert.equal(timeKey(k('End'), ws), 'end');
+  }
+  for (const key of [' ', 'ArrowLeft', 'ArrowRight', 'Home', 'End']) {
+    assert.equal(timeKey(k(key), 'test'), null, key);
+    assert.equal(timeKey(k(key, { shiftKey: true }), 'test'), null, key);
+  }
+  assert.equal(timeKey(k('Enter', { ctrlKey: true }), 'taktike'), 'run');
+  assert.equal(timeKey(k('Enter', { metaKey: true }), 'taktike'), 'run');
+  for (const ws of ['test', 'voznja', 'snimci']) assert.equal(timeKey(k('Enter', { ctrlKey: true }), ws), null, ws);
+  assert.equal(timeKey(k('Enter'), 'taktike'), null);
+  assert.equal(timeKey(k('Escape'), 'taktike'), null);                     // Esc = STOP: shell/layout.js
+  assert.equal(timeKey(k('a'), 'taktike'), null);
+  assert.equal(timeKey(null, 'taktike'), null);
+});
+
+test('railChanged: bočna traka se crta samo kad se promeni ono što pokazuje (ne na svaki paket lidara)', () => {
+  const st = { ws: 'test', drive: 'sim', repo: null, session: { kind: 'sim' }, lidarScan: 1, telemetry: true };
+  assert.equal(railChanged(st, null), true);
+  assert.equal(railChanged({ ...st, lidarScan: 2, telemetry: false, linkAge: 5 }, st), false);
+  assert.equal(railChanged({ ...st, session: { kind: 'sim', host: null } }, st), false);   // nov objekat, ista vrsta
+  assert.equal(railChanged({ ...st, ws: 'voznja' }, st), true);
+  assert.equal(railChanged({ ...st, drive: 'robot' }, st), true);
+  assert.equal(railChanged({ ...st, repo: { badge: '↓' } }, st), true);
+  assert.equal(railChanged({ ...st, session: null }, st), true);
+  assert.equal(railChanged({ ...st, session: { kind: 'robot' } }, st), true);
 });

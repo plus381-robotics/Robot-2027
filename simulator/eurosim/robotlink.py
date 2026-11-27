@@ -16,6 +16,9 @@ from .record import Recording
 TELEM_PORT = 8268
 UPLOAD_PORT = 8267
 MATCH_RUNNING = 4
+# Izvori pravog (ili virtuelnog) robota: sve pravo (Izvori d). Isto u snimku (meta.origin.parts) i u hello sesije
+# (session.RobotSource.parts), da Snimci / replay pokažu isto što i sesija.
+PARTS = {"pogon": "pravi", "lidar": "pravi", "ir": "pravi", "mehanizmi": "pravi", "protivnici": "pravi"}
 
 
 def espnet():
@@ -182,7 +185,7 @@ class RobotLink:
                                   "profile": prof.get("name"), "body": prof["body"], "drive": prof["drive"],
                                   "field": field.describe(), "obstacles": [], "elements": field.elements(),
                                   "frame_ms": 100,
-                                  "origin": {"engine": "robot", "parts": {"pogon": "pravi", "lidar": "pravi"}},
+                                  "origin": {"engine": "robot", "parts": dict(PARTS)},
                                   "tactic_sha": None, "scenario": None})
         self.sent = (0, 0)
         self.transport = None
