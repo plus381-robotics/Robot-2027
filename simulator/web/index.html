@@ -33,7 +33,7 @@
 
   <!-- Red komandi Vožnja (Zadatak 4.4): panels/voznja-alati.js premešta ove delove; šta se vidi računa core/voznja.js
        iz stanja sesije i njenih mogućnosti (hello). STOP je na traci (i Esc). -->
-  <label id="lidarWrap" class="ti-label" title="Odakle dolaze krugovi lidara u simulaciji uživo. simuliran: zraci na virtuelnom stolu. robot (WiFi): pravi lidar sa robota (host i lozinka iz dijaloga Poveži), ostalo je simulirano; svaki krug se snima u simulator/lidar/, sesija radi na ×1. Snimak: ponovo pušta snimljene krugove.">Lidar: <select id="lidarSrc"></select></label>
+  <button id="izvoriBtn" aria-haspopup="dialog" title="Izvori: šta je simulirano, a šta pravo (a sve sim, b hibrid sa pravim lidarom ili snimkom, d pravi robot); veza sa robotom">Izvori ▾</button>
   <button id="sessStart" class="primary">▶ Pokreni sesiju</button>
   <button id="armBtn" title="Naoružaj meč izabranom taktikom i stranom (kao ESP meni); zatim Povuci činč">Naoruži</button>
   <button id="cordBtn" title="Povuci startni činč: meč počinje, 100 s">Povuci činč</button>
@@ -226,17 +226,24 @@
   <div class="dim small">Šalje samo ESP32/tactics i simulator/profiles. Treba Git (GitHub Desktop ili Git for Windows).</div>
 </div>
 
-<div id="robotConnect" class="overlay pop" hidden>
-  <div class="ov-title">Poveži se sa robotom</div>
-  <div class="ov-grid">
-    <label class="wide">host <input id="rHost" value="eurokik.local" placeholder="eurokik.local ili IP sa ekrana VEZA"></label>
-    <label class="wide">lozinka <input id="rPass" type="password" placeholder="prazno = iz ESP32/webrepl_cfg.py"></label>
+<!-- Izvori (Zadatak 5.1, panels/izvori.js; logika core/izvori.js): unapred zadate kombinacije, izvor po delu robota
+     (sivo sa razlogom), veza sa robotom (host, lozinka, Poveži, Virtuelni robot). Otvara se iz bočne trake (Izvori) i
+     iz reda komandi Vožnja (Izvori ▾, ▶ Pokreni sesiju za ROBOT); dok sesija radi samo se čita. -->
+<div id="izvori" class="izv-pop" role="dialog" aria-label="Izvori" hidden>
+  <div class="izv-h">Izvori <span id="izvNote" class="izv-note"></span><button id="izvClose" type="button" title="Zatvori (Esc)">✕</button></div>
+  <div id="izvPresets" class="seg izv-presets" role="group" aria-label="Unapred zadate kombinacije"></div>
+  <table id="izvParts" class="izv-parts"></table>
+  <div class="izv-conn">
+    <div class="izv-sub">Veza sa robotom <span id="izvConnUse" class="dim small"></span></div>
+    <div class="ov-grid">
+      <label class="wide">host <input id="rHost" value="eurokik.local" placeholder="eurokik.local ili IP sa ekrana VEZA"></label>
+      <label class="wide">lozinka <input id="rPass" type="password" placeholder="prazno = iz ESP32/webrepl_cfg.py"></label>
+    </div>
+    <div class="row" id="izvConnBtns"><button id="rConnect" class="primary" title="Poveži se sa pravim robotom na ovom hostu (izvori: d, sve pravo)">Poveži</button>
+      <button id="rVirtual" title="Pokreni virtuelnog robota na ovom računaru (pravi ESP kod + simuliran STM32) i poveži se sa njim (izvori: d)">Virtuelni robot</button></div>
+    <div class="dim small">ESP server za slanje (TCP 8267) i telemetrija (UDP 8268), kao tools/tactic.py i tools/watch.py.
+      Laptop mora da bude na mreži robota.</div>
   </div>
-  <div class="row"><button id="rConnect" class="primary">Poveži</button>
-    <button id="rVirtual" title="Pokreni virtuelnog robota na ovom računaru (pravi ESP kod + simuliran STM32) i poveži se sa njim">Virtuelni robot</button>
-    <button id="rCancel">Otkaži</button></div>
-  <div class="dim small">Koristi ESP server za slanje (TCP 8267) i telemetriju (UDP 8268), kao tools/tactic.py i
-    tools/watch.py. Laptop mora da bude na mreži robota.</div>
 </div>
 <div id="profDialog" class="overlay pop" hidden>
   <div class="ov-title">Profil robota <select id="profFile"></select> <span id="profPath" class="dim small"></span>

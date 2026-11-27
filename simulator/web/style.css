@@ -138,8 +138,6 @@ button.danger { background: #b3261e; border-color: #e5484d; color: #fff; font-we
 
 /* ---------- F4/F5: robot, profile, compare ---------- */
 .overlay.pop { position: fixed; top: calc(var(--strip-h) + 46px); z-index: 50; box-shadow: 0 8px 30px #000a; }
-#robotConnect { left: 50%; transform: translateX(-50%); width: 430px; }
-#robotConnect input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
 .overlay .row { display: flex; gap: 8px; align-items: center; margin: 8px 0 4px; flex-wrap: wrap; }
 #profDialog { right: 12px; width: 560px; max-height: calc(100vh - var(--strip-h) - 70px); display: flex; flex-direction: column; }
 #profDialog[hidden] { display: none; }
@@ -327,6 +325,33 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 .rl-help td { padding: 4px 10px 4px 0; vertical-align: top; }
 .rl-help kbd { font-family: ui-monospace, Consolas, monospace; background: var(--panel2); border: 1px solid var(--line);
   border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+
+/* Izvori (Zadatak 5.1, panels/izvori.js): prozorčić uz bočnu traku ili ispod dugmeta „Izvori ▾“ (položaj računa JS). */
+.izv-pop { position: fixed; z-index: 60; width: 560px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow-y: auto;
+  background: #1a1f26f7; border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px 12px; box-shadow: 0 10px 40px #0008; }
+.izv-pop[hidden] { display: none; }
+.izv-h { display: flex; align-items: center; gap: 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--dim); margin-bottom: 8px; }
+.izv-h button { margin-left: auto; }
+.izv-note { text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--warn); }
+.izv-presets { display: flex; width: 100%; margin-bottom: 8px; }
+.izv-presets button { flex: 1 1 0; padding: 5px 6px; white-space: nowrap; }
+.izv-parts { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+.izv-parts th { text-align: left; font-weight: normal; color: var(--dim); padding: 4px 10px 4px 0; width: 86px; vertical-align: top; }
+.izv-parts td { padding: 3px 0; vertical-align: top; }
+.izv-parts .seg button { padding: 2px 10px; }
+.izv-parts .seg button:disabled { opacity: .35; text-decoration: line-through; }
+.izv-parts .seg button.on:disabled, .izv-presets button.on:disabled { opacity: 1; text-decoration: none; }
+.izv-parts select { margin-left: 8px; max-width: 220px; padding: 2px 6px; }
+.izv-why { font-size: 11px; color: var(--dim); margin-top: 2px; }
+.izv-pop.ro .izv-parts .seg button:disabled, .izv-pop.ro .izv-presets button:disabled { text-decoration: none; }
+.izv-conn { border-top: 1px solid var(--line); padding-top: 8px; }
+.izv-sub { color: var(--dim); margin-bottom: 4px; }
+.izv-conn input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
+.izv-conn input:disabled { opacity: .6; }
+.izv-conn .row { display: flex; gap: 8px; align-items: center; margin: 8px 0 4px; }
+.izv-conn .row[hidden] { display: none; }
+#izvoriBtn { min-width: 205px; text-align: left; }   /* „▶ Pokreni sesiju“ ne skače kad se natpis promeni (a / b / d) */
 
 /* Prazan glavni prostor (Test dela do Faze 5). */
 .ws-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--dim);

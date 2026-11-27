@@ -90,8 +90,9 @@ class SimSource(Source):
         if str(self.kw.get("lidar_spec") or "").startswith("robot"):      # pravi lidar: ×1, bez pauze
             caps -= {"pause", "speed"}
         self.capabilities = frozenset(caps)
-        spec = str(self.kw.get("lidar_spec") or "")
-        self.parts = {"pogon": "sim", "lidar": "pravi" if spec.startswith("robot") else "snimak" if spec else "sim"}
+        spec = str(self.kw.get("lidar_spec") or "")      # hibrid (b): lidar pravi (robot:<host>) ili iz snimka (file:)
+        self.parts = {"pogon": "sim", "lidar": "pravi" if spec.startswith("robot") else "snimak" if spec else "sim",
+                      "ir": "sim", "mehanizmi": "sim", "protivnici": "sim"}     # kao origin.parts u snimku (sim.py)
         self.buf = Buffer()
         self.proc = self.conn = None
         self.rec = None              # završni snimak ("end")
@@ -183,7 +184,7 @@ class RobotSource(Source):
     """robotlink.RobotLink iza Source oblika. Komande kao /ws/robot: push, run, stop."""
     kind = "robot"
     capabilities = frozenset({"push", "run", "stop", "lidar"})
-    parts = {"pogon": "pravi", "lidar": "pravi"}
+    parts = {"pogon": "pravi", "lidar": "pravi", "ir": "pravi", "mehanizmi": "pravi", "protivnici": "pravi"}   # d: sve pravo
 
     def __init__(self, host, pw, prof, upload_port=None, telem_port=None):
         from . import robotlink

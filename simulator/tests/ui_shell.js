@@ -95,9 +95,21 @@ const { chromium } = require('playwright');
     // --- Live: Esc šalje STOP, i iz editora sa otvorenim popupom dopune ---
     await p.click('#rail [data-ws=voznja]');
     await p.click('#rail [data-drive=sim]');
-    // Red komandi Vožnja (Zadatak 4.4): bez sesije Lidar + „▶ Pokreni sesiju“; stari redovi Live/Robot i STOP-ovi obrisani
+    // Red komandi Vožnja (Zadatak 4.4/5.1): bez sesije „Izvori ▾“ + „▶ Pokreni sesiju“; stari redovi Live/Robot, STOP-ovi,
+    // izbor „Lidar:“ i dijalog Poveži obrisani
     const shownIds = () => p.$$eval('#ws-voznja-alati > [id], #ws-voznja-alati .tool-item', l => l.filter(e => e.offsetParent).map(e => e.id));
-    if ((await shownIds()).join() !== 'ti-taktika,ti-strana,lidarWrap,sessStart') fail.push('Vožnja SIM bez sesije: ' + await shownIds());
+    if ((await shownIds()).join() !== 'ti-taktika,ti-strana,izvoriBtn,sessStart') fail.push('Vožnja SIM bez sesije: ' + await shownIds());
+    if (await p.$('#lidarSrc, #lidarWrap, #robotConnect, #rCancel')) fail.push('stari izbor Lidar ili dijalog Poveži još postoji');
+    // Izvori (Zadatak 5.1): a/b/c/d, c sivo sa razlogom; b -> HIBRID; a nazad
+    await p.click('#izvoriBtn');
+    if (!(await p.isVisible('#izvori'))) fail.push('Izvori ▾ ne otvara blok Izvori');
+    if (!(await p.$eval('#izvPresets [data-p=c]', b => b.disabled && /Fazom 6/.test(b.title)))) fail.push('Izvori: c nije sivo sa razlogom');
+    if (!(await p.$eval('#izvParts tr[data-part=mehanizmi] .izv-why', e => /Fazom 6/.test(e.textContent)))) fail.push('Izvori: nema razloga za lažiran');
+    if (!(await p.$('#izvori #rHost')) || !(await p.$('#izvori #rVirtual'))) fail.push('Izvori: nema veze sa robotom');
+    await p.click('#izvPresets [data-p=b]');
+    if (await p.textContent('#izvoriBtn') !== 'Izvori: hibrid, pravi lidar ▾') fail.push('Izvori b: ' + await p.textContent('#izvoriBtn'));
+    await p.click('#izvPresets [data-p=a]');
+    await p.click('#izvClose');
     if (await p.$('#tabSim, #tabLive, #tabRobot, #rowLive, #rowRobot, #liveGroup, #robotGroup, #liveBtn, #robotBtn, #stopBtn, #rStop, #rFollow, #rEnd, #robotStatus'))
       fail.push('stari Live/Robot redovi ili dugmad još postoje');
     if (!(await p.$('#ws-voznja-alati #tactic'))) fail.push('Vožnja: Taktika nije u redu komandi');
@@ -163,9 +175,9 @@ const { chromium } = require('playwright');
     // --- virtuelni robot: posle prekida telemetrije „podaci stari“, pa „veza izgubljena“ ---
     await p.click('#rail [data-drive=robot]');
     // editor u Taktikama ima nesačuvan tekst (gore je otkucano „wai“): Pošalji bi slao taj tekst -> napomena edNote
-    if ((await shownIds()).join() !== 'ti-taktika,ti-strana,sessStart,edNote') fail.push('Vožnja ROBOT bez sesije: ' + await shownIds());
+    if ((await shownIds()).join() !== 'ti-taktika,ti-strana,izvoriBtn,sessStart,edNote') fail.push('Vožnja ROBOT bez sesije: ' + await shownIds());
     if (await p.$('#card-esp:not(.ws-off), #card-sto:not(.ws-off)')) fail.push('ROBOT: ESP ili Postavka stola se vidi');
-    await p.click('#sessStart');                                   // ROBOT: otvara dijalog Poveži
+    await p.click('#sessStart');                                   // ROBOT: otvara Izvori (veza sa robotom)
     await p.click('#rVirtual');
     await p.waitForFunction(() => /ROBOT/.test(document.getElementById('stripSrc').textContent), null, { timeout: 15000 });
     await p.waitForFunction(() => document.getElementById('stripLink').textContent === 'povezan', null, { timeout: 20000 });

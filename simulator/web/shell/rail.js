@@ -5,7 +5,7 @@
 // (store.repo != null, piše ga web/repo.js), sa značkom (↓ novo na GitHub-u, ! profil, ● izmenjeno).
 // Pomoć: prozorčić sa prečicama (core/keys.js SHORTCUTS); i taster „?“; zatvara ga ✕, Esc ili klik van njega.
 //   mountRail(el, ctx) -> {render, toggleHelp}
-//   ctx = {store, go(ws), setDrive('sim'|'robot'), openSources(), legacy: {openRepo, openProfile}}
+//   ctx = {store, go(ws), setDrive('sim'|'robot'), openSources(anchor), legacy: {openRepo, openProfile}}
 
 import { SHORTCUTS } from '../core/keys.js';
 
@@ -21,7 +21,7 @@ export const RAIL_ITEMS = [
 ];
 
 const MINI = [
-  { act: 'sources', name: 'Izvori', title: 'Izvori podataka: lidar u simulaciji, veza sa robotom',
+  { act: 'sources', name: 'Izvori', title: 'Izvori: šta je simulirano, a šta pravo (sve sim, hibrid sa pravim lidarom ili snimkom, pravi robot) i veza sa robotom',
     icon: '<path d="M4 6h16M4 12h10M4 18h6"/><circle cx="18" cy="12" r="2"/><circle cx="14" cy="18" r="2"/>' },
   { act: 'repo', name: 'Repo', title: 'Timski repo (GitHub): preuzmi najnovije, sačuvaj svoje',
     icon: '<circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 8v8M18 10a6 6 0 0 1-6 6H8"/>' },
@@ -58,12 +58,12 @@ export function mountRail(el, ctx) {
   for (const b of el.querySelectorAll('[data-ws]')) b.onclick = () => ctx.go(b.dataset.ws);
   for (const b of el.querySelectorAll('[data-drive]')) b.onclick = () => ctx.setDrive(b.dataset.drive);
   const acts = {
-    sources: () => ctx.openSources(),
+    sources: b => ctx.openSources(b),
     repo: () => ctx.legacy.openRepo(),
     profile: () => ctx.legacy.openProfile(),
     help: toggleHelp,
   };
-  for (const b of el.querySelectorAll('[data-act]')) b.onclick = () => acts[b.dataset.act]();
+  for (const b of el.querySelectorAll('[data-act]')) b.onclick = () => acts[b.dataset.act](b);
   const repoBtn = el.querySelector('[data-act=repo]'), badge = el.querySelector('#repoBadge');
   const repoTitle = repoBtn.title;
 

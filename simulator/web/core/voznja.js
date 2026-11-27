@@ -5,8 +5,9 @@
 //   caps       null | [cap] | Set                      mogućnosti sesije iz poruke hello (/ws/session); null bez sesije
 //   edUnsaved  bool                                   editor (Taktike) je otvoren i tekst nije sačuvan
 //
-//   voznjaTools(st) -> {kind, start, lidar, arm, cord, test, speed, pause, push, run, follow, end, endLabel, note}
-//     bez sesije: „▶ Pokreni sesiju“ (SIM: Live; ROBOT: dijalog Poveži) i, za SIM, izbor lidara;
+//   voznjaTools(st) -> {kind, izvori, start, arm, cord, test, speed, pause, push, run, follow, end, endLabel, note}
+//     bez sesije: „Izvori ▾“ (blok Izvori, Zadatak 5.1; zamenio izbor „Lidar:“) i „▶ Pokreni sesiju“ (SIM: Live;
+//     ROBOT: blok Izvori sa vezom: Poveži, Virtuelni robot);
 //     sesija radi: svaka komanda samo ako je sesija ima u caps (pre poruke hello: nijedna), Prati i Završi /
 //     Prekini vezu uvek; note = „koristi se tekst iz editora (nesačuvan)“ kad Live / Pošalji koriste tekst editora
 //   espShown(st)          ESP ekran: sesija sa esp_screen (pre hello: SIM da, ROBOT ne); bez sesije samo uz SIM
@@ -15,7 +16,7 @@
 //   TOOL_IDS              ključ iz voznjaTools -> id elementa u redu komandi (panels/voznja-alati.js)
 
 export const TOOL_IDS = {
-  lidar: 'lidarWrap', start: 'sessStart', arm: 'armBtn', cord: 'cordBtn', test: 'testBtn', speed: 'paceWrap',
+  izvori: 'izvoriBtn', start: 'sessStart', arm: 'armBtn', cord: 'cordBtn', test: 'testBtn', speed: 'paceWrap',
   pause: 'pauseBtn', push: 'rPush', run: 'rRun', follow: 'followBtn', end: 'endBtn', note: 'edNote',
 };
 
@@ -34,8 +35,8 @@ export function voznjaTools(st = {}) {
   else note = !!st.session.edText;                                 // Live je pokrenut sa tim tekstom
   return {
     kind,
+    izvori: !on,
     start: !on,
-    lidar: !on && kind === 'sim',
     arm: has('arm'), cord: has('cord'), test: has('test'),
     speed: has('speed'), pause: has('pause'),
     push: has('push'), run: has('run'),

@@ -1,5 +1,6 @@
 // Red komandi Vožnja (Zadatak 4.4), isti za SIM i ROBOT: Taktika i Strana (zajedničke stavke, panels/stavke.js), pa
-//   bez sesije:   Lidar (samo SIM, do Izvora u 5.1) · „▶ Pokreni sesiju“ (SIM: Live; ROBOT: dijalog Poveži)
+//   bez sesije:   „Izvori ▾“ (panels/izvori.js, Zadatak 5.1) · „▶ Pokreni sesiju“ (SIM: Live sa izabranim lidarom;
+//                 ROBOT: otvara Izvori, gde su host, lozinka, Poveži i Virtuelni robot)
 //   sesija radi:  Naoruži · Povuci činč · Test · brzina + Pauza (SIM) · Pošalji · Pošalji i pokreni (ROBOT) — svaka
 //                 samo ako je sesija ima u mogućnostima (hello) · Prati · Završi (SIM) / Prekini vezu (ROBOT)
 //   napomena „koristi se tekst iz editora (nesačuvan)“ dok Live / Pošalji koriste nesačuvan tekst editora.
@@ -15,7 +16,7 @@ registerPanel({
     const $ = id => document.getElementById(id);
     el.className += ' tool-row';
     const slot = name => { const s = document.createElement('span'); s.dataset.slot = name; return s; };
-    el.append(slot('taktika'), slot('strana'), ...['lidar', 'start', 'arm', 'cord', 'test', 'speed', 'pause', 'push', 'run',
+    el.append(slot('taktika'), slot('strana'), ...['izvori', 'start', 'arm', 'cord', 'test', 'speed', 'pause', 'push', 'run',
       'follow', 'end', 'note'].map(k => $(TOOL_IDS[k])));
     const start = $('sessStart'), end = $('endBtn');
     let last = '';
@@ -24,8 +25,8 @@ registerPanel({
       if (key === last) return;
       last = key;
       for (const [k, id] of Object.entries(TOOL_IDS)) $(id).hidden = !v[k];
-      start.title = v.kind === 'robot' ? 'Poveži se sa robotom (pravim ili virtuelnim): host, lozinka, Poveži'
-        : 'Pokreni simulaciju uživo: ESP ekran i tasteri, činč, pomeranje protivnika dok vozi';
+      start.title = v.kind === 'robot' ? 'Poveži se sa robotom (pravim ili virtuelnim): otvara Izvori (host, lozinka, Poveži, Virtuelni robot)'
+        : 'Pokreni simulaciju uživo sa izabranim izvorima (Izvori ▾): ESP ekran i tasteri, činč, pomeranje protivnika dok vozi';
       end.textContent = v.endLabel;
       end.title = v.kind === 'robot' ? 'Prekini vezu sa robotom; sesija ostaje kao snimak' : 'Završi sesiju; ostaje kao snimak koji možeš da pustiš ili sačuvaš';
     };

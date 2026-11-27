@@ -17,6 +17,8 @@ import { api } from './core/api.js';
 import { mountRepo } from './repo.js';
 import { mountProfile } from './profil.js';
 import { renderCommands } from './komande.js';
+import { mountIzvori } from './panels/izvori.js';
+import { loadSources, lidarSpec } from './core/izvori.js';
 
 const $ = id => document.getElementById(id);
 // Most ka novom okviru (statusna traka, bočna traka): stari kod piše ovde ono što traka treba. Polja: shell/strip.js.
@@ -28,7 +30,8 @@ const $ = id => document.getElementById(id);
 // repo: null kad aplikacija nije u timskom repou (stavka Repo se ne vidi), inače značka za stavku Repo (web/repo.js).
 const store = createStore({ ws: 'taktike', drive: 'sim', session: null, caps: null, paused: false, speed: null, telemetry: null,
   linkAge: null, linkState: null, connAge: null, snap: null, notice: null, edUnsaved: false, running: null,
-  runs: null, runName: null, refName: null, refLabel: null, repo: null });
+  runs: null, runName: null, refName: null, refLabel: null, repo: null,
+  sources: loadSources(), lidarFiles: [], helloSource: null });
 const SIDE_NAME = { plava: 'Blue', zuta: 'Yellow' };     // kartica rezultata (#result) i naslovi taktika u Koracima
 const STRANA = { zuta: 'Žuta', plava: 'Plava' };
 const REASON = { BLOCKED: 'blocked', TIMEOUT: 'timeout', PREEMPTED: 'preempted', MATCH_OVER: 'match over',
@@ -38,6 +41,7 @@ let REF_SIDE = 'zuta';                // strana za koju se pišu taktike (ESP32/
 let info, view, charts, esp, run = null;
 let shell = null;                     // mountShell(...): setBadge, openCard (bočne kartice)
 let repo = null, profile = null;      // web/repo.js, web/profil.js: dijalozi iz bočne trake (toggle)
+let izvori = null;                    // panels/izvori.js: blok Izvori (open/close/toggle)
 let opponents = [], oppSel = -1;
 let ref = null;                       // reference run for comparing (pinned or loaded)
 let ed = null;                        // {editor, api, name, sha, saved} when the editor is open
@@ -335,7 +339,7 @@ function bridgeSession() {                      // sesija počela / završila: t
   store.set({ session: L ? { kind: L.kind === 'robot' ? 'robot' : 'sim', host: L.host || null, virtual: !!L.virtual,
     lidar: L.lidarSrc || 'sim', edText: !!L.edText } : null, caps: null,
     paused: false, speed: null, telemetry: null, linkAge: null, linkState: null, connAge: null, running: null,
-    runName: null });                           // sesija nije sačuvan snimak (Snimci ga ne ističu)
+    runName: null, helloSource: null });                           // sesija nije sačuvan snimak (Snimci ga ne ističu)
   $('speed').hidden = !!L;                     // brzina puštanja snimka; u sesiji važi brzina iz reda komandi Vožnja
   if (L) {                                      // nova sesija kreće na ×1, bez pauze: red komandi to i pokazuje
     $('pace').value = '1';
@@ -343,8 +347,10 @@ function bridgeSession() {                      // sesija počela / završila: t
   }
 }
 
-function sessionHello(s) {                      // hello: red komandi Vožnja i kartica ESP po mogućnostima sesije
-  s.on('hello', m => { if (live && live.s === s) store.set({ caps: [...(m.capabilities || [])].sort() }); });
+function sessionHello(s) {                      // hello: red komandi Vožnja i kartica ESP po mogućnostima sesije;
+  s.on('hello', m => {                          // source = izvori koje sesija stvarno koristi (Izvori, samo čitanje)
+    if (live && live.s === s) store.set({ caps: [...(m.capabilities || [])].sort(), helloSource: m.source || null });
+  });
 }
 
 function notice(text, err = true) {             // kratka poruka ispod trake (i u staroj liniji poruka)
@@ -914,7 +920,7 @@ async function startLive() {
   setPlaying(false);
   const q = new URLSearchParams({ tactic: $('tactic').value, side: $('side').value, obstacles: JSON.stringify(opponents),
     elements: (a => (a === true ? '1' : a === false ? '0' : JSON.stringify(a)))(elementsArg()) });
-  const src = $('lidarSrc').value;              // hibridna simulacija: odakle dolaze krugovi lidara
+  const src = lidarSpec(store.get().sources, store.get().lidarFiles);   // Izvori: odakle dolaze krugovi lidara (hibrid b)
   if (src === 'robot') {
     q.set('lidar', 'robot:' + ($('rHost').value.trim() || 'eurokik.local'));
     if ($('rPass').value) q.set('lidar_pw', $('rPass').value);
@@ -990,12 +996,8 @@ function setRealtime(on, source) {
   if (on) { $('pace').value = '1'; msg('uživo sa pravim lidarom (' + source + '): radi na ×1, bez pauze'); }
 }
 
-function fillLidarSources() {
-  const keep = $('lidarSrc').value || 'sim';
-  const files = info.lidar_files || [];
-  $('lidarSrc').innerHTML = '<option value="sim">simuliran</option><option value="robot">robot (WiFi)</option>' +
-    files.map(f => `<option value="file:${f}">${f.replace('.jsonl.gz', '')}</option>`).join('');
-  $('lidarSrc').value = [...$('lidarSrc').options].some(o => o.value === keep) ? keep : 'sim';
+function fillLidarSources() {                   // snimci lidara za Izvori (lidar: snimak)
+  store.set({ lidarFiles: info.lidar_files || [] });
 }
 
 function stopLiveUi() {
@@ -1035,7 +1037,7 @@ function liveData(m) {                          // shared by Live and Robot: app
 function startRobot(host, password, label, virtual = false) {
   if (live) return;
   setPlaying(false);
-  $('robotConnect').hidden = true;
+  if (izvori) izvori.close();
   const s = connect({ engine: 'robot', host, password });         // /ws/session (isto što i stari /ws/robot)
   live = { kind: 'robot', s, raw: { meta: null, frames: [], events: [] }, follow: true, dirty: false, host, virtual };
   store.set({ drive: 'robot' });                  // izbor u bočnoj traci = vrsta sesije (npr. dijalog otvoren iz SIM-a)
@@ -1148,10 +1150,7 @@ async function main() {
     openRuns: () => { $('msgAct').hidden = true; refreshRuns(); },     // Snimci: lista sa diska (i posle git pull)
     loadRun,
     clearRef: () => setRef(null),                                    // ✕ na oznaci reference na stolu (panels/teren.js)
-    openSources: (drive, running) => {
-      if (running) { msg('izvori se ne menjaju dok sesija radi (prvo Završi / Prekini vezu)', true); return; }
-      if (drive === 'robot') $('robotConnect').hidden = false; else $('lidarSrc').focus();
-    },
+    openSources: anchor => izvori.toggle(anchor),                    // blok Izvori (dok sesija radi: samo čitanje)
     openRepo: () => repo.toggle(),                                   // stavke Repo i Profil u bočnoj traci
     openProfile: () => profile.toggle(),
     resizeView: () => { view.resize(); charts.resize(); },        // panel teren posle premeštanja
@@ -1193,15 +1192,14 @@ async function main() {
   $('oppDel').onclick = () => { opponents.splice(oppSel, 1); oppSel = -1; refreshOpponents(); opponentsChanged(true); };
   $('oppClose').onclick = () => { oppSel = -1; refreshOpponents(); };       // samo zatvori: protivnik ostaje
   for (const id of ['oppX', 'oppY', 'oppW', 'oppH', 'oppTh', 'oppZ', 'oppRound']) $(id).onchange = editOpponent;
-  // Red komandi Vožnja (panels/voznja-alati.js): bez sesije „▶ Pokreni sesiju“ (SIM: Live; ROBOT: dijalog Poveži).
-  store.subscribe((st, prev) => {                // SIM <-> ROBOT: dijalog Poveži pripada ROBOT-u, zatvori ga
-    if (st.drive !== prev.drive && st.drive !== 'robot') $('robotConnect').hidden = true;
-  });
+  // Red komandi Vožnja (panels/voznja-alati.js): bez sesije „Izvori ▾“ i „▶ Pokreni sesiju“ (SIM: Live sa izabranim
+  // lidarom; ROBOT: blok Izvori, gde su host, lozinka, Poveži i Virtuelni robot).
+  izvori = mountIzvori({ store, setDrive: d => shell.setDrive(d) });
   $('sessStart').onclick = () => {
     if (live) return;
-    if (store.get().drive === 'robot') $('robotConnect').hidden = false; else startLive();
+    if (store.get().drive === 'robot') izvori.open($('sessStart')); else startLive();
   };
-  $('rCancel').onclick = () => { $('robotConnect').hidden = true; };
+  $('rHost').onchange = () => { try { localStorage.setItem('eurosim.host', $('rHost').value); } catch (e) { /* ignore */ } };
   $('rConnect').onclick = () => {
     localStorage.setItem('eurosim.host', $('rHost').value);
     startRobot($('rHost').value.trim(), $('rPass').value);

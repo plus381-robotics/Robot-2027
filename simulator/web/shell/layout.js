@@ -18,7 +18,7 @@
 // rade u svakom prostoru. Tastatura (core/keys.js): Alt+1..4 = prostori (redom kao u bočnoj traci), „?“ = prečice.
 //   mountShell({store, command, legacy}) -> {go, setDrive, setBadge, openCard}
 //   openCard(id): otvori karticu u tekućem prostoru (zapamti kao klik), npr. Dnevnik za ⚠ na traci
-//   legacy = {notice(text, err), openEditor(), openRuns(), loadRun(name), clearRef(), openSources(drive, running),
+//   legacy = {notice(text, err), openEditor(), openRuns(), loadRun(name), clearRef(), openSources(anchor) (blok Izvori, toggle),
 //             openRepo(), openProfile() (dijalog; ponovni klik ga zatvara), showErrors(), resizeView()}
 
 import { panelsFor, allPanels, WORKSPACES, loadWorkspace, saveWorkspace } from '../core/panels.js';
@@ -204,10 +204,9 @@ export function mountShell({ store, command, legacy }) {
     else if (ws === 'snimci') legacy.openRuns();
   }
 
-  function openSources() {
+  function openSources(anchor) {                  // blok Izvori (panels/izvori.js) uz Vožnju; ponovni klik ga zatvara
     go('voznja');
-    const st = store.get();
-    legacy.openSources(st.drive, !!st.session);
+    legacy.openSources(anchor);
   }
 
   store.subscribe((st, prev) => {

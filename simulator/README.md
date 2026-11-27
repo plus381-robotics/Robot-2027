@@ -102,13 +102,19 @@ nesačuvan tekst, sesija koristi taj tekst (napomena „koristi se tekst iz edit
 
 ### Hibridna simulacija: pravi lidar sa robota, ostalo simulirano
 
-U Vožnji SIM, levo od **▶ Pokreni sesiju**, bira se odakle dolaze krugovi lidara (**Lidar:**):
-- **simuliran**: lažni lidar vidi sto iz simulacije (podrazumevano).
-- **robot (WiFi)**: pravi lidar na robotu. Simulator pošalje robotu `LIDAR ON` (host i lozinka iz dijaloga
-  Poveži, Vožnja ROBOT), prima krugove iz telemetrije i daje ih simuliranom ESP-u kroz lažni RPLIDAR, pa ih ESP kod
+Odakle dolaze krugovi lidara bira se u bloku **Izvori** (stavka Izvori u bočnoj traci, ili **Izvori ▾** levo od
+**▶ Pokreni sesiju** u Vožnji). Blok ima unapred zadate kombinacije **a** (sve sim), **b** (hibrid: lidar pravi ili
+iz snimka), **d** (sve pravo = Vožnja ROBOT) i red po delu robota (pogon, lidar, IR, mehanizmi, protivnici: sim /
+pravi / snimak / lažiran). Ono što još ne radi je sivo, sa razlogom (c i „lažiran“ dolaze sa Fazom 6; pravi pogon
+traži pravi lidar i IR). Izbor se pamti (`eurosim.sources`), a dok sesija radi blok se samo čita i pokazuje šta
+sesija stvarno koristi. Lidar u hibridu:
+- **sim**: lažni lidar vidi sto iz simulacije (podrazumevano, a).
+- **pravi**: pravi lidar na robotu. Simulator pošalje robotu `LIDAR ON` (host i lozinka iz istog bloka Izvori, deo
+  „Veza sa robotom“), prima krugove iz telemetrije i daje ih simuliranom ESP-u kroz lažni RPLIDAR, pa ih ESP kod
   čita istim drajverom kao na robotu. Pogon, odometrija, IR i protivnici ostaju simulirani. Brzina je ×1 i
   nema pauze (pravi uređaj). Svaki krug se snima u `simulator/lidar/<vreme>.jsonl.gz`; na kraju `LIDAR OFF`.
-- **<snimak>**: ponavlja snimljene krugove (u krug), bez robota; radi na svakoj brzini.
+  Traka pokazuje **HIBRID**.
+- **snimak** (izbor snimka pored): ponavlja snimljene krugove (u krug), bez robota; radi na svakoj brzini.
 - Iz terminala: `python simulator/sim.py run <taktika> --lidar file:<snimak>`.
 
 Tačke pokazuju okolinu **pravog** robota, nacrtanu oko **virtuelnog**: poklapaju se sa stolom samo kad pravi
@@ -117,8 +123,8 @@ robot može da stoji bilo gde.
 
 ### Vožnja ROBOT: pravi robot uživo
 
-Prostor **Vožnja**, u bočnoj traci **ROBOT**, pa **▶ Pokreni sesiju** otvara dijalog (host, lozinka, **Poveži**,
-**Virtuelni robot**, **Otkaži**). Veza preko postojećeg ESP upload servera (TCP 8267) i telemetrije (UDP 8268), kao `tools/tactic.py` i
+Prostor **Vožnja**, u bočnoj traci **ROBOT** (ili Izvori → **d**), pa **▶ Pokreni sesiju** otvara blok Izvori sa
+vezom sa robotom (host, lozinka, **Poveži**, **Virtuelni robot**; ✕ ili Esc zatvara). Veza preko postojećeg ESP upload servera (TCP 8267) i telemetrije (UDP 8268), kao `tools/tactic.py` i
 `tools/watch.py`; laptop mora biti na mreži robota. Host je `eurokik.local` ili IP sa ekrana VEZA, lozinka
 iz `ESP32/webrepl_cfg.py` (ili upiši).
 - **Pošalji** šalje taktiku (tekst iz editora ako je otvoren, inače fajl), **Pošalji i pokreni** je i pokreće

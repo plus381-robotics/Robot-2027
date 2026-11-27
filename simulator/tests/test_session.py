@@ -295,3 +295,51 @@ def test_komanda_posle_kraja_ima_razlog():
     r1, r2 = asyncio.run(go())
     assert r1["ok"] is False and r1["lines"] == ["sesija je završena"]
     assert r2["ok"] is False and r2["lines"] == ["sesija je završena"]
+
+
+def test_hibrid_lidar_iz_snimka_kroz_sesiju(tmp_path):
+    """Izvori b (hibrid): engine=sim, lidar=file:<snimak> -> hello.source.parts.lidar == "snimak", a kad ESP upali
+    lidar (Meni -> Lidar test, tasterima preko sesije) stižu događaji "lidar" sa krugovima iz snimka.
+    Simulacija radi u posebnom procesu (spawn), pa monkeypatch lidar_dir() tamo ne važi: snimak se daje punom putanjom
+    (FileLidar prima i nju), pa ništa ne ostaje u simulator/lidar/."""
+    from urllib.parse import quote
+    from test_lidar_sources import bins_with, write_rec
+    from test_live import live
+    rec = tmp_path / "hib.jsonl.gz"
+    write_rec(rec, [(i * 100, bins_with(a0=777, a90=444, a200=1234)) for i in range(30)])
+    s, _, _ = live([(300, ("btn", "back", 1)), (1100, ("btn", "back", 0))])   # gde je „Lidar test“ u meniju (pravi ESP kod)
+    idx = [it.label for it in s.app.ui.top.items].index("Lidar test")
+
+    async def scenario(ws):
+        hello = await ws.receive_json(timeout=15)
+        t, lidar, t0 = 0, [], time.time()
+
+        async def until(ms):                                   # čekaj vreme simulacije ms (poruke data nose t)
+            nonlocal t
+            while t < ms and time.time() - t0 < 40:
+                m = await ws.receive_json(timeout=15)
+                if m["type"] == "data":
+                    t = m["t"] or t
+                    lidar.extend(e for e in m["events"] if e[1] == "lidar")
+        await ws.send_json(["speed", 5])
+        await until(300)
+        plan = [(800, ["btn", "back", 1]), (200, ["btn", "back", 0]), (200, ["rot", idx]), (100, ["btn", "enc", 1]),
+                (100, ["btn", "enc", 0])]
+        for wait, c in plan:                                   # dugi NAZAD -> meni, okret do „Lidar test“, klik
+            await ws.send_json(c)
+            await until(t + wait)
+        while not lidar and time.time() - t0 < 40:
+            await until(t + 200)
+        await ws.send_json(["quit"])
+        last = None
+        while last is None or last["type"] not in ("end", "error"):
+            last = await ws.receive_json(timeout=15)
+        return hello, lidar, last
+    hello, lidar, last = _ws_run(lambda b: b + "/ws/session?engine=sim&tactic=primer&side=zuta&lidar=" +
+                                 quote("file:" + str(rec), safe=""), scenario)
+    assert hello["type"] == "hello" and hello["source"]["engine"] == "sim"
+    assert hello["source"]["parts"]["lidar"] == "snimak" and hello["source"]["parts"]["pogon"] == "sim"
+    assert lidar, "nijedan događaj lidar"
+    ev = lidar[-1][2]
+    assert dict(zip(ev["pts"][::2], ev["pts"][1::2])) == {0: 777, 90: 444, 200: 1234}     # krugovi iz snimka
+    assert last["type"] == "end" and last["run"]["meta"]["lidar_source"] == "snimak hib.jsonl.gz"

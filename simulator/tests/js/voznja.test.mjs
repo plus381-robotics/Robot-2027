@@ -12,14 +12,14 @@ const SESSION_KEYS = ['arm', 'cord', 'test', 'speed', 'pause', 'push', 'run'];
 
 const shown = v => Object.keys(TOOL_IDS).filter(k => v[k]);
 
-test('bez sesije: Pokreni sesiju; lidar samo za SIM; nijedna komanda sesije', () => {
+test('bez sesije: Izvori ▾ i Pokreni sesiju (SIM i ROBOT); nijedna komanda sesije', () => {
   const sim = voznjaTools({ drive: 'sim', session: null, caps: null });
-  assert.deepEqual(shown(sim), ['lidar', 'start']);
+  assert.deepEqual(shown(sim), ['izvori', 'start']);
   assert.equal(sim.kind, 'sim');
   const rob = voznjaTools({ drive: 'robot', session: null, caps: null });
-  assert.deepEqual(shown(rob), ['start']);
+  assert.deepEqual(shown(rob), ['izvori', 'start']);
   assert.equal(rob.kind, 'robot');
-  assert.deepEqual(shown(voznjaTools({})), ['lidar', 'start']);                   // podrazumevano SIM
+  assert.deepEqual(shown(voznjaTools({})), ['izvori', 'start']);                   // podrazumevano SIM
 });
 
 test('SIM sesija: komande po mogućnostima; pre poruke hello samo Prati i Završi', () => {
@@ -38,7 +38,7 @@ test('ROBOT sesija: Pošalji, Pošalji i pokreni, Prati, Prekini vezu; vrsta ses
   assert.equal(v.endLabel, 'Prekini vezu');
   const odd = voznjaTools({ drive: 'sim', session: { kind: 'robot' }, caps: ROBOT_CAPS });
   assert.equal(odd.kind, 'robot');
-  assert.equal(odd.lidar, false);
+  assert.equal(odd.izvori, false);                                        // u sesiji: Izvori samo iz bočne trake
   for (const k of SESSION_KEYS) {                                        // mogućnost koje nema -> nema ni dugmeta
     const caps = ROBOT_CAPS.concat(SIM_CAPS).filter(c => c !== k);
     assert.equal(voznjaTools({ session: { kind: 'robot' }, caps })[k], false, k);
