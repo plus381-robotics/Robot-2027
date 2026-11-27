@@ -7,9 +7,13 @@ Grana: `redizajn-ui` (lokalna). Maketa: varijanta A (`~/makete-ui/varijanta-a.ht
 
 - **Faza 0 — gotova** (0.1 jedan spec, 0.2 čišćenje, 0.3 lidar sa robota bez poze).
 - **Faza 1 — gotova** (1.1 snimak v2 sa `meta.origin`, bez lažnih polja sa robota; 1.2 server po modulima `eurosim/api/`).
-- Testovi: `simulator/.venv/bin/python -m pytest -q simulator/tests` → 130 passed (polazno 119).
-- Ručno u browseru (1366×768): brza simulacija, Live, virtuelni robot (Push & Run, Disconnect) — bez grešaka u konzoli.
-- **Sledeće: Faza 2** (Zadaci 2.1 `Source` i tri izvora, 2.2 `/ws/session` + stanja veze `stale`/`lost`).
+- **Faza 2 — gotova** (2.1 `eurosim/session.py`: `SimSource`, `RobotSource`, `ReplaySource`; 2.2 `/ws/session`
+  sa porukama `hello` i `state` (`ok`/`stale`/`lost`), `/ws/live` i `/ws/robot` su alijasi, stari UI radi bez izmena).
+- Testovi: `simulator/.venv/bin/python -m pytest -q simulator/tests` → 145 passed (polazno 119).
+- Ručno u browseru (1366×768): brza simulacija, Live (Naoruži, činč, Esc = STOP, End), virtuelni robot
+  (Push & Run, Esc, Disconnect), robot koji se ne javlja („no telemetry“, STOP se i dalje šalje) — bez grešaka.
+- **Sledeće: Faza 3** (3.1 `store`, klijent sesije, inkrementalni snimak; 3.2 okvir varijante A: traka, bočna traka,
+  registar panela).
 
 ## Pravila izrade (od korisnika)
 
@@ -40,6 +44,12 @@ Grana: `redizajn-ui` (lokalna). Maketa: varijanta A (`~/makete-ui/varijanta-a.ht
   kasni `step_end` iz telemetrije posle ponovljenog koraka / timeout „?“ ima prednost (tek uz Fazu 6.1).
 - 1.2: `server.py` re-eksportuje `columns`, `RUN_TIMEOUT_S`, `_runs` možda bez potrebe; `info`, `_ir_layout`,
   `no_stale_ui` ostali u `server.py`.
+
+- 2.1: komanda posle kraja sim sesije; test virtuelnog robota pokreće Sim nit pre `try`; nema testa da realtime
+  odbija pauzu/brzinu; dete-proces uvozi aiohttp preko `api.runs`.
+- 2.2: robot ima dva tajmera od 100 ms (neravnomerni paketi); izuzetak u pumpi se ne loguje; tekst greške
+  „ne mogu da nađem …“ važi i za sim; snimak bez `run` piše „nema snimka None“; STAT ide paralelno sa komandama
+  (dobro za STOP, više TCP veza ka ESP-u).
 
 ## Nastavak na drugom računaru
 
