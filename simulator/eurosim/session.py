@@ -204,11 +204,15 @@ class RobotSource(Source):
 
     async def poll(self):
         r = self.link.rec
-        if r.last_rx is not None:
-            age = self.link.now() - r.last_rx
-        else:
-            age = int((time.monotonic() - self.t_start) * 1000)
+        age = None if r.last_rx is None else self.link.now() - r.last_rx      # kao nekad: None dok ne stigne paket
         return self.buf.take(age)
+
+    def link_age(self):
+        """Starost veze u ms: od poslednjeg paketa, a dok nijedan nije stigao od povezivanja (za stanje veze)."""
+        r = self.link.rec
+        if r.last_rx is not None:
+            return self.link.now() - r.last_rx
+        return int((time.monotonic() - self.t_start) * 1000)
 
     async def command(self, c):
         k = c[0] if c else ""

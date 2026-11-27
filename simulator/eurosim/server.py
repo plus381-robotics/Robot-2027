@@ -51,6 +51,7 @@ async def info(request):
 
 STALE_MS, LOST_MS = 1500, 5000       # starost poslednjeg paketa telemetrije: "stale" / "lost" (veza se ne zatvara)
 POLL_S = 0.1
+POLL_SIM_S = 0.05                    # worker simulacije šalje na 50 ms: Live ostaje na ~20 Hz
 
 
 def _sim_source(request):
@@ -136,15 +137,17 @@ async def session_ws(request, engine=None):
             err = d.pop("error", None)
             if source.kind != "replay" or d["frames"] or d["events"] or d["meta"]:
                 await send({"type": "data", **d})
-            if source.kind == "robot" and d["age"] is not None and _link_state(d["age"]) != link:
-                link = _link_state(d["age"])
-                await send({"type": "state", "link": link, "age": d["age"]})
+            if source.kind == "robot":
+                age = source.link_age()
+                if _link_state(age) != link:
+                    link = _link_state(age)
+                    await send({"type": "state", "link": link, "age": age})
             if err:
                 await send({"type": "error", "error": err})
                 return True
             if d["final"]:
                 return False
-            await asyncio.sleep(POLL_S)
+            await asyncio.sleep(POLL_SIM_S if source.kind == "sim" else POLL_S)
 
     async def reader():
         async for msg in ws:

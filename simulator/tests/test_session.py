@@ -86,6 +86,7 @@ def test_robot_source_preko_virtuelnog_robota():
         await s.start()
         try:
             early = await s.poll()
+            s_early_age = s.link_age()
             bad = await s.command(["push", "../x", None])
             push = await s.command(["push", "primer", None])
             run = await s.command(["run", "primer", "zuta"])
@@ -98,13 +99,13 @@ def test_robot_source_preko_virtuelnog_robota():
             last = await s.poll()
             stop = await s.command(["stop"])
             nope = await s.command(["arm"])
-            return early, bad, push, run, frames, last, stop, nope
+            return early, bad, push, run, frames, last, stop, nope, s_early_age
         finally:
             rec = await s.close()
             sim.command(("quit",))
             th.join(5)
-    early, bad, push, run, frames, last, stop, nope = asyncio.run(go())
-    assert early["age"] is not None and early["frames"] == []
+    early, bad, push, run, frames, last, stop, nope, s_early_age = asyncio.run(go())
+    assert early["frames"] == [] and s_early_age is not None
     assert bad["ok"] is False and push["ok"] is True and run["ok"] is True and stop["ok"] is True
     assert nope["ok"] is False and nope["lines"] == ["nepodržano"]
     assert frames and last["age"] is not None and last["age"] < 3000
@@ -207,11 +208,12 @@ def _robot_tihi(monkeypatch, calls):
 
 
 def test_link_stale_pa_lost(monkeypatch):
-    calls = []
+    calls, datas_all = [], []
     tp = _robot_tihi(monkeypatch, calls)
 
     async def scenario(ws):
         states, datas, first = [], 0, None
+        datas_all.clear()
         t0 = time.time()
         while time.time() - t0 < 10 and [s["link"] for s in states][-1:] != ["lost"]:
             m = await ws.receive_json(timeout=5)
@@ -220,6 +222,7 @@ def test_link_stale_pa_lost(monkeypatch):
                 states.append(m)
             elif m["type"] == "data":
                 datas += 1
+                datas_all.append(m)
         await asyncio.sleep(0.5)                       # sesija je još živa: nema end/error
         await ws.send_json(["quit"])
         last = None
@@ -231,6 +234,7 @@ def test_link_stale_pa_lost(monkeypatch):
     assert first["type"] == "hello" and first["source"]["engine"] == "robot"
     assert [s["link"] for s in states] == ["stale", "lost"] and states[0]["age"] > 300 and states[1]["age"] > 900
     assert datas > 3 and last["type"] == "end"
+    assert all(m["age"] is None for m in datas_all)          # kao nekad: age je null dok ne stigne paket
     assert calls[0] == ("STAT",)
 
 
