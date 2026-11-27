@@ -44,6 +44,16 @@ const { chromium } = require('playwright');
       '#ws-side #card-koraci #steps', '#ws-side #card-dnevnik #log', '#ws-side #card-dnevnik #showProto', '#ws-side #card-dnevnik #logErrOnly'])
       if (!(await p.$(id))) fail.push('region: nema ' + id);
     if (await p.$('#side-panel, #card-stari-paneli')) fail.push('stari-paneli još postoji');
+    // Red komandi Taktika (Zadatak 4.3): Taktika, Strana, meč | test, ▶ Pokreni; Komande kao kartica u editoru
+    for (const id of ['#ws-tool #ws-taktike-alati #tactic', '#ws-taktike-alati #sideSeg', '#ws-taktike-alati #modeSeg',
+      '#ws-taktike-alati #run', '#ws-editor #edCommands #apiList', '#ws-editor #edClose'])
+      if (!(await p.$(id))) fail.push('Taktike alati: nema ' + id);
+    if (await p.$('#edBtn, #rowSim, #apiDrawer, #edCmdBtn')) fail.push('stari ✎ Editor / Simulate red / fioka Commands još postoje');
+    await p.click('#edClose');                                       // × zatvara editor, sto dobija celu širinu
+    await p.waitForSelector('#ws-editor.ed-closed');
+    if (!(await p.isVisible('#edOpen'))) fail.push('„✎ Editor“ se ne vidi kad je editor zatvoren');
+    await p.click('#edOpen');
+    await p.waitForSelector('#ws-editor:not(.ed-closed) .cm-content');
     // Taktike: Koraci otvoreni, Dnevnik sklopljen, Korak sada i Stanje i IR nisu u ovom prostoru (Zadatak 4.2)
     const tkCards = await p.$$eval('#ws-side > .ws-card:not(.ws-off)', l => l.map(c => c.id + (c.classList.contains('closed') ? '-' : '+')));
     if (tkCards.join() !== 'card-koraci+,card-dnevnik-') fail.push('Taktike kartice: ' + tkCards);
@@ -60,6 +70,8 @@ const { chromium } = require('playwright');
     await p.click('#rail [data-ws=voznja]');
     await p.click('#rail [data-drive=sim]');
     if (!(await p.$eval('#tabLive', e => e.classList.contains('on')))) fail.push('Vožnja SIM nije otvorila Live');
+    if (!(await p.$('#ws-stari-alati #tactic, #ws-voznja-alati #tactic'))) fail.push('Vožnja: Taktika nije u redu komandi');
+    if (!(await p.$eval('#ws-editor', e => e.classList.contains('ws-off')))) fail.push('Vožnja: editor nije skriven (samo Taktike)');
     await p.click('#liveBtn');
     await p.waitForFunction(() => window.eurosim.run && window.eurosim.run.live, null, { timeout: 15000 });
     // Vožnja: Korak sada, Koraci, Dnevnik otvoreni, Stanje i IR sklopljeno; kolona ne skroluje (Zadatak 4.2)
@@ -80,10 +92,11 @@ const { chromium } = require('playwright');
     await p.keyboard.press('Escape');
     await p.waitForTimeout(300);
     if (await stops() !== n + 1) fail.push('Esc (sto) nije poslao ["stop"]');
-    await p.click('#rail [data-ws=taktike]');                     // editor se otvara; kartica Simulate odbijena dok Live radi
-    await p.waitForSelector('.cm-content');
+    await p.click('#rail [data-ws=taktike]');                     // editor vidljiv; bez starog setTab dok Live radi (4.3)
+    await p.waitForSelector('#ws-editor:not(.ws-off) .cm-content');
     await p.waitForFunction(() => /from tac import/.test(document.querySelector('.cm-content').textContent));
     if (!(await p.evaluate(() => !!window.eurosim.store.get().session))) fail.push('prelaz u Taktike ugasio sesiju');
+    if (/end Live first/.test(await p.textContent('#msg'))) fail.push('Taktike tokom Live: „end Live first“');
     await p.click('.cm-content'); await p.keyboard.press('Control+End');
     await p.keyboard.type('\nwai');
     await p.keyboard.press('Control+Space');

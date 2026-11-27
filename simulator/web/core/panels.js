@@ -3,7 +3,8 @@
 //                  needs: [cap|dataKey], open, mount(el, ctx), update(state)})
 //     open: true/false ili lista prostora u kojima je kartica podrazumevano otvorena (core/regions.js);
 //     dodatno (shell/layout.js): collapsible (donji panel kao kartica), grow (kartica popunjava bočnu kolonu),
-//     shrink (deli kolonu kao grow, ali se skuplja do naslova; sadržaj skroluje sam), shown(el, ctx) posle prikaza
+//     shrink (deli kolonu kao grow, ali se skuplja do naslova; sadržaj skroluje sam), shown(el, ctx) posle prikaza,
+//     shared: ['taktika', ...] zajedničke stavke reda komandi koje panel prima (core/toolitems.js)
 //   panelsFor(workspace, caps) -> [panel]   po regionu, pa po priority (manji broj = važniji, ide prvi);
 //                                            needs koji nije u caps -> {..., disabled: true, reason: 'potrebno: ...'}
 //   allPanels() -> [panel]                     svi prijavljeni (okvir ih montira jednom, na početku)

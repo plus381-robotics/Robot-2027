@@ -29,9 +29,7 @@
 <header id="bar">
   <div class="bar-row">
     <span class="brand">Eurosim</span>
-    <label>Tactic <select id="tactic" title="Which tactic (ESP32/tactics); the editor shows this one"></select></label>
-    <label>Side <select id="side"><option value="zuta">Yellow</option><option value="plava">Blue</option></select></label>
-    <button id="edBtn" title="Tactic editor for the selected tactic">✎ Editor</button>
+    <span data-slot="taktika"></span><span data-slot="strana"></span>
     <span class="tabs" title="How to run: fast simulation, real-time simulation, or the real robot">
       <button id="tabSim" class="on" data-tab="sim">Simulate</button><button id="tabLive" data-tab="live">Live</button><button id="tabRobot" data-tab="robot">Robot</button>
     </span>
@@ -47,10 +45,6 @@
     <button id="profBtn" title="Robot profile: dimensions, drive, control, IR (simulator/profiles)">⚙ Profile</button>
   </div>
   <div class="bar-row row2">
-    <span id="rowSim" class="tabrow">
-      <label>Mode <select id="mode"><option value="mec">Match (arm, cord, 100 s)</option><option value="test">Test (run now)</option></select></label>
-      <button id="run" class="primary" title="Run the whole simulation fast, then play it back. With the editor open: the editor text, saved or not (Ctrl+Enter)">▶ Run</button>
-    </span>
     <span id="rowLive" class="tabrow" hidden>
       <select id="lidarSrc" title="Where the lidar scans come from. Simulated: rays on the virtual table. Robot: the real lidar on the robot over WiFi (host and password from Robot → Connect…), the rest stays simulated; every scan is recorded to simulator/lidar/ and Live runs at ×1. A recording: replays saved real scans."></select>
       <button id="liveBtn" class="primary" title="Start the interactive simulation in real time: ESP screen and buttons, cord, STOP, move the opponent">▶ Start Live</button>
@@ -83,22 +77,35 @@
   </div>
 </header>
 
+  <!-- Red komandi Taktika (Zadatak 4.3): panels/taktike-alati.js premešta ove delove (#side i #mode ostaju izvor
+       istine, skriveni ispod segmentiranih dugmadi); #tactic i #side su zajedničke stavke (panels/stavke.js). -->
+  <select id="tactic" title="Koja taktika (ESP32/tactics); editor prikazuje ovu"></select>
+  <select id="side"><option value="zuta">Žuta</option><option value="plava">Plava</option></select>
+  <select id="mode"><option value="mec">meč</option><option value="test">test</option></select>
+  <button id="run" class="primary" title="Pokreni celu simulaciju brzo, pa je pusti. Sa otvorenim editorom: tekst iz editora, sačuvan ili ne (Ctrl+Enter)">▶ Pokreni</button>
+  <button id="edOpen" hidden title="Otvori editor izabrane taktike">✎ Editor</button>
+  <input type="checkbox" id="autoSim" checked>
+
   <section id="editorPane" hidden>
     <div class="ed-bar">
-      <button id="edNew" title="New tactic from a template">New</button>
-      <button id="edCmdBtn" title="All Gambit Micro commands explained, with examples (click Insert to put one into the code)">📖 Commands</button>
-      <select id="edFileMenu" title="Save as, rename, delete"><option value="">File ▾</option><option value="saveas">Save as… (Ctrl+Shift+S)</option><option value="rename">Rename…</option><option value="delete">Delete</option></select>
+      <button id="edNew" title="Nova taktika iz šablona">Novo</button>
+      <select id="edFileMenu" title="Sačuvaj kao, preimenuj, obriši"><option value="">Fajl ▾</option><option value="saveas">Sačuvaj kao… (Ctrl+Shift+S)</option><option value="rename">Preimenuj…</option><option value="delete">Obriši</option></select>
       <span id="edState" class="dim small"></span>
       <span class="sep"></span>
-      <button id="edSave" title="Save to ESP32/tactics (Ctrl+S)">Save</button>
-      <label class="small" title="Run the real simulation by itself when you stop typing (short tactics)"><input type="checkbox" id="autoSim" checked> auto-sim</label>
+      <button id="edSave" title="Sačuvaj u ESP32/tactics (Ctrl+S)">Sačuvaj</button>
+      <button id="edClose" title="Zatvori editor (sto dobija celu širinu; nesačuvan tekst ostaje kao nacrt i vraća se kad ga ponovo otvoriš)">×</button>
     </div>
     <div id="edHost"></div>
     <div class="ed-tabs">
-      <button data-tab="edProblems" class="on">Problems <span id="edCount" class="dim"></span></button>
-      <span id="edDraft" class="dim small ed-draft" title="Draft path, drawn on the table while you type (dashed purple). Click a draft point to jump to its line; Alt+click the table to put a point into the code."></span>
+      <button data-tab="edProblems" class="on">Problemi <span id="edCount" class="dim"></span></button>
+      <button data-tab="edCommands" title="Sve Gambit Micro komande objašnjene, sa primerima („Ubaci u kod“ stavlja primer u kod)">Komande</button>
+      <span id="edDraft" class="dim small ed-draft" title="Nacrt putanje, crta se na stolu dok kucaš (ljubičasto isprekidano). Klik na tačku nacrta skače na njen red; Alt+klik na sto ubacuje tačku u kod."></span>
     </div>
     <div id="edProblems" class="ed-panel mono"></div>
+    <div id="edCommands" class="ed-panel" hidden>
+      <input id="apiFilter" placeholder="traži, npr. drive, turn, time…" title="Gambit Micro komande: traži po imenu ili opisu">
+      <div id="apiList"></div>
+    </div>
   </section>
   <section id="viewwrap">
     <div id="view"></div>
@@ -109,11 +116,6 @@
       <span><i class="lg-draft"></i>nacrt iz editora</span>
       <span><i class="lg-ir"></i>IR (crveno = vidi nešto)</span>
     </div>
-    <aside id="apiDrawer" hidden>
-      <div class="drawer-head"><b>Gambit Micro</b> <span class="dim">commands</span>
-        <input id="apiFilter" placeholder="search, e.g. drive, turn, time…"><button id="apiClose" title="Close">✕</button></div>
-      <div id="apiList"></div>
-    </aside>
     <div id="viewtools">
       <button id="cam3d" class="on" title="Kamera u prostoru (prevuci = okreni)">3D</button><button id="cam2d" title="Pogled odozgo">Odozgo</button>
       <button id="viewMenuBtn" title="Šta se crta na stolu">Prikaz ▾</button>

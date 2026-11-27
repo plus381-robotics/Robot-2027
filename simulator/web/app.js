@@ -606,14 +606,14 @@ function edDiagnostics(list) {
     div.onclick = () => ed.editor.reveal(d.line);
     el.appendChild(div);
   }
-  if (!list.length) el.innerHTML = '<div class="info">no problems found</div>';
+  if (!list.length) el.innerHTML = '<div class="info">nema problema</div>';
   const n = list.filter(d => d.severity === 'error').length, w = list.filter(d => d.severity === 'warning').length;
-  $('edCount').textContent = n || w ? `${n} error${n === 1 ? '' : 's'}, ${w} warning${w === 1 ? '' : 's'}` : '✓';
+  $('edCount').textContent = n || w ? `greške: ${n} · upozorenja: ${w}` : '✓';
 }
 
 function edState() {
   const dirty = ed.editor.text() !== ed.saved;
-  $('edState').textContent = (ed.sha ? '' : 'new · ') + (dirty ? '● unsaved' : 'saved') + ` · ESP32/tactics/${ed.name}.py`;
+  $('edState').textContent = (ed.sha ? '' : 'nova · ') + (dirty ? '● nesačuvano' : 'sačuvano') + ` · ESP32/tactics/${ed.name}.py`;
   $('edState').classList.toggle('dirty', dirty);
   return dirty;
 }
@@ -628,14 +628,15 @@ function fillTacticSelects() {                  // jedna lista taktika (gore); e
 
 // Kartice Simulate / Live / Robot (plan U1): drugi red pokazuje samo dugmad izabrane kartice. Dok traje Live
 // ili veza sa robotom, ostale kartice su zaključane (prvo End / Disconnect). Vraća false kad je odbijeno.
-// Okvir (bočna traka) zove isto: Taktike -> sim, Vožnja SIM/ROBOT -> live/robot.
+// Okvir (bočna traka) zove isto: Taktike -> sim, Vožnja SIM/ROBOT -> live/robot. Kartica Simulate nema više svoj
+// red (Zadatak 4.3: meč | test i ▶ Pokreni su u redu komandi Taktika); klik na nju vodi u Taktike.
 function setTab(t) {
   if (live && ((live.kind === 'robot') !== (t === 'robot') || (!live.kind && t !== 'live'))) {
     msg(live.kind === 'robot' ? 'disconnect from the robot first' : 'end Live first', true);
     return false;
   }
   for (const b of document.querySelectorAll('.tabs button')) b.classList.toggle('on', b.dataset.tab === t);
-  $('rowSim').hidden = t !== 'sim'; $('rowLive').hidden = t !== 'live'; $('rowRobot').hidden = t !== 'robot';
+  $('rowLive').hidden = t !== 'live'; $('rowRobot').hidden = t !== 'robot';
   try { localStorage.setItem('eurosim.tab', t); } catch (e) { /* ignore */ }
   if (t === 'live' || t === 'robot') store.set({ drive: t === 'robot' ? 'robot' : 'sim' });   // izbor SIM/ROBOT u bočnoj traci
   return true;
@@ -662,8 +663,8 @@ async function edPreview() {
     ed.preview = p;
     view.setPreview(p);
     edCursor(ed.editor.cursorLine());
-    const note = p.error ? `draft: line ${p.error.line}: ${p.error.msg}` : p.truncated ? `draft ${p.truncated}`
-      : `draft: ${p.cmds.filter(c => c.kind !== 'turn').length} moves, ~${p.t.toFixed(1)} s`;
+    const note = p.error ? `nacrt: red ${p.error.line}: ${p.error.msg}` : p.truncated ? `nacrt: ${p.truncated}`
+      : `nacrt: ${p.cmds.filter(c => c.kind !== 'turn').length} pokreta, ~${p.t.toFixed(1)} s`;
     $('edDraft').textContent = note;
     $('edDraft').className = 'dim small' + (p.error ? ' err' : '');
     clearTimeout(autoSimTimer);                            // auto-sim: prava simulacija kad se stane sa kucanjem
@@ -829,48 +830,63 @@ function renderApiHelp() {
     (groups[h.group] = groups[h.group] || []).push([name, fn, h]);
   }
   const order = ['Motion', 'Actuators', 'Waiting', 'Sensors', 'Match time', 'Where is the robot', 'Other'];
+  const title = { Motion: 'Kretanje', Actuators: 'Aktuatori', Waiting: 'Čekanje', Sensors: 'Senzori', 'Match time': 'Vreme meča',
+    'Where is the robot': 'Gde je robot', Other: 'Ostalo' };
   const parts = [`<p class="coords">${esc(ed.api.coords || '')}</p>`];
   for (const g of order.concat(Object.keys(groups).filter(k => !order.includes(k)))) {
     if (!groups[g]) continue;
-    parts.push(`<h4>${esc(g)}</h4>`);
+    parts.push(`<h4>${esc(title[g] || g)}</h4>`);
     for (const [name, fn, h] of groups[g]) {
       const params = (h.params || []).map(([p, t]) => {
         const d = (fn.params.find(x => x[0] === p) || [])[1];
-        const note = d == null || /default|optional/i.test(t) ? '' : d === 'None' ? ' <span class="dim">(optional)</span>' : ` <span class="dim">(default ${esc(d)})</span>`;
-        return `<tr><td><code>${esc(p)}</code>${d == null ? ' <span class="req">required</span>' : ''}</td><td>${esc(t)}${note}</td></tr>`;
+        const note = d == null || /default|optional/i.test(t) ? '' : d === 'None' ? ' <span class="dim">(nije obavezno)</span>' : ` <span class="dim">(podrazumevano ${esc(d)})</span>`;
+        return `<tr><td><code>${esc(p)}</code>${d == null ? ' <span class="req">obavezno</span>' : ''}</td><td>${esc(t)}${note}</td></tr>`;
       }).join('');
       parts.push(`<details class="cmd"${f ? ' open' : ''}><summary><code>${esc(name)}</code> <span>${esc(h.say)}</span></summary>
         <div class="sig"><code>${esc(fn.sig)}</code></div>
         ${params ? `<table>${params}</table>` : ''}
-        ${h.ret ? `<p><b>Gives back:</b> ${esc(h.ret)}</p>` : ''}
+        ${h.ret ? `<p><b>Vraća:</b> ${esc(h.ret)}</p>` : ''}
         ${h.xy ? tableSvg(h.example) : ''}
-        ${h.example ? `<pre>${esc(h.example)}</pre><button class="ins" data-ex="${esc(h.example.split('\n')[0].split('#')[0].trim())}">Insert into code</button>` : ''}
+        ${h.example ? `<pre>${esc(h.example)}</pre><button class="ins" data-ex="${esc(h.example.split('\n')[0].split('#')[0].trim())}">Ubaci u kod</button>` : ''}
       </details>`);
     }
   }
-  parts.push(`<h4>Actuator names</h4><p>${ed.api.actuators.map(a => `<code>${esc(a)}</code>`).join(' ') || '–'} <span class="dim">(ESP32/config.py ACTUATORS)</span></p>`);
+  parts.push(`<h4>Imena aktuatora</h4><p>${ed.api.actuators.map(a => `<code>${esc(a)}</code>`).join(' ') || '–'} <span class="dim">(ESP32/config.py ACTUATORS)</span></p>`);
   $('apiList').innerHTML = parts.join('');
   for (const b of $('apiList').querySelectorAll('button.ins')) b.onclick = () => { ed.editor.insertLine(b.dataset.ex); };
 }
 
-function toggleCommands(show) {
-  const d = $('apiDrawer');
-  d.hidden = show === undefined ? !d.hidden : !show;
-  $('edCmdBtn').classList.toggle('on', !d.hidden);
-  if (!d.hidden) { renderApiHelp(); $('apiFilter').focus(); }
+// Kartice ispod koda: Problemi | Komande (Gambit Micro; ranije fioka „📖 Commands“ preko stola).
+function edTab(id) {
+  for (const o of document.querySelectorAll('.ed-tabs button')) { o.classList.toggle('on', o.dataset.tab === id); $(o.dataset.tab).hidden = o.dataset.tab !== id; }
+  if (id === 'edCommands') $('apiFilter').focus();
+}
+
+// Red komandi Taktika: „✎ Editor“ samo dok je editor zatvoren, auto-simulacija samo dok je otvoren.
+function edToolbar(open) {
+  $('edOpen').hidden = open;
+  const a = $('autoSimWrap');
+  if (a) a.hidden = !open;
+}
+
+// Otvaranje: prostor Taktike (bočna traka) i „✎ Editor“; zatvaranje: „×“ u traci editora. Promena prostora editor
+// samo sakrije (panel editor postoji samo u Taktikama), ne zatvara ga: tekst i nesačuvane izmene ostaju.
+function openEditor() {
+  if (ed || edOpening) return;
+  edOpening = toggleEditor().catch(e => msg('editor: ' + e.message, true)).finally(() => { edOpening = null; });
 }
 
 async function toggleEditor() {
   if (ed) {
-    $('editorPane').hidden = true; $('edBtn').classList.remove('on');      // panel editor prati hidden
-    view.setPreview(null); view.setCursorPoint(null); clearTimeout(autoSimTimer); toggleCommands(false);
+    $('editorPane').hidden = true; edToolbar(false);                     // panel editor prati hidden
+    view.setPreview(null); view.setCursorPoint(null); clearTimeout(autoSimTimer);
     ed.editor.view.destroy(); ed = null;
     fillTacticSelects();
     return;
   }
   const { TacticEditor } = await import('./editor.js');
   const tapi = await api('/api/tacapi');
-  $('editorPane').hidden = false; $('edBtn').classList.add('on');
+  $('editorPane').hidden = false; edToolbar(true);
   ed = { api: tapi, name: $('tactic').value, sha: null, saved: '' };
   ed.editor = new TacticEditor($('edHost'), { api: tapi, onChange: edChanged, onRun: () => simulate(), onSave: () => edSave(), onSaveAs: () => edSaveAs(),
     onEdit: () => edPreview(), onCursor: line => edCursor(line) });
@@ -1256,6 +1272,7 @@ async function main() {
   view.onPreviewClick = line => { if (ed) ed.editor.reveal(line); };
   view.onAltPick = p => {                                   // Alt+klik: tačka sa mape u editor (koordinate taktike)
     if (!ed) { msg('open the editor to put a point into a tactic (Alt+click)'); return; }
+    if (store.get().ws !== 'taktike') { msg('Alt+klik ubacuje tačku u editor: samo u Taktikama (tamo je editor)'); return; }
     const side = $('side').value;
     const x = Math.round(mirrorX(p[0], side, REF_SIDE) / 10) * 10, y = Math.round(p[1] / 10) * 10;
     ed.editor.putPoint(x, y);
@@ -1270,14 +1287,12 @@ async function main() {
   };
 
   $('run').onclick = () => simulate();
-  for (const b of document.querySelectorAll('.tabs button')) b.onclick = () => setTab(b.dataset.tab);
+  // Stara kartica Simulate nema svoj red (meč | test, ▶ Pokreni su u redu komandi Taktika): klik vodi u Taktike.
+  for (const b of document.querySelectorAll('.tabs button')) b.onclick = () => (b.dataset.tab === 'sim' && shell ? shell.go('taktike') : setTab(b.dataset.tab));
   try { const t = localStorage.getItem('eurosim.tab'); if (t) setTab(t); } catch (e) { /* ignore */ }
   shell = mountShell({ store, command: sessionCommand, legacy: {          // okvir: statusna traka, bočna traka, Esc = STOP
     setTab,
-    openEditor: () => {
-      if (ed || edOpening) return;
-      edOpening = toggleEditor().catch(e => msg('editor: ' + e.message, true)).finally(() => { edOpening = null; });
-    },
+    openEditor,
     openRuns: () => { $('moreMenu').hidden = false; },
     openSources: (drive, running) => {
       if (running) { msg('izvori se ne menjaju dok sesija radi (prvo End / Disconnect)', true); return; }
@@ -1382,7 +1397,9 @@ async function main() {
   $('scenLoad').onchange = e => { const n = e.target.value; e.target.value = ''; if (n) loadScenario(n); };
   fillScenarios();
   $('rulesLook').onchange = e => view.setTableLook(e.target.checked ? 'rules' : 'grid');
-  $('edBtn').onclick = () => { if (!edOpening) toggleEditor().catch(e => msg('editor: ' + e.message, true)); };
+  $('edOpen').onclick = openEditor;
+  $('edClose').onclick = () => { if (ed && !edOpening) toggleEditor(); };
+  edToolbar(false);
   $('tactic').addEventListener('change', e => { if (ed) edLoad(e.target.value); });
   // Strana/taktika: u Live-u robot (dok miruje) prelazi na START izabrane strane (ranije je ostajao na
   // strani sa kojom je Live pokrenut); inače se prikazani snimak odmah ponovo simulira za novu stranu.
@@ -1404,13 +1421,7 @@ async function main() {
     if (!$('viewMenu').hidden && !e.target.closest('#viewMenu, #viewMenuBtn')) $('viewMenu').hidden = true;
   });
   $('apiFilter').oninput = renderApiHelp;
-  $('edCmdBtn').onclick = () => toggleCommands();
-  $('apiClose').onclick = () => toggleCommands(false);
-  for (const b of document.querySelectorAll('.ed-tabs button')) {
-    b.onclick = () => {
-      for (const o of document.querySelectorAll('.ed-tabs button')) { o.classList.toggle('on', o === b); $(o.dataset.tab).hidden = o !== b; }
-    };
-  }
+  for (const b of document.querySelectorAll('.ed-tabs button')) b.onclick = () => edTab(b.dataset.tab);
   window.addEventListener('beforeunload', e => { if (ed && ed.editor.text() !== ed.saved) e.preventDefault(); });
   $('cordBtn').onclick = () => liveSend(['cord']);
   $('bandCord').onclick = () => liveSend(['cord']);

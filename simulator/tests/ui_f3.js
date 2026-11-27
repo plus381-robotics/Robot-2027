@@ -36,7 +36,7 @@ const { chromium } = require('playwright');
   await p.selectOption('#tactic', 'primer');
   await p.click('#cam2d');
   await p.click('#addOpp');
-  await p.click('#tabSim'); await p.click('#run');
+  await p.click('#run');
   await p.waitForFunction(() => /^OK/.test(document.getElementById('result').textContent));
   // položaj protivnika na ekranu (projekcija iz 3D prikaza; sto nije baš u sredini kadra)
   const [cx, cy] = await p.evaluate(() => { const v = window.eurosim.view; const g = v.oppGroup.children[0];

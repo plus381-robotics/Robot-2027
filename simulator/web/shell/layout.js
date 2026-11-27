@@ -6,9 +6,13 @@
 // koren (ili njegova kartica) se PREMEŠTA u region (isti DOM čvor: FieldView, grafici i editor ostaju isti), po
 // prioritetu; paneli koji nisu u tom prostoru dobiju .ws-off. Prazan region se sakrije. Stanje kartica
 // (sklopljeno/otvoreno) se pamti po prostoru u localStorage `eurosim.cards` (core/regions.js).
+// Zajedničke stavke reda komandi (Taktika, Strana; core/toolitems.js): koren i mount jednom, a pri promeni prostora
+// čvor se premešta u panel tog prostora koji ga navodi u `shared` (na njegovo mesto data-slot, inače na kraj korena).
 // Stavke bočne trake i dalje upravljaju starim karticama (dok njihovi delovi ne pređu u panele):
-//   Taktike -> stara kartica Simulate + otvoren editor;  Vožnja -> Live (SIM) ili Robot (ROBOT), izbor ispod stavke;
-//   Snimci -> otvara stari meni „⋯ Runs“;  Test dela -> „Test dela dolazi u Fazi 5“.
+//   Taktike -> otvoren editor (+ stara kartica Simulate, ali samo dok sesija NE radi: inače bi stari setTab odbio sa
+//              „end Live first“; sesija nastavlja da radi, traka i njen STOP takođe);
+//   Vožnja -> Live (SIM) ili Robot (ROBOT), izbor ispod stavke;  Snimci -> otvara stari meni „⋯ Runs“;
+//   Test dela -> „Test dela dolazi u Fazi 5“.
 // Dok sesija radi, prelaz SIM <-> ROBOT odbija stari setTab (sa porukom); traka i njen STOP rade u svakom prostoru.
 //   mountShell({store, command, legacy}) -> {go, setDrive, setBadge, openCard}
 //   openCard(id): otvori karticu u tekućem prostoru (zapamti kao klik), npr. Dnevnik za ⚠ na traci
@@ -17,6 +21,7 @@
 
 import { panelsFor, allPanels, WORKSPACES, loadWorkspace, saveWorkspace } from '../core/panels.js';
 import { placePanels, isCard, cardsOpen, setCard, loadCards, saveCards, REGION_ORDER } from '../core/regions.js';
+import { allToolItems, sharedHomes, sharedMoves } from '../core/toolitems.js';
 import { mountStrip } from './strip.js';
 import { mountRail } from './rail.js';
 
@@ -58,6 +63,14 @@ export function mountShell({ store, command, legacy }) {
   body.append(region.main, region.side);
   content.append(region.tool, body, region.bottom);
 
+  // Zajedničke stavke reda komandi: koren + mount jednom (pre panela); mesto dobijaju u applyPanels (placeItems).
+  const items = {}, itemWhere = {};   // id -> koren stavke;  id -> id panela u kome je sada
+  for (const it of allToolItems()) {
+    const root = el('span', 'ti-' + it.id, 'tool-item');
+    items[it.id] = root;
+    it.mount(root, ctx);
+  }
+
   // Paneli: koren + (za kartice) okvir kartice; mount jednom.
   const roots = {};                 // id -> {p, root, box, card?, badge?, why?, arrow?}
   let cards = loadCards(), curWs = null;
@@ -83,6 +96,7 @@ export function mountShell({ store, command, legacy }) {
     roots[p.id] = r;
     p.mount(root, ctx);
   }
+  placeItems(allPanels());            // odmah u dokument (i u Test dela, gde ih nijedan panel ne prima): app.js ih traži po id-ju
   const parts = $('parts');                           // index.html: stari delovi čekaju ovde dok ih paneli ne preuzmu
   if (parts && !parts.children.length) parts.remove();
 
@@ -137,9 +151,19 @@ export function mountShell({ store, command, legacy }) {
       }
       box.hidden = !want.length;
     }
+    placeItems(list);
     for (const p of list) {
       const r = roots[p.id];
       if (p.shown && !(r.card && r.card.classList.contains('closed'))) p.shown(r.root, ctx);
+    }
+  }
+
+  function placeItems(list) {         // zajedničke stavke u panel ovog prostora (isti čvor se seli); bez doma: ostaju
+    for (const m of sharedMoves(itemWhere, sharedHomes(list))) {
+      const node = items[m.id], r = roots[m.to];
+      if (!node || !r) continue;
+      (r.root.querySelector(`[data-slot="${m.id}"]`) || r.root).appendChild(node);
+      itemWhere[m.id] = m.to;
     }
   }
 
@@ -156,7 +180,7 @@ export function mountShell({ store, command, legacy }) {
     saveWorkspace(ws);
     applyPanels(ws);
     const st = store.get();
-    if (ws === 'taktike') { legacy.setTab('sim'); legacy.openEditor(); }
+    if (ws === 'taktike') { if (!st.session) legacy.setTab('sim'); legacy.openEditor(); }   // sesija radi: bez setTab
     else if (ws === 'voznja') setDrive(st.session ? (st.session.kind === 'robot' ? 'robot' : 'sim') : st.drive);
     else if (ws === 'snimci') legacy.openRuns();
   }

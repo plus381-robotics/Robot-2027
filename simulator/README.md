@@ -44,24 +44,26 @@ Exe i GitHub Release se više ne prave: iz repoa je uvek najnovija verzija.
   (Shift+←/→), klizač sa oznakama koraka, grafici brzine, okretanja i točkova (klik = skok).
 - **Save run** čuva snimak u `simulator/runs/` (ide u git), **Saved runs** ga učitava.
 
-### Editor taktika (✎ Editor)
+### Editor taktika (radni prostor Taktike)
 
-Otvara taktiku iz `ESP32/tactics/` (ista kao u izboru gore) pored stola.
+Otvara se sam kad uđeš u Taktike (ili „✎ Editor“ u redu komandi), sa taktikom iz `ESP32/tactics/` (ista kao u
+izboru „Taktika“ gore) pored stola; „×“ ga zatvara i sto dobija celu širinu. U drugom prostoru je samo sakriven
+(tekst i nesačuvane izmene ostaju). Red komandi Taktika: Taktika, Strana Žuta | Plava, meč | test, ▶ Pokreni.
 - Isticanje sintakse, **dopuna** (Ctrl+Space) i **opis na prelaz mišem** za ceo `tac` API, plus imena
   aktuatora u `actuator("...")` i argumenti funkcije u kojoj si (`speed=`, `next=`...). Pomoć se pravi iz
-  samog `ESP32/lib/tac.py` (potpisi i docstring-ovi), pa uvek odgovara kodu na robotu; kartica **tac API**
-  ima ceo spisak sa pretragom.
-- **Provera dok kucaš** (Problems, i oznake u kodu): sintaksa; MicroPython kompajler (`mpy-cross`, ista
+  samog `ESP32/lib/tac.py` (potpisi i docstring-ovi), pa uvek odgovara kodu na robotu; kartica **Komande**
+  (ispod koda, pored Problemi) ima ceo spisak sa pretragom i primerima („Ubaci u kod“).
+- **Provera dok kucaš** (Problemi, i oznake u kodu): sintaksa; MicroPython kompajler (`mpy-cross`, ista
   verzija kao firmver); nepoznata imena; pogrešni ili nedostajući argumenti tac funkcija; nepoznat
   aktuator; tačke van stola i brzina iznad ~1200 mm/s; `while True` bez ijednog tac poziva (ESP bi se
   zaglavio, STM32 staje posle 500 ms bez PING-a); START koji ESP ne može da pročita bez izvršavanja.
-- **▶ Run** (Ctrl+Enter) proverava i simulira **tekst iz editora, sačuvan ili ne** (fajl se ne dira).
-  Posle simulacije Problems pokazuje i greške iz izvršavanja sa linijom (izuzetak u taktici, korak koji
+- **▶ Pokreni** (Ctrl+Enter) proverava i simulira **tekst iz editora, sačuvan ili ne** (fajl se ne dira).
+  Posle simulacije Problemi pokazuje i greške iz izvršavanja sa linijom (izuzetak u taktici, korak koji
   nije uspeo, TOTAL koji se ne slaže, START van startne zone). Live takođe koristi tekst iz editora.
 - Tokom reprodukcije **linija koja se izvršava je istaknuta**, neuspeli koraci crveno; klik na korak
   skače i na njegovu liniju.
-- **Save** (Ctrl+S) upisuje `ESP32/tactics/<ime>.py`; ako je fajl u međuvremenu promenjen na disku (git,
-  drugi editor), pita pre nego što prepiše. **New** pravi taktiku iz šablona. Nesačuvane izmene se čuvaju u
+- **Sačuvaj** (Ctrl+S) upisuje `ESP32/tactics/<ime>.py`; ako je fajl u međuvremenu promenjen na disku (git,
+  drugi editor), pita pre nego što prepiše. **Novo** pravi taktiku iz šablona; **Fajl ▾**: sačuvaj kao, preimenuj, obriši. Nesačuvane izmene se čuvaju u
   browseru i vraćaju posle osvežavanja stranice.
 
 ### Live režim (● Live)

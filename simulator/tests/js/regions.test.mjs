@@ -5,13 +5,14 @@ import { createRegistry } from '../../web/core/panels.js';
 import { placePanels, isCard, defaultOpen, cardsOpen, setCard, loadCards, saveCards, CARDS_KEY, MAX_OPEN }
   from '../../web/core/regions.js';
 
-// Isti paneli kao u web/panels/ (Zadaci 4.1 i 4.2), bez mount-a.
-function registry42() {
+// Isti paneli kao u web/panels/ (Zadaci 4.1–4.3), bez mount-a.
+function registry43() {
   const r = createRegistry();
   const all = ['taktike', 'voznja', 'snimci'];
-  r.registerPanel({ id: 'stari-alati', workspaces: all, region: 'tool', priority: 90, open: true });
+  r.registerPanel({ id: 'stari-alati', workspaces: all, region: 'tool', priority: 90, open: true, shared: ['taktika', 'strana'] });
+  r.registerPanel({ id: 'taktike-alati', workspaces: ['taktike'], region: 'tool', priority: 10, open: true, shared: ['taktika', 'strana'] });
   r.registerPanel({ id: 'teren', workspaces: all, region: 'main', priority: 20, open: true });
-  r.registerPanel({ id: 'editor', workspaces: all, region: 'main', priority: 10, open: true });
+  r.registerPanel({ id: 'editor', workspaces: ['taktike'], region: 'main', priority: 10, open: true });
   r.registerPanel({ id: 'korak', workspaces: ['voznja', 'snimci'], region: 'side', priority: 10, open: true });
   r.registerPanel({ id: 'koraci', workspaces: all, region: 'side', priority: 20, open: true, grow: true });
   r.registerPanel({ id: 'dnevnik', workspaces: all, region: 'side', priority: 30, open: ['voznja', 'snimci'], grow: true });
@@ -25,9 +26,12 @@ function registry42() {
 const ids = place => Object.fromEntries(Object.entries(place).map(([k, v]) => [k, v.map(p => p.id)]));
 
 test('placePanels: paneli po regionu, u regionu po prioritetu (editor levo od terena)', () => {
-  const r = registry42();
+  const r = registry43();
   assert.deepEqual(ids(placePanels(r.panelsFor('taktike'))), {
-    tool: ['stari-alati'], main: ['editor', 'teren'], side: ['koraci', 'dnevnik'], bottom: ['vreme', 'grafici'] });
+    tool: ['taktike-alati', 'stari-alati'], main: ['editor', 'teren'], side: ['koraci', 'dnevnik'], bottom: ['vreme', 'grafici'] });
+  assert.deepEqual(ids(placePanels(r.panelsFor('voznja'))), {             // editor samo u Taktikama (Zadatak 4.3)
+    tool: ['stari-alati'], main: ['teren'], side: ['korak', 'koraci', 'dnevnik', 'stanje'], bottom: ['vreme', 'grafici'] });
+  assert.deepEqual(placePanels(r.panelsFor('snimci')).main.map(p => p.id), ['teren']);
   assert.deepEqual(placePanels(r.panelsFor('voznja')).side.map(p => p.id), ['korak', 'koraci', 'dnevnik', 'stanje']);
   assert.deepEqual(placePanels(r.panelsFor('snimci')).side.map(p => p.id), ['korak', 'koraci', 'dnevnik', 'stanje']);
   assert.deepEqual(ids(placePanels(r.panelsFor('test'))), { tool: [], main: ['test-dela'], side: [], bottom: [] });
@@ -43,13 +47,14 @@ test('placePanels: isti prioritet ostaje po redu u listi', () => {
 });
 
 test('isCard / defaultOpen: bočni uvek kartica, donji samo sklopiv; open = bool ili lista prostora', () => {
-  const r = registry42();
+  const r = registry43();
   const get = id => r.get(id);
   for (const id of ['korak', 'koraci', 'dnevnik', 'stanje']) assert.equal(isCard(get(id)), true);
   assert.equal(isCard(get('grafici')), true);
   assert.equal(isCard(get('vreme')), false);
   assert.equal(isCard(get('teren')), false);
   assert.equal(isCard(get('stari-alati')), false);
+  assert.equal(isCard(get('taktike-alati')), false);
   assert.equal(defaultOpen(get('grafici'), 'taktike'), false);   // grafici sklopljeni u Taktikama
   assert.equal(defaultOpen(get('grafici'), 'voznja'), false);   // i u Vožnji (spec)
   assert.equal(defaultOpen(get('grafici'), 'snimci'), true);
@@ -60,7 +65,7 @@ test('isCard / defaultOpen: bočni uvek kartica, donji samo sklopiv; open = bool
 });
 
 test('cardsOpen: zapamćeno stanje ima prednost, inače podrazumevano; drugi prostor ne utiče', () => {
-  const r = registry42();
+  const r = registry43();
   const tk = r.panelsFor('taktike');
   assert.deepEqual(cardsOpen(tk, 'taktike', {}), { koraci: true, dnevnik: false, grafici: false });
   const saved = setCard({}, 'taktike', 'grafici', true);

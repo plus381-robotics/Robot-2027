@@ -22,9 +22,9 @@ const TMP = ['ui_tmp_a', 'ui_tmp_b'].map(n => path.join(DIR, n + '.py'));
     await p.selectOption('#tactic', 'primer');
 
     // S1: Live sa žutom, pa plava, Arm, činč: robot vozi po plavoj, odometrija se slaže
-    await p.selectOption('#side', 'zuta');
+    await p.click('#sideSeg [data-v=zuta]');
     await p.click('#tabLive'); await p.click('#liveBtn'); await p.waitForTimeout(1500);
-    await p.selectOption('#side', 'plava'); await p.waitForTimeout(800);
+    await p.click('#sideSeg [data-v=plava]'); await p.waitForTimeout(800);
     await p.click('#armBtn'); await p.waitForTimeout(1200);
     if (!(await p.isVisible('#bandCord'))) fail.push('S9: nema dugmeta za činč na timeline-u dok je naoružan');
     await p.click('#bandCord'); await p.waitForTimeout(6000);                // činč sa timeline-a (S9)
@@ -36,7 +36,7 @@ const TMP = ['ui_tmp_a', 'ui_tmp_b'].map(n => path.join(DIR, n + '.py'));
     await p.click('#endBtn'); await p.waitForTimeout(1000);
 
     // S2: Save as, Rename, Delete
-    await p.click('#edBtn');
+    await p.click('#edOpen');
     await p.waitForSelector('.cm-content');
     await p.waitForFunction(() => /from tac import/.test(document.querySelector('.cm-content').textContent));
     answers.push('ui_tmp_a'); await p.selectOption('#edFileMenu', 'saveas'); await p.waitForTimeout(700);

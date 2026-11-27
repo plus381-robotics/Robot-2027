@@ -1,11 +1,11 @@
-// Editor taktike (#editorPane, kakav jeste): otvara ga i zatvara stari kod (✎ Editor, prostor Taktike); dok je zatvoren
-// panel ne zauzima mesto (klasa ed-closed prati atribut hidden na #editorPane).
-// Prelazno i u Vožnji i Snimcima (kao do sada: vidi se gde god je otvoren), jer je dugme ✎ Editor još u starom
-// redu komandi u svim prostorima; kad ono pređe u taktike-alati (4.2), editor ostaje samo u Taktikama.
+// Editor taktike (#editorPane): samo u Taktikama. Otvara ga prostor Taktike (bočna traka) ili „✎ Editor“ u redu
+// komandi, zatvara „×“ u traci editora (sto tada dobija celu širinu). Dok je zatvoren panel ne zauzima mesto (klasa
+// ed-closed prati atribut hidden na #editorPane). U drugom prostoru panel je samo SKRIVEN (isti CodeMirror, tekst i
+// nesačuvane izmene ostaju), ne uništava se. Dole kartice Problemi i Komande (Gambit Micro, ranije fioka nad stolom).
 import { registerPanel } from '../core/panels.js';
 
 registerPanel({
-  id: 'editor', title: 'Editor', workspaces: ['taktike', 'voznja', 'snimci'], region: 'main', priority: 10, open: true,
+  id: 'editor', title: 'Editor', workspaces: ['taktike'], region: 'main', priority: 10, open: true,
   mount: (el, ctx) => {
     const pane = document.getElementById('editorPane');
     el.appendChild(pane);

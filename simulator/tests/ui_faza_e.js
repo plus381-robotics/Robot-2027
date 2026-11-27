@@ -17,7 +17,7 @@ const { chromium } = require('playwright');
     await p.waitForSelector('#tactic option', { state: 'attached' });
     await p.selectOption('#tactic', 'kamenolomi');
     await p.click('#cam2d');
-    await p.click('#tabSim'); await p.click('#run'); await result();
+    await p.click('#run'); await result();
 
     // E1: jedna oznaka po koraku koji pomera robota; natpis samo za tekući korak
     const e1 = await ev(() => { const v = window.eurosim.view, r = window.eurosim.run;
@@ -53,7 +53,7 @@ const { chromium } = require('playwright');
     await p.fill('#oppX', '2750'); await p.dispatchEvent('#oppX', 'change');
     await p.selectOption('#oppTac', 'patrola');
     await p.click('#addPami');
-    await p.click('#tabSim'); await p.click('#run');
+    await p.click('#run');
     // čeka snimak sa oba protivnika i taktikom (raniji automatski run, dok se protivnik podešava, nije taj)
     await p.waitForFunction(() => { const r = window.eurosim.run, o = r && r.cols.opp;
       return o && o.length > 1 && o[0].length === 2 && o[o.length - 1][0][0] !== o[0][0][0]; }, null, { timeout: 30000 }).catch(() => {});

@@ -191,12 +191,10 @@ button.danger { background: #b3261e; border-color: #e5484d; color: #fff; font-we
 #viewMenu { position: absolute; top: 100%; left: 0; margin-top: 4px; background: #1a1f26f2; border: 1px solid var(--line);
   border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; z-index: 20; white-space: nowrap; }
 #viewMenu[hidden] { display: none; }
-#apiDrawer { position: absolute; top: 0; left: 0; bottom: 0; width: min(430px, 100%); z-index: 30; background: #161b22f7;
-  border-right: 1px solid var(--line); display: flex; flex-direction: column; }
-#apiDrawer[hidden] { display: none; }
-#apiDrawer .drawer-head { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); }
-#apiDrawer .drawer-head input { flex: 1; min-width: 0; padding: 4px 6px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; }
-#apiList { overflow: auto; padding: 6px 12px 20px; }
+/* Kartica Komande u editoru (Zadatak 4.3; ranije fioka #apiDrawer preko stola): pola visine editora, lista skroluje. */
+#edCommands:not([hidden]) { flex: 0 0 50%; height: auto; display: flex; flex-direction: column; padding: 4px 8px 0; }
+#edCommands #apiFilter { flex: none; }
+#apiList { flex: 1; min-height: 0; overflow: auto; padding: 2px 4px 20px; }
 #apiList h4 { margin: 14px 0 4px; color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
 #apiList .coords { color: var(--dim); font-size: 12px; line-height: 1.4; }
 #apiList details.cmd { border-bottom: 1px solid var(--line); padding: 5px 0; }
@@ -209,8 +207,6 @@ button.danger { background: #b3261e; border-color: #e5484d; color: #fff; font-we
 #apiList pre, .cm-api-info pre { background: #0d1117; padding: 6px 8px; border-radius: 4px; font: 12px/1.4 ui-monospace, Consolas, monospace; overflow: auto; }
 .cm-api-info p { margin: 4px 0; } .cm-api-info code { color: #ffd166; }
 #apiList svg.tbl { display: block; margin: 6px 0; }
-#edCmdBtn.on { color: var(--accent); border-color: var(--accent); }
-#edCmdBtn { white-space: nowrap; }
 #band { position: relative; height: 22px; margin-top: 6px; }
 #bandSteps, #bandFlags { position: absolute; inset: 0; }
 #bandFlags { pointer-events: none; }
@@ -398,3 +394,27 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 #logTools label { display: flex; gap: 4px; align-items: center; }
 #card-koraci .ws-card-badge { background: var(--line); color: var(--text); }
 #card-dnevnik .ws-card-badge { background: var(--fail); color: #fff; }
+/* Red komandi (Zadatak 4.3): paneli regiona "tool" u jednom redu; taktike-alati levo, prelazni stari red desno. */
+#ws-tool { display: flex; align-items: stretch; background: var(--panel); border-bottom: 1px solid var(--line); }
+#ws-tool > .ws-panel { flex: none; display: flex; }
+#ws-tool > #ws-stari-alati { flex: 1 1 0; }
+#ws-stari-alati > #bar { flex: 1; min-width: 0; border-bottom: 0; }
+#ws-tool > .ws-panel + .ws-panel { border-left: 1px solid var(--line); }
+.tool-row { align-items: center; gap: 10px; padding: 6px 12px; flex-wrap: wrap; }
+.tool-row [hidden], .tool-item [hidden] { display: none !important; }
+.tool-item, .ti-label { display: inline-flex; align-items: center; gap: 6px; }
+.ti-label { color: var(--dim); }
+#tactic { max-width: 170px; }
+/* Segmentirana dugmad (shell/segmented.js): Žuta | Plava, meč | test. */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; flex: none; }
+.seg button { border: 0; border-radius: 0; padding: 4px 12px; background: transparent; color: var(--text); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: #1f4f7a; color: #fff; }
+.seg-side button.on[data-v=zuta] { background: var(--yellow); color: #1a1a1a; }
+.seg-side button.on[data-v=plava] { background: var(--blue); color: #fff; }
+#edClose { font-size: 16px; line-height: 1; padding: 3px 9px; }
+/* Sesija radi, a korisnik je u Taktikama: stari red sa komandama Live/Robot ide u svoj red ispod (cela širina),
+   da se dugmad ne gužvaju pored reda Taktika. */
+#ws-tool:has(#rowLive:not([hidden]), #rowRobot:not([hidden])) { flex-wrap: wrap; }
+#ws-tool:has(#rowLive:not([hidden]), #rowRobot:not([hidden])) > #ws-stari-alati { flex-basis: 100%; border-left: 0;
+  border-top: 1px solid var(--line); }
