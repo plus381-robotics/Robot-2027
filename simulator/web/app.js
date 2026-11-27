@@ -15,9 +15,12 @@ import { logLines, errorCount } from './core/log.js';
 const $ = id => document.getElementById(id);
 // Most ka novom okviru (statusna traka, bočna traka): stari kod piše ovde ono što traka treba. Polja: shell/strip.js.
 // caps: mogućnosti sesije iz poruke hello (null bez sesije); edUnsaved: editor ima nesačuvan tekst (Live / Pošalji ga
-// koriste: napomena u redu komandi Vožnja, core/voznja.js).
+// koriste: napomena u redu komandi Vožnja, core/voznja.js). Snimci (panels/snimci.js): runs = lista sačuvanih snimaka
+// (GET /api/runs?detail=1, null dok ne stigne), runName = sačuvan snimak koji se gleda, refName = sačuvan snimak koji je
+// referenca (null: nesačuvan, npr. simulacija ili sesija).
 const store = createStore({ ws: 'taktike', drive: 'sim', session: null, caps: null, paused: false, speed: null, telemetry: null,
-  linkAge: null, linkState: null, connAge: null, snap: null, notice: null, edUnsaved: false, running: null });
+  linkAge: null, linkState: null, connAge: null, snap: null, notice: null, edUnsaved: false, running: null,
+  runs: null, runName: null, refName: null });
 const SIDE_NAME = { plava: 'Blue', zuta: 'Yellow' };
 const REASON = { BLOCKED: 'blocked', TIMEOUT: 'timeout', PREEMPTED: 'preempted', MATCH_OVER: 'match over',
   STOPPED: 'stopped', INVALID: 'rejected', NOREPLY: 'no reply', SUPERSEDED: 'superseded', STOP: 'STOP' };
@@ -326,7 +329,8 @@ function bridgeSession() {                      // sesija počela / završila: t
   const L = live;                               // caps stižu porukom hello (sessionHello); do tada nijedna komanda
   store.set({ session: L ? { kind: L.kind === 'robot' ? 'robot' : 'sim', host: L.host || null, virtual: !!L.virtual,
     lidar: L.lidarSrc || 'sim', edText: !!L.edText } : null, caps: null,
-    paused: false, speed: null, telemetry: null, linkAge: null, linkState: null, connAge: null, running: null });
+    paused: false, speed: null, telemetry: null, linkAge: null, linkState: null, connAge: null, running: null,
+    runName: null });                           // sesija nije sačuvan snimak (Snimci ga ne ističu)
   $('speed').hidden = !!L;                     // brzina puštanja snimka; u sesiji važi brzina iz reda komandi Vožnja
   if (L) {                                      // nova sesija kreće na ×1, bez pauze: red komandi to i pokazuje
     $('pace').value = '1';
@@ -387,7 +391,13 @@ function frameJump(dir) {
 
 // ---------------- server ----------------
 
-function msg(text, err = false) { const m = $('msg'); m.textContent = text; m.className = 'msg' + (err ? ' err' : ''); m.title = text; }
+// act = {label, title, fn}: dugme uz poruku (npr. „Otvori u Snimcima“ posle kraja sesije); sledeća poruka ga sklanja.
+function msg(text, err = false, act = null) {
+  const m = $('msg'); m.textContent = text; m.className = 'msg' + (err ? ' err' : ''); m.title = text;
+  const b = $('msgAct');
+  b.hidden = !act;
+  if (act) { b.textContent = act.label; b.title = act.title || ''; b.onclick = () => { b.hidden = true; act.fn(); }; }
+}
 
 async function api(path, body) {
   const r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
@@ -396,8 +406,10 @@ async function api(path, body) {
   return d;
 }
 
-function load(d, label, keepTime = null) {
+// runName: ime sačuvanog snimka (Snimci ga ističu u listi); null za simulaciju, sesiju i ostalo.
+function load(d, label, keepTime = null, runName = null) {
   run = buildRun(d);
+  store.set({ runName });
   view.setRun(run);
   elShownKey = null;
   drawElements();
@@ -443,11 +455,35 @@ async function simulate(keepTime = null) {
   }
 }
 
-function fillRuns(list) {
-  const s = $('runs');
-  s.innerHTML = '<option value="">Saved runs…</option>' + list.map(n => `<option>${n}</option>`).join('');
-  $('cmpRun').innerHTML = '<option value="">compare with…</option>' + list.map(n => `<option>${n}</option>`).join('');
+function fillRuns(list) {                      // „Uporedi sa…“ u redu komandi Snimci
+  const opt = n => { const o = document.createElement('option'); o.textContent = n; return o; };
+  const sel = $('cmpRun');
+  sel.innerHTML = '<option value="">Uporedi sa…</option>';
+  sel.append(...list.map(opt));
 }
+
+// Lista u Snimcima (sa detaljima: datum, izvor, taktika, ishod); i „Uporedi sa…“ istim redom (najnoviji prvi).
+let runsSeq = 0;
+async function refreshRuns() {
+  const seq = ++runsSeq;
+  try {
+    const rows = await api('/api/runs?detail=1');
+    if (seq !== runsSeq) return;
+    store.set({ runs: rows });
+    fillRuns(rows.map(r => r.name));
+  } catch (e) {
+    if (seq !== runsSeq) return;
+    if (store.get().runs == null) store.set({ runs: [] });
+    msg('lista snimaka: ' + e.message, true);
+  }
+}
+
+async function loadRun(n) {                     // klik u listi Snimci (ranije „Load run…“ u meniju „⋯ Runs“)
+  try { load(await api('/api/runs/' + encodeURIComponent(n)), `učitan snimak ${n}`, null, n); } catch (er) { msg(er.message, true); }
+}
+
+const OPEN_SNIMCI = { label: 'Otvori u Snimcima', title: 'Prostor Snimci: sačuvaj ovaj snimak, uporedi ga sa drugim (📌 Referenca, Uporedi sa…)',
+  fn: () => shell && shell.go('snimci') };
 
 // ---------------- kamenolomi (plan E3): izmenjen sto, scenariji ----------------
 
@@ -984,7 +1020,8 @@ async function startLive() {
   s.on('end', m => {
     if (live && !mine()) return;                 // kraj neke ranije sesije: ne dira trenutnu
     stopLiveUi();
-    load(m.run, 'sesija uživo je završena: pusti je ili sačuvaj', 1e12);
+    load(m.run, null, 1e12);
+    msg('sesija uživo je završena: pusti je ili sačuvaj', false, OPEN_SNIMCI);
   });
   s.on('error', m => {
     if (!mine()) return;
@@ -1082,7 +1119,10 @@ function startRobot(host, password, label, virtual = false) {
   s.on('end', m => {
     if (live && !mine()) return;
     stopLiveUi();
-    if (m.run) load(m.run, 'sesija sa robotom je završena: pusti je, sačuvaj ili uporedi sa simulacijom', 1e12);
+    if (m.run) {
+      load(m.run, null, 1e12);
+      msg('sesija sa robotom je završena: pusti je, sačuvaj ili uporedi sa simulacijom', false, OPEN_SNIMCI);
+    }
     else msg('veza sa robotom je prekinuta (telemetrija nije stigla)');
   });
   s.on('error', m => { if (mine()) msg('robot: ' + m.error.split('\n')[0], true); });
@@ -1101,11 +1141,13 @@ function alignOf(r) {                           // time of the first tactic star
   return e ? e[0] : 0;
 }
 
-function setRef(r, name) {
+function setRef(r, name, saved = null) {       // saved: ime sačuvanog snimka (lista u Snimcima ga označi 📌)
   ref = r;
   view.setCompare(r);
-  $('cmpName').textContent = r ? `reference: ${name}` : '';
+  $('cmpName').textContent = r ? `referenca: ${name}` : '';
+  $('cmpName').title = r ? `Referenca (crta se preko snimka): ${name}` : '';
   $('cmpClear').hidden = !r;
+  store.set({ refName: r ? saved : null });
   if (run) show();
 }
 
@@ -1231,6 +1273,7 @@ async function main() {
     for (const k of ['tactic', 'side', 'mode']) if (sel[k]) $(k).value = sel[k];
   } catch (e) { /* ignore */ }
   fillRuns(info.runs);
+  refreshRuns();
   showRepoBanner();
   $('rbOpen').onclick = repoOpen;
   $('rbClone').onclick = repoClone;
@@ -1282,7 +1325,8 @@ async function main() {
   shell = mountShell({ store, command: sessionCommand, legacy: {          // okvir: statusna traka, bočna traka, Esc = STOP
     notice,                                                               // npr. „Sesija radi: prvo je završi“
     openEditor,
-    openRuns: () => { $('moreMenu').hidden = false; },
+    openRuns: () => { $('msgAct').hidden = true; refreshRuns(); },     // Snimci: lista sa diska (i posle git pull)
+    loadRun,
     openSources: (drive, running) => {
       if (running) { msg('izvori se ne menjaju dok sesija radi (prvo Završi / Prekini vezu)', true); return; }
       if (drive === 'robot') $('robotConnect').hidden = false; else $('lidarSrc').focus();
@@ -1296,10 +1340,6 @@ async function main() {
       if (errs.length) errs[errs.length - 1].scrollIntoView({ block: 'nearest' });
     },
   } });
-  $('moreBtn').onclick = () => { $('moreMenu').hidden = !$('moreMenu').hidden; };
-  document.addEventListener('pointerdown', e => {
-    if (!$('moreMenu').hidden && !e.target.closest('#moreMenu, #moreBtn')) $('moreMenu').hidden = true;
-  });
   esp = new EspPanel($('espPanel'), c => liveSend(c));
   esp.setEnabled(false);
   try { opponents = JSON.parse(localStorage.getItem('eurosim.opp') || '[]'); } catch (e) { opponents = []; }
@@ -1366,13 +1406,15 @@ async function main() {
   $('profSave').onclick = saveProfile;
   $('profFile').onchange = e => openProfile(e.target.value).catch(er => msg(er.message, true));
   $('cmpPin').onclick = () => {                 // tokom Live-a snimak i dalje raste (deli nizove): referenca je kopija
-    if (run) setRef(live ? snapshotRun(run) : run, `${run.meta.tactic || '?'} (${run.meta.mode})`);
+    if (!run) return;
+    const saved = live ? null : store.get().runName;
+    setRef(live ? snapshotRun(run) : run, saved || `${run.meta.tactic || '?'} (${run.meta.mode})`, saved);
   };
   $('cmpClear').onclick = () => setRef(null);
   $('cmpRun').onchange = async e => {
     const n = e.target.value; e.target.value = '';
     if (!n) return;
-    try { setRef(buildRun(await api('/api/runs/' + encodeURIComponent(n))), n); } catch (er) { msg(er.message, true); }
+    try { setRef(buildRun(await api('/api/runs/' + encodeURIComponent(n))), n, n); } catch (er) { msg(er.message, true); }
   };
   $('endBtn').onclick = () => liveSend(['quit']);              // Završi (SIM) / Prekini vezu (ROBOT)
   $('armBtn').onclick = () => liveSend(['arm', curTactic(), $('side').value]);
@@ -1455,15 +1497,15 @@ async function main() {
   $('cam3d').onclick = () => { view.setCamera('3d'); $('cam3d').classList.add('on'); $('cam2d').classList.remove('on'); };
   $('cam2d').onclick = () => { view.setCamera('top'); $('cam2d').classList.add('on'); $('cam3d').classList.remove('on'); };
   $('save').onclick = async () => {
-    const name = prompt('Name for this run (saved in simulator/runs/):', '');
+    const name = prompt('Ime snimka (čuva se u simulator/runs/; prazno = datum_taktika_strana):', '');
     if (name === null) return;
-    try { const d = await api('/api/runs/save', { name }); fillRuns(d.runs); msg(`saved ${d.saved}`); }
-    catch (e) { msg(e.message, true); }
-  };
-  $('runs').onchange = async e => {
-    const n = e.target.value; if (!n) return;
-    try { load(await api('/api/runs/' + encodeURIComponent(n)), `loaded ${n}`); } catch (er) { msg(er.message, true); }
-    e.target.value = '';
+    try {
+      const d = await api('/api/runs/save', { name });
+      fillRuns(d.runs);
+      if (!live) store.set({ runName: d.saved });             // snimak koji gledaš je sada taj sačuvan
+      msg(`sačuvan snimak ${d.saved}`);
+      refreshRuns();
+    } catch (e) { msg(e.message, true); }
   };
   document.addEventListener('keydown', e => {
     const tg = e.target;

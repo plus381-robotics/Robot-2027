@@ -42,7 +42,8 @@ Exe i GitHub Release se više ne prave: iz repoa je uvek najnovija verzija.
   (i poruke ESP<->STM32). Klik na korak ili red dnevnika skače na taj trenutak.
 - Dole: pusti/pauza (razmak), brzina ×0.25..×25, frame napred/nazad (←/→), korak napred/nazad
   (Shift+←/→), klizač sa oznakama koraka, grafici brzine, okretanja i točkova (klik = skok).
-- **Save run** čuva snimak u `simulator/runs/` (ide u git), **Saved runs** ga učitava.
+- Prostor **Snimci**: **Sačuvaj snimak…** čuva snimak u `simulator/runs/` (ide u git); lista sačuvanih snimaka
+  (izvor S / R / H, taktika, strana, ime, datum, ishod; filter po izvoru i tekstu) ga učitava klikom.
 
 ### Editor taktika (radni prostor Taktike)
 
@@ -88,7 +89,7 @@ nesačuvan tekst, sesija koristi taj tekst (napomena „koristi se tekst iz edit
 - **■ STOP** je na statusnoj traci gore desno (i taster Esc), iz svakog prostora.
 - **Prati**: vreme prati sesiju; isključi ga (ili klikni na klizač/korak) da se vratiš unazad dok
   simulacija radi dalje.
-- **Završi**: kraj; sesija ostaje kao snimak (reprodukcija, Save run).
+- **Završi**: kraj; sesija ostaje kao snimak (reprodukcija; **Otvori u Snimcima** uz poruku: sačuvaj, uporedi).
 - Dok sesija radi, SIM/ROBOT se ne menja („Sesija radi: prvo je završi“).
 
 ### Hibridna simulacija: pravi lidar sa robota, ostalo simulirano
@@ -116,17 +117,18 @@ iz `ESP32/webrepl_cfg.py` (ili upiši).
   odmah (test, bez meča; pita pre pokretanja jer robot kreće), **■ STOP** na statusnoj traci (i taster Esc).
 - Telemetrija (10 Hz) crta robota, korake (ishod iz dnevnika), dnevnik, brzinu i stanje meča, isto kao
   simulacija; stanje veze je na statusnoj traci (Veza); **Prati** / klizač za vraćanje. **Prekini vezu**: sesija
-  ostaje kao snimak (Save run).
+  ostaje kao snimak (**Otvori u Snimcima**: sačuvaj, uporedi).
 - Robot šalje odometriju (ne zna stvarnu pozu) i ne šalje ekran; koraci kraći od 100 ms mogu da promaknu.
 - **Lidar robota**: dok lidar na robotu radi, krugovi se crtaju na stolu (plave tačke) oko poze iz telemetrije.
 - **Virtuelni robot**: na ovom računaru pokrene virtuelnog robota (pravi ESP kod sa upload serverom i
   telemetrijom nad simuliranim STM32) i poveže se na njega. Isto iz terminala: `python simulator/sim.py robot`,
   pa `python tools/tactic.py primer --host 127.0.0.1 --password eurosim` i `python tools/watch.py --host 127.0.0.1`.
 
-### Poređenje (📌 Pin as reference / compare with…)
+### Poređenje (Snimci: 📌 Referenca / Uporedi sa…)
 
-Trenutni snimak postaje referenca (ili izaberi sačuvan), pa pokreni drugi (simulacija, Live ili robot):
-referentna putanja i robot-duh (ljubičasto) se crtaju preko, poravnato po početku taktike. Npr. simulacija
+U redu komandi prostora Snimci: **📌 Referenca** (snimak koji gledaš) ili **Uporedi sa…** (sačuvan snimak; u listi
+dobija 📌), pa pokreni ili učitaj drugi (simulacija, Live ili robot); ✕ uklanja referencu. Referentna
+putanja i robot-duh (ljubičasto) se crtaju preko, poravnato po početku taktike. Npr. simulacija
 kao referenca, pa ista taktika na robotu.
 
 ### Profil robota (⚙ Robot profile)

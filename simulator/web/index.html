@@ -30,16 +30,10 @@
   <div class="bar-row">
     <span class="brand">Eurosim</span>
     <span data-slot="taktika"></span><span data-slot="strana"></span>
-    <span class="more-wrap">
-      <button id="moreBtn" title="Runs: save, load, compare">⋯ Runs</button>
-      <div id="moreMenu" class="menu" hidden>
-        <button id="save" disabled title="Save this run to simulator/runs/">Save run…</button>
-        <select id="runs" title="Load a saved run"><option value="">Load run…</option></select>
-      </div>
-    </span>
     <button id="repoBtn" title="Team repo (GitHub): get the latest tactics and robot profile, save yours">⎇ Repo <span id="repoBadge" class="badge" hidden></span></button>
     <button id="profBtn" title="Robot profile: dimensions, drive, control, IR (simulator/profiles)">⚙ Profile</button>
     <span id="msg" class="msg"></span>
+    <button id="msgAct" hidden></button>
   </div>
 </header>
 
@@ -60,6 +54,14 @@
   <button id="followBtn" class="on" title="Vreme prati sesiju uživo (isključeno: možeš da vratiš snimak unazad)">Prati</button>
   <button id="endBtn">Završi</button>
   <span id="edNote" class="small ed-note" title="Editor u Taktikama ima nesačuvan tekst: simulacija uživo i Pošalji koriste taj tekst, ne fajl iz ESP32/tactics">koristi se tekst iz editora (nesačuvan)</span>
+
+  <!-- Red komandi Snimci (Zadatak 4.5): panels/snimci-alati.js premešta ove delove; lista snimaka je kartica Snimci
+       (panels/snimci.js). Referenca se crta preko snimka na stolu (i Koraci / grafici je prate po vremenu). -->
+  <button id="save" disabled title="Sačuvaj snimak koji gledaš u simulator/runs/ (ide u git, sa „Repo“)">Sačuvaj snimak…</button>
+  <button id="cmpPin" title="Snimak koji gledaš postaje referenca (npr. simulacija); zatim pokreni ili učitaj drugi i uporedi">📌 Referenca</button>
+  <select id="cmpRun" title="Uporedi sa sačuvanim snimkom (postaje referenca)"><option value="">Uporedi sa…</option></select>
+  <span id="cmpName" class="dim small"></span>
+  <button id="cmpClear" hidden title="Ukloni referencu">✕</button>
 
   <!-- Red komandi Taktika (Zadatak 4.3): panels/taktike-alati.js premešta ove delove (#side i #mode ostaju izvor
        istine, skriveni ispod segmentiranih dugmadi); #tactic i #side su zajedničke stavke (panels/stavke.js). -->
@@ -115,12 +117,6 @@
         <label title="Izgled stola: crtež iz pravila 2027 ili obična mreža"><input type="checkbox" id="rulesLook" checked> sto iz pravila</label>
         <label><input type="checkbox" id="follow"> Kamera prati robota</label>
       </div>
-    </div>
-    <div id="cmpTools" class="overlay">
-      <button id="cmpPin" title="Use the current run as the reference (e.g. simulation), then run or record another one">📌 Pin as reference</button>
-      <select id="cmpRun" title="Compare with a saved run"><option value="">compare with…</option></select>
-      <span id="cmpName" class="dim small"></span>
-      <button id="cmpClear" hidden title="Remove the reference">✕</button>
     </div>
     <div id="cursor" class="mono"></div>
     <div id="result"></div>

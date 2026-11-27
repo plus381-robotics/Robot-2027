@@ -1,5 +1,6 @@
 # Simulacija u posebnom procesu, /api/run i snimci (/api/runs).
 import asyncio
+import datetime
 import multiprocessing as mp
 import os
 import re
@@ -154,7 +155,67 @@ def _runs():
     return sorted((f.name[:-8] for f in d.glob("*.json.gz")), reverse=True)
 
 
+# Detalji snimka za listu u Snimcima; keš po putanji, važi dok se mtime i veličina fajla ne promene.
+_DETAIL_CACHE = {}
+
+
+def _lidar_of(meta):
+    """Odakle je lidar u snimku: parts.lidar (v2) ili, za v1, iz meta.lidar_source; None = nepoznato."""
+    parts = (meta.get("origin") or {}).get("parts") or {}
+    if parts.get("lidar"):
+        return parts["lidar"]
+    src = meta.get("lidar_source")
+    if isinstance(src, str):
+        return "pravi" if src.startswith("robot") else "snimak" if src.startswith("snimak") else "sim"
+    return None
+
+
+def run_detail(f):
+    """Jedan red liste: ime, datum (mtime, lokalno ISO), izvor (engine + lidar), taktika, strana, režim, ishod, trajanje."""
+    st = f.stat()
+    key = str(f)
+    hit = _DETAIL_CACHE.get(key)
+    if hit and hit[0] == (st.st_mtime_ns, st.st_size):
+        return hit[1]
+    name = f.name[:-8]
+    date = datetime.datetime.fromtimestamp(st.st_mtime).astimezone().isoformat(timespec="seconds")
+    try:
+        d = Recording.peek(f)
+        meta, res = d.get("meta") or {}, d.get("result") or {}
+        ok = res.get("ok")
+        dur = res.get("sim_ms")
+        out = {"name": name, "date": date, "engine": (meta.get("origin") or {}).get("engine"),
+               "lidar": _lidar_of(meta), "tactic": meta.get("tactic"), "side": meta.get("side"),
+               "mode": meta.get("mode"), "ok": ok if ok is None else bool(ok),
+               "duration_ms": dur if isinstance(dur, (int, float)) else None}
+    except Exception as e:                    # noqa: BLE001  (oštećen fajl: red ostaje, sa greškom)
+        out = {"name": name, "date": date, "engine": None, "lidar": None, "tactic": None, "side": None,
+               "mode": None, "ok": None, "duration_ms": None, "error": str(e)[:200]}
+    _DETAIL_CACHE[key] = ((st.st_mtime_ns, st.st_size), out)
+    return out
+
+
+def _runs_detail():
+    d = _runs_dir()
+    if not d.exists():
+        return []
+    out, seen = [], set()
+    for f in d.glob("*.json.gz"):
+        try:
+            out.append(run_detail(f))
+            seen.add(str(f))
+        except OSError:                       # fajl obrisan u međuvremenu
+            continue
+    for k in [k for k in _DETAIL_CACHE if k not in seen and os.path.dirname(k) == str(d)]:
+        del _DETAIL_CACHE[k]                  # obrisani fajlovi
+    return sorted(out, key=lambda r: (datetime.datetime.fromisoformat(r["date"]), r["name"]), reverse=True)
+
+
 async def runs_list(request):
+    """GET /api/runs -> imena (kao ranije);  GET /api/runs?detail=1 -> redovi za listu u Snimcima (najnoviji prvi)."""
+    if request.query.get("detail") in ("1", "true"):
+        loop = asyncio.get_running_loop()
+        return web.json_response(await loop.run_in_executor(None, _runs_detail))
     return web.json_response(_runs())
 
 
@@ -177,6 +238,9 @@ async def run_load(request):
     f = _runs_dir() / (name + ".json.gz")
     if not f.exists():
         return web.json_response({"error": "nema snimka %s" % name}, status=404)
-    r = Recording.load(f)
+    try:
+        r = Recording.load(f)
+    except (OSError, ValueError, KeyError, EOFError) as e:      # oštećen fajl: poruka umesto HTML greške 500
+        return web.json_response({"error": "snimak %s se ne čita: %s" % (name, e)}, status=422)
     request.app[STATE]["last"] = r.to_dict()
     return web.json_response(pack(r.to_dict()), dumps=_dumps)

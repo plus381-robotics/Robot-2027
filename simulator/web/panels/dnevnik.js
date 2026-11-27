@@ -5,6 +5,6 @@ import { registerPanel } from '../core/panels.js';
 
 registerPanel({
   id: 'dnevnik', title: 'Dnevnik', workspaces: ['taktike', 'voznja', 'snimci'], region: 'side', priority: 30,
-  open: ['voznja', 'snimci'], grow: true,
+  open: ['voznja'], grow: true,        // u Snimcima sklopljen: mesto za listu snimaka (4.5)
   mount: el => { el.append(document.getElementById('logTools'), document.getElementById('log')); },
 });

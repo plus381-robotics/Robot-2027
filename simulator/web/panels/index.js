@@ -3,6 +3,7 @@
 // Zadatak 4.2: bočne kartice korak (Korak sada), koraci, dnevnik, stanje (Stanje i IR).
 // Zadatak 4.3: red komandi taktike-alati i zajedničke stavke Taktika/Strana (stavke.js, core/toolitems.js).
 // Zadatak 4.4: red komandi voznja-alati, bočne kartice esp (ESP) i sto (Postavka stola).
+// Zadatak 4.5: red komandi snimci-alati i bočna kartica snimci (lista sačuvanih snimaka).
 import './teren.js';
 import './editor.js';
 import './vreme.js';
@@ -16,5 +17,7 @@ import './taktike-alati.js';
 import './voznja-alati.js';
 import './esp.js';
 import './sto.js';
+import './snimci-alati.js';
+import './snimci.js';
 import './stari-alati.js';
 import './test-dela.js';

@@ -132,3 +132,24 @@ test('4.4: Vožnja SIM/ROBOT — red komandi, ESP i Postavka stola po izvoru; po
   assert.deepEqual(ids(placePanels(tk)).side, ['koraci', 'sto', 'dnevnik']);
   assert.deepEqual(cardsOpen(tk, 'taktike', {}), { koraci: true, sto: false, dnevnik: false, grafici: false });
 });
+
+// Zadatak 4.5: pravi paneli (web/panels/index.js se uvozi bez DOM-a): prostor Snimci — red komandi snimci-alati,
+// kartica Snimci (lista) prva i otvorena; Korak sada i Dnevnik u Snimcima podrazumevano sklopljeni (mesto za listu),
+// u Vožnji ostaju otvoreni.
+test('4.5: Snimci — red komandi i kartica liste (pravi paneli)', async () => {
+  await import('../../web/panels/index.js');
+  const { panelsFor } = await import('../../web/core/panels.js');
+  const sim = { drive: 'sim', session: null, caps: null };
+  const sn = panelsFor('snimci', [], sim);
+  assert.deepEqual(ids(placePanels(sn)), { tool: ['snimci-alati', 'stari-alati'], main: ['teren'],
+    side: ['snimci', 'korak', 'koraci', 'dnevnik', 'stanje'], bottom: ['vreme', 'grafici'] });
+  assert.deepEqual(cardsOpen(sn, 'snimci', {}), { snimci: true, korak: false, koraci: true, dnevnik: false, stanje: false, grafici: true });
+  const vz = panelsFor('voznja', [], sim);
+  assert.deepEqual(cardsOpen(vz, 'voznja', {}), { esp: true, korak: true, koraci: true, sto: false, dnevnik: false, stanje: false, grafici: false });
+  const vr = panelsFor('voznja', ['lidar', 'push', 'run', 'stop'], { drive: 'robot', session: { kind: 'robot' } });
+  assert.deepEqual(cardsOpen(vr, 'voznja', {}), { korak: true, koraci: true, dnevnik: true, stanje: false, grafici: false });
+  for (const ws of ['taktike', 'voznja', 'test']) {                     // lista i njen red komandi samo u Snimcima
+    const l = panelsFor(ws, [], sim).map(p => p.id);
+    assert.ok(!l.includes('snimci') && !l.includes('snimci-alati'), ws);
+  }
+});

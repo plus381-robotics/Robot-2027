@@ -2,6 +2,6 @@
 import { registerPanel } from '../core/panels.js';
 
 registerPanel({
-  id: 'korak', title: 'Korak sada', workspaces: ['voznja', 'snimci'], region: 'side', priority: 10, open: true,
+  id: 'korak', title: 'Korak sada', workspaces: ['voznja', 'snimci'], region: 'side', priority: 10, open: ['voznja'],
   mount: el => { el.appendChild(document.getElementById('stepnow')); },
 });
