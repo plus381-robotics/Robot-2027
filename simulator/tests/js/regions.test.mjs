@@ -4,12 +4,13 @@ import assert from 'node:assert/strict';
 import { createRegistry } from '../../web/core/panels.js';
 import { placePanels, isCard, defaultOpen, cardsOpen, setCard, loadCards, saveCards, CARDS_KEY, MAX_OPEN }
   from '../../web/core/regions.js';
+import { graficiOpen } from '../../web/panels/grafici.js';
 
-// Isti paneli kao u web/panels/ (Zadaci 4.1–4.3), bez mount-a.
+// Isti paneli kao u web/panels/ (Zadaci 4.1–4.3, poruka i Grafici iz 4.6), bez mount-a.
 function registry43() {
   const r = createRegistry();
   const all = ['taktike', 'voznja', 'snimci'];
-  r.registerPanel({ id: 'stari-alati', workspaces: all, region: 'tool', priority: 90, open: true, shared: ['taktika', 'strana'] });
+  r.registerPanel({ id: 'poruka', workspaces: [...all, 'test'], region: 'tool', priority: 95, open: true });
   r.registerPanel({ id: 'taktike-alati', workspaces: ['taktike'], region: 'tool', priority: 10, open: true, shared: ['taktika', 'strana'] });
   r.registerPanel({ id: 'teren', workspaces: all, region: 'main', priority: 20, open: true });
   r.registerPanel({ id: 'editor', workspaces: ['taktike'], region: 'main', priority: 10, open: true });
@@ -18,7 +19,7 @@ function registry43() {
   r.registerPanel({ id: 'dnevnik', workspaces: all, region: 'side', priority: 30, open: ['voznja', 'snimci'], grow: true });
   r.registerPanel({ id: 'stanje', workspaces: ['voznja', 'snimci'], region: 'side', priority: 40, open: false, shrink: true });
   r.registerPanel({ id: 'vreme', workspaces: all, region: 'bottom', priority: 10, open: true });
-  r.registerPanel({ id: 'grafici', workspaces: all, region: 'bottom', priority: 20, collapsible: true, open: ['snimci'] });
+  r.registerPanel({ id: 'grafici', workspaces: all, region: 'bottom', priority: 20, collapsible: true, open: graficiOpen });
   r.registerPanel({ id: 'test-dela', workspaces: ['test'], region: 'main', priority: 1, open: true });
   return r;
 }
@@ -28,13 +29,13 @@ const ids = place => Object.fromEntries(Object.entries(place).map(([k, v]) => [k
 test('placePanels: paneli po regionu, u regionu po prioritetu (editor levo od terena)', () => {
   const r = registry43();
   assert.deepEqual(ids(placePanels(r.panelsFor('taktike'))), {
-    tool: ['taktike-alati', 'stari-alati'], main: ['editor', 'teren'], side: ['koraci', 'dnevnik'], bottom: ['vreme', 'grafici'] });
+    tool: ['taktike-alati', 'poruka'], main: ['editor', 'teren'], side: ['koraci', 'dnevnik'], bottom: ['vreme', 'grafici'] });
   assert.deepEqual(ids(placePanels(r.panelsFor('voznja'))), {             // editor samo u Taktikama (Zadatak 4.3)
-    tool: ['stari-alati'], main: ['teren'], side: ['korak', 'koraci', 'dnevnik', 'stanje'], bottom: ['vreme', 'grafici'] });
+    tool: ['poruka'], main: ['teren'], side: ['korak', 'koraci', 'dnevnik', 'stanje'], bottom: ['vreme', 'grafici'] });
   assert.deepEqual(placePanels(r.panelsFor('snimci')).main.map(p => p.id), ['teren']);
   assert.deepEqual(placePanels(r.panelsFor('voznja')).side.map(p => p.id), ['korak', 'koraci', 'dnevnik', 'stanje']);
   assert.deepEqual(placePanels(r.panelsFor('snimci')).side.map(p => p.id), ['korak', 'koraci', 'dnevnik', 'stanje']);
-  assert.deepEqual(ids(placePanels(r.panelsFor('test'))), { tool: [], main: ['test-dela'], side: [], bottom: [] });
+  assert.deepEqual(ids(placePanels(r.panelsFor('test'))), { tool: ['poruka'], main: ['test-dela'], side: [], bottom: [] });
   assert.deepEqual(ids(placePanels([])), { tool: [], main: [], side: [], bottom: [] });
 });
 
@@ -53,11 +54,15 @@ test('isCard / defaultOpen: bočni uvek kartica, donji samo sklopiv; open = bool
   assert.equal(isCard(get('grafici')), true);
   assert.equal(isCard(get('vreme')), false);
   assert.equal(isCard(get('teren')), false);
-  assert.equal(isCard(get('stari-alati')), false);
+  assert.equal(isCard(get('poruka')), false);
   assert.equal(isCard(get('taktike-alati')), false);
   assert.equal(defaultOpen(get('grafici'), 'taktike'), false);   // grafici sklopljeni u Taktikama
   assert.equal(defaultOpen(get('grafici'), 'voznja'), false);   // i u Vožnji (spec)
-  assert.equal(defaultOpen(get('grafici'), 'snimci'), true);
+  assert.equal(defaultOpen(get('grafici'), 'snimci'), false);   // i u Snimcima (4.6: mesto za listu na 768 px)…
+  assert.equal(defaultOpen(get('grafici'), 'snimci', { refLabel: 'x' }), true);    // …osim dok se poredi sa referencom
+  assert.equal(defaultOpen(get('grafici'), 'taktike', { refLabel: 'x' }), false);
+  assert.equal(defaultOpen({ open: (ws, st) => ws === 'voznja' && st.a }, 'voznja', { a: 1 }), true);
+  assert.equal(defaultOpen({ open: (ws, st) => !!st.a }, 'voznja', null), false);   // bez stanja: prazno
   assert.equal(defaultOpen(get('dnevnik'), 'taktike'), false);   // Dnevnik sklopljen u Taktikama
   assert.equal(defaultOpen(get('dnevnik'), 'voznja'), true);
   assert.equal(defaultOpen(get('stanje'), 'snimci'), false);
@@ -72,10 +77,11 @@ test('cardsOpen: zapamćeno stanje ima prednost, inače podrazumevano; drugi pro
   assert.deepEqual(cardsOpen(tk, 'taktike', saved), { koraci: true, dnevnik: false, grafici: true });
   const vz = { korak: true, koraci: true, dnevnik: true, stanje: false, grafici: false };   // tri otvorene, Stanje sklopljeno
   assert.deepEqual(cardsOpen(r.panelsFor('voznja'), 'voznja', saved), vz);
-  assert.deepEqual(cardsOpen(r.panelsFor('snimci'), 'snimci', {}), { ...vz, grafici: true });
-  assert.equal(cardsOpen(r.panelsFor('snimci'), 'snimci', saved).grafici, true);
+  assert.deepEqual(cardsOpen(r.panelsFor('snimci'), 'snimci', {}), vz);
+  assert.equal(cardsOpen(r.panelsFor('snimci'), 'snimci', saved).grafici, false);
+  assert.equal(cardsOpen(r.panelsFor('snimci'), 'snimci', saved, { refLabel: 'ref' }).grafici, true);   // poređenje
   const s2 = setCard(saved, 'snimci', 'grafici', false);
-  assert.equal(cardsOpen(r.panelsFor('snimci'), 'snimci', s2).grafici, false);
+  assert.equal(cardsOpen(r.panelsFor('snimci'), 'snimci', s2, { refLabel: 'ref' }).grafici, false);     // izbor pobeđuje
   assert.equal(cardsOpen(tk, 'taktike', s2).grafici, true);
   assert.deepEqual(saved, { taktike: { grafici: true } });                  // setCard ne menja staro stanje
   assert.deepEqual(cardsOpen(r.panelsFor('test'), 'test', s2), {});
@@ -121,7 +127,7 @@ test('4.4: Vožnja SIM/ROBOT — red komandi, ESP i Postavka stola po izvoru; po
   r.registerPanel({ id: 'sto', workspaces: ['taktike', 'voznja'], region: 'side', priority: 25, open: false, when: stoShown });
   const sim = { drive: 'sim', session: null, caps: null };
   const vs = r.panelsFor('voznja', [], sim);
-  assert.deepEqual(ids(placePanels(vs)).tool, ['voznja-alati', 'stari-alati']);
+  assert.deepEqual(ids(placePanels(vs)).tool, ['voznja-alati', 'poruka']);
   assert.deepEqual(ids(placePanels(vs)).side, ['esp', 'korak', 'koraci', 'sto', 'dnevnik', 'stanje']);
   assert.deepEqual(cardsOpen(vs, 'voznja', {}), { esp: true, korak: true, koraci: true, sto: false, dnevnik: false, stanje: false, grafici: false });
   const robot = { drive: 'robot', session: { kind: 'robot' }, caps: ['lidar', 'push', 'run', 'stop'] };
@@ -141,9 +147,10 @@ test('4.5: Snimci — red komandi i kartica liste (pravi paneli)', async () => {
   const { panelsFor } = await import('../../web/core/panels.js');
   const sim = { drive: 'sim', session: null, caps: null };
   const sn = panelsFor('snimci', [], sim);
-  assert.deepEqual(ids(placePanels(sn)), { tool: ['snimci-alati', 'stari-alati'], main: ['teren'],
+  assert.deepEqual(ids(placePanels(sn)), { tool: ['snimci-alati', 'poruka'], main: ['teren'],
     side: ['snimci', 'korak', 'koraci', 'dnevnik', 'stanje'], bottom: ['vreme', 'grafici'] });
-  assert.deepEqual(cardsOpen(sn, 'snimci', {}), { snimci: true, korak: false, koraci: true, dnevnik: false, stanje: false, grafici: true });
+  assert.deepEqual(cardsOpen(sn, 'snimci', {}), { snimci: true, korak: false, koraci: true, dnevnik: false, stanje: false, grafici: false });
+  assert.equal(cardsOpen(sn, 'snimci', {}, { ...sim, refLabel: 'ref' }).grafici, true);
   const vz = panelsFor('voznja', [], sim);
   assert.deepEqual(cardsOpen(vz, 'voznja', {}), { esp: true, korak: true, koraci: true, sto: false, dnevnik: false, stanje: false, grafici: false });
   const vr = panelsFor('voznja', ['lidar', 'push', 'run', 'stop'], { drive: 'robot', session: { kind: 'robot' } });
@@ -152,4 +159,19 @@ test('4.5: Snimci — red komandi i kartica liste (pravi paneli)', async () => {
     const l = panelsFor(ws, [], sim).map(p => p.id);
     assert.ok(!l.includes('snimci') && !l.includes('snimci-alati'), ws);
   }
+});
+
+// Zadatak 4.6: stari red (stari-alati) obrisan; poruka na desnom kraju reda komandi u SVAKOM prostoru (i Test dela);
+// Taktika/Strana u Snimcima u snimci-alati (ranije u starom redu).
+test('4.6: poruka u svakom prostoru, bez starog reda; Taktika/Strana u redu komandi svakog prostora', async () => {
+  await import('../../web/panels/index.js');
+  const { panelsFor, allPanels } = await import('../../web/core/panels.js');
+  const { sharedHomes } = await import('../../web/core/toolitems.js');
+  assert.ok(!allPanels().some(p => p.id === 'stari-alati'));
+  const sim = { drive: 'sim', session: null, caps: null };
+  const tools = { taktike: ['taktike-alati', 'poruka'], test: ['poruka'], voznja: ['voznja-alati', 'poruka'], snimci: ['snimci-alati', 'poruka'] };
+  for (const [ws, want] of Object.entries(tools)) assert.deepEqual(ids(placePanels(panelsFor(ws, [], sim))).tool, want, ws);
+  assert.deepEqual(sharedHomes(panelsFor('snimci', [], sim)), { taktika: 'snimci-alati', strana: 'snimci-alati' });
+  assert.deepEqual(sharedHomes(panelsFor('voznja', [], sim)), { taktika: 'voznja-alati', strana: 'voznja-alati' });
+  assert.deepEqual(sharedHomes(panelsFor('test', [], sim)), {});
 });

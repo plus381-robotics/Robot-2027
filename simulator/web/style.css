@@ -24,14 +24,8 @@ button:disabled { opacity: .45; cursor: default; }
 button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
 button.on { border-color: var(--accent); color: var(--accent); }
 
-#bar { display: flex; flex-direction: column; gap: 5px; padding: 6px 12px; background: var(--panel);
-  border-bottom: 1px solid var(--line); }
-#bar .bar-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 28px; }
-#bar .msg { margin-left: auto; }
-#bar label { display: flex; align-items: center; gap: 5px; color: var(--dim); }
-.brand { font-weight: 700; letter-spacing: .5px; }
 .sep { flex: 1; }
-.msg { color: var(--dim); max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg.err { color: var(--fail); }
 
 #viewwrap { position: relative; flex: 1; min-width: 0; min-height: 0; }
@@ -79,9 +73,6 @@ button.on { border-color: var(--accent); color: var(--accent); }
 #time { margin-left: 8px; }
 #scrub { position: relative; margin: 6px 0 2px; }
 #slider { width: 100%; margin: 0; }
-#marks { position: absolute; left: 0; right: 0; top: -2px; height: 6px; pointer-events: none; }
-#marks i { position: absolute; width: 2px; height: 6px; background: var(--ok); }
-#marks i.fail { background: var(--fail); }
 #charts { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; height: 150px; }
 #charts > div { min-width: 0; }
 .uplot { font-family: inherit; }
@@ -135,8 +126,6 @@ button.danger { background: #b3261e; border-color: #e5484d; color: #fff; font-we
 #edProblems .error { color: var(--fail); } #edProblems .warning { color: var(--warn); } #edProblems .info { color: #8fb4d9; }
 #apiFilter { width: 100%; margin: 4px 0; background: var(--bg); color: var(--text); border: 1px solid var(--line);
   border-radius: 4px; padding: 3px 6px; }
-#apiList .fn { margin: 6px 0 10px; }
-#apiList .fn b { font-family: ui-monospace, Consolas, monospace; color: #9cd0ff; font-weight: 600; }
 #apiList pre, .cm-api-info pre { margin: 3px 0 0; white-space: pre-wrap; font: 12px/1.35 system-ui, sans-serif; color: var(--text); }
 .cm-api-info { max-width: 520px; padding: 6px 8px; }
 .cm-api-info b { font-family: ui-monospace, Consolas, monospace; color: #9cd0ff; }
@@ -167,8 +156,12 @@ button.danger { background: #b3261e; border-color: #e5484d; color: #fff; font-we
 #edFileMenu, .ed-bar #edFileMenu { flex: none; width: 76px; }
 #viewtools { flex-wrap: wrap; max-width: calc(100% - 16px); }
 #viewMenu { position: absolute; top: 100%; left: 0; margin-top: 4px; background: #1a1f26f2; border: 1px solid var(--line);
-  border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; z-index: 20; white-space: nowrap; }
+  border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 10px; z-index: 20; white-space: nowrap; }
 #viewMenu[hidden] { display: none; }
+/* Prikaz ▾ (Zadatak 4.6): grupe „Šta crtam“ i „Kako izgleda“. */
+.vm-g { display: flex; flex-direction: column; gap: 6px; }
+.vm-g + .vm-g { border-top: 1px solid var(--line); padding-top: 8px; }
+.vm-h { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--accent); }
 /* Kartica Komande u editoru (Zadatak 4.3; ranije fioka #apiDrawer preko stola): pola visine editora, lista skroluje. */
 #edCommands:not([hidden]) { flex: 0 0 50%; height: auto; display: flex; flex-direction: column; padding: 4px 8px 0; }
 #edCommands #apiFilter { flex: none; }
@@ -261,12 +254,12 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 #strip, #rail, .rl-help, .st-notice, .ws-empty { font-size: 16px; line-height: 1.35; }
 
 /* Traka: jedan red, nikad se ne prelama. Korak i Detekcija dobijaju samo ostatak širine i skraćuju se sa „…“;
-   Veza i podnaslov izvora se skraćuju posle njih; Meč, Poza i STOP se ne skupljaju, STOP je uvek desno. */
+   Veza, Poza i podnaslov izvora se skraćuju posle njih; Meč, ⚠ i STOP se ne skupljaju, STOP je uvek desno. */
 #strip { display: flex; flex-wrap: nowrap; align-items: center; gap: 18px; height: var(--strip-h); padding: 0 12px 0 16px;
   background: var(--panel); border-top: 5px solid var(--srcc); border-bottom: 1px solid var(--line); white-space: nowrap;
   overflow: hidden; min-width: 0; }
 #strip > * { min-width: 0; }
-#strip .st-src { flex: 0 1 auto; display: inline-flex; align-items: baseline; min-width: 150px; max-width: 300px; font-size: 24px; font-weight: 800;
+#strip .st-src { flex: 0 1 auto; display: inline-flex; align-items: baseline; min-width: 150px; max-width: 300px; font-size: 26px; font-weight: 800;
   letter-spacing: .04em; padding: 6px 14px; border-radius: 8px; background: var(--srcc); color: #fff; cursor: default; overflow: hidden; }
 .st-src b { flex: none; }
 .st-src small { font-size: 14px; font-weight: 600; opacity: .9; margin-left: 6px; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis;
@@ -278,9 +271,11 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 #strip .mono { font-family: ui-monospace, "JetBrains Mono", Consolas, monospace; font-size: 18px; font-variant-numeric: tabular-nums; }
 #strip .st-link { flex: 0 1 auto; min-width: 120px; }
 .st-link .v { display: block; }
-.st-match .v { font-size: 26px !important; font-weight: 800; }
+.st-match .v { font-size: 24px !important; font-weight: 800; }        /* drugo po veličini, posle Izvora (26 px) */
 .st-match.run .v { color: #fff; } .st-match.armed .v { color: var(--warn); } .st-match.end .v { color: var(--text); }
-.st-match.idle .v { color: var(--dim); font-size: 22px !important; }
+.st-match.idle .v { color: var(--dim); font-size: 20px !important; }
+#strip .st-pose { flex: 0 1 auto; min-width: 70px; }         /* poza se skraćuje („…“, cela u title), STOP se nikad ne seče */
+#strip .st-pose .v { display: block; }
 #strip .st-shrink { flex: 1 1 0; min-width: 90px; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; background: var(--ok); }
 .dot.warn { background: var(--warn); } .dot.bad { background: var(--fail); } .dot.idle { background: var(--dim); }
@@ -292,6 +287,9 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 #strip button.st-stop { flex: none; margin-left: auto; height: 54px; min-width: 150px; background: var(--stop); border: 0; color: #fff;
   font-size: 22px; font-weight: 800; letter-spacing: .04em; border-radius: 8px; box-shadow: 0 0 0 3px #ff3b3033; padding: 0 18px; }
 #strip button.st-stop:hover { background: #ff5147; }
+/* Kad ni posle skraćivanja (Korak, Detekcija, Veza, Poza, izvor) nema mesta (prozor uži od 1366 px), STOP ostaje uz
+   desnu ivicu trake, preko polja levo od njega: nikad se ne seče. */
+#strip button.st-stop { position: sticky; right: 0; z-index: 1; }
 #strip button.st-err:not([hidden]) + .st-stop { margin-left: 0; }      /* ⚠ i STOP zajedno desno */
 #strip button.st-stop.idle { background: #5a2a2a; color: #e9c9c9; box-shadow: none; }
 .st-notice { position: fixed; top: calc(var(--strip-h) + 8px); right: 12px; z-index: 70; max-width: 520px; background: #14243a;
@@ -310,6 +308,9 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 #rail .rl-grow { flex: 1; min-height: 8px; }
 #rail button.rl-mini { min-height: 62px; font-size: 12px; font-weight: 500; padding: 8px 4px; }
 #rail button.rl-mini svg { width: 22px; height: 22px; }
+#rail button { position: relative; }
+#rail .rl-badge { position: absolute; top: 4px; right: 6px; margin: 0; max-width: 84px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }                                  /* značka Repo: ↓ novo, ! profil, ● izmenjeno */
 #rail .rl-drive { display: flex; flex-direction: column; margin: 0 10px 6px; border: 1px solid var(--line); border-radius: 6px;
   overflow: hidden; flex: none; }
 #rail .rl-drive button { min-height: 40px; font-size: 13px; font-weight: 700; padding: 0; border-left: 0; color: var(--text);
@@ -335,6 +336,7 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 
 /* ---------- regioni radnog prostora (shell/layout.js, Zadatak 4.1) ---------- */
 #ws-tool, #ws-bottom { flex: none; min-width: 0; }
+#ws-tool { min-height: 43px; }                         /* ista visina i kad je u redu samo poruka (Test dela) */
 #ws-body { flex: 1; display: flex; min-height: 0; min-width: 0; }
 #ws-main { flex: 1; display: flex; min-width: 0; min-height: 0; }
 #ws-side { flex: none; width: 360px; display: flex; flex-direction: column; gap: 8px; padding: 8px; overflow-y: auto;
@@ -378,11 +380,9 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 #logTools label { display: flex; gap: 4px; align-items: center; }
 #card-koraci .ws-card-badge { background: var(--line); color: var(--text); }
 #card-dnevnik .ws-card-badge { background: var(--fail); color: #fff; }
-/* Red komandi (Zadatak 4.3): paneli regiona "tool" u jednom redu; taktike-alati levo, prelazni stari red desno. */
+/* Red komandi (Zadatak 4.3): paneli regiona "tool" u jednom redu; alati prostora levo, poruka desno (4.6). */
 #ws-tool { display: flex; align-items: stretch; background: var(--panel); border-bottom: 1px solid var(--line); }
 #ws-tool > .ws-panel { flex: none; display: flex; }
-#ws-tool > #ws-stari-alati { flex: 1 1 0; }
-#ws-stari-alati > #bar { flex: 1; min-width: 0; border-bottom: 0; }
 #ws-tool > .ws-panel + .ws-panel { border-left: 1px solid var(--line); }
 .tool-row { align-items: center; gap: 10px; padding: 6px 12px; flex-wrap: wrap; }
 .tool-row [hidden], .tool-item [hidden] { display: none !important; }
@@ -397,12 +397,14 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 .seg-side button.on[data-v=zuta] { background: var(--yellow); color: #1a1a1a; }
 .seg-side button.on[data-v=plava] { background: var(--blue); color: #fff; }
 #edClose { font-size: 16px; line-height: 1; padding: 3px 9px; }
-/* Red komandi Vožnja (Zadatak 4.4): sme da se skupi i prelomi u dva reda pre nego što istisne stari red. */
+/* Red komandi Vožnja (Zadatak 4.4): sme da se skupi i prelomi u dva reda pre nego što istisne poruku. */
 #ws-tool > #ws-voznja-alati { flex: 0 1 auto; min-width: 0; }
 #ws-voznja-alati.tool-row { gap: 8px; padding: 6px 10px; }
 #ws-voznja-alati #tactic { max-width: 140px; }
-#ws-stari-alati #msg { flex: 1 1 0; min-width: 40px; }           /* poruka u istom redu (skraćena, cela u title) */
-#ws-stari-alati #bar .bar-row { gap: 8px; }
+/* Poruka (Zadatak 4.6): ostatak reda komandi, desno; jedan red, skraćena („…“), cela u title; greška crveno. */
+#ws-tool > #ws-poruka { flex: 1 1 0; min-width: 120px; justify-content: flex-end; flex-wrap: nowrap; gap: 8px; border-left: 0; }
+#ws-poruka #msg { flex: 0 1 auto; min-width: 0; }
+.boot-msg { display: flex; background: var(--panel); border-bottom: 1px solid var(--line); }   /* greška pri pokretanju */
 .ed-note { color: var(--warn); max-width: 240px; line-height: 1.2; }
 /* Kartice ESP i Postavka stola (Zadatak 4.4): ranije plutale nad stolom. */
 #ws-esp, #ws-sto { padding: 0 10px 8px; }
@@ -416,9 +418,10 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 .sto-ed[hidden] { display: none; }
 
 /* Snimci (Zadatak 4.5): red komandi (Sačuvaj snimak…, 📌 Referenca, Uporedi sa…, referenca + ✕) i kartica sa listom. */
-#msgAct { flex: none; padding: 2px 10px; }
+#msgAct { flex: none; padding: 2px 10px; }               /* dugme uz poruku, npr. „Otvori u Snimcima“ */
 #msgAct[hidden] { display: none; }
-#ws-snimci-alati #cmpRun { max-width: 220px; }
+#ws-snimci-alati #cmpRun { max-width: 180px; }
+#ws-snimci-alati #tactic { max-width: 140px; }
 #ws-snimci-alati #cmpName { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #ws-snimci-alati #cmpName:not(:empty) { color: var(--text); }
 #ws-snimci { padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; min-height: 0; }

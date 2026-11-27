@@ -1,7 +1,7 @@
 // Registar panela (okvir varijante A): panel se prijavi jednom, okvir ga prikaže u radnim prostorima koje navodi.
 //   registerPanel({id, title, workspaces: ['taktike', ...], region: 'main'|'side'|'bottom'|'tool', priority,
 //                  needs: [cap|dataKey], open, mount(el, ctx), update(state)})
-//     open: true/false ili lista prostora u kojima je kartica podrazumevano otvorena (core/regions.js);
+//     open: true/false, lista prostora u kojima je kartica podrazumevano otvorena, ili (ws, state) -> bool (core/regions.js);
 //     dodatno (shell/layout.js): collapsible (donji panel kao kartica), grow (kartica popunjava bočnu kolonu),
 //     shrink (deli kolonu kao grow, ali se skuplja do naslova; sadržaj skroluje sam), shown(el, ctx) posle prikaza,
 //     shared: ['taktika', ...] zajedničke stavke reda komandi koje panel prima (core/toolitems.js),

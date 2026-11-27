@@ -1,5 +1,6 @@
 // UI test za okvir varijante A (Playwright, Node, 1366×768): bočna traka, statusna traka, STOP, Esc = STOP svuda,
-// stanje veze robota.   python simulator/sim.py serve --no-browser &   pa:   node simulator/tests/ui_shell.js [url]
+// stanje veze robota; od 4.6 bez starog reda: poruka u svakom prostoru, Repo/Profil samo u bočnoj traci, Alt+1..4,
+// „?“ prečice, Prikaz ▾ u dve grupe.   python simulator/sim.py serve --no-browser &   pa:   node simulator/tests/ui_shell.js [url]
 const { chromium } = require('playwright');
 (async () => {
   const url = process.argv[2] || 'http://localhost:8270/';
@@ -32,15 +33,35 @@ const { chromium } = require('playwright');
     if ((await p.$eval('#strip', e => e.getBoundingClientRect().height)) !== 72) fail.push('traka nije visoka 72 px');
     await p.click('#rail [data-ws=test]');
     if (!/Test dela dolazi u Fazi 5/.test(await p.textContent('#content'))) fail.push('Test dela: nema poruke');
-    if (await p.isVisible('#bar')) fail.push('Test dela: stari UI se vidi');
+    if (await p.$('#bar, #ws-stari-alati, #repoBtn, #profBtn, .brand')) fail.push('stari red (#bar, Repo/Profile dugmad) još postoji');
+    if (!(await p.$('#ws-tool:not([hidden]) #ws-poruka #msg'))) fail.push('Test dela: nema poruke u redu komandi');
     await p.click('#rail [data-act=profile]').catch(() => {});               // Profil se vidi i u Test dela (Zadatak 4.1)
     if (!(await p.isVisible('#profDialog'))) fail.push('Test dela: Profil se ne vidi');
     await p.click('#profClose').catch(() => {});
+    // Repo: stavka bočne trake samo u timskom repou (4.6); dijalog se otvara iz svakog prostora
+    const repoMode = await p.evaluate(() => fetch('/api/info').then(r => r.json()).then(i => (i.where || {}).mode === 'repo'));
+    if (await p.isVisible('#rail [data-act=repo]') !== repoMode) fail.push('stavka Repo: vidljiva = ' + !repoMode + ', a repo = ' + repoMode);
+    if (repoMode) {
+      await p.click('#rail [data-act=repo]');
+      if (!(await p.isVisible('#repoDialog'))) fail.push('Test dela: Repo se ne vidi');
+      await p.click('#repoClose');
+    }
+    // Alt+1..4 = prostori, „?“ = prečice (Esc ih zatvara)
+    for (const [k, ws] of [['4', 'snimci'], ['3', 'voznja'], ['1', 'taktike'], ['2', 'test']]) {
+      await p.keyboard.press('Alt+' + k);
+      if (await p.evaluate(() => window.eurosim.store.get().ws) !== ws) fail.push('Alt+' + k + ' nije ' + ws);
+      if (!(await p.$(`#rail [data-ws=${ws}].on`))) fail.push('bočna traka ne prati Alt+' + k);
+    }
+    await p.keyboard.press('Shift+Slash');
+    if (!(await p.isVisible('#railHelp'))) fail.push('„?“ ne otvara prečice');
+    if (!/Alt\+1/.test(await p.textContent('#railHelp'))) fail.push('prečice: nema Alt+1..4');
+    await p.keyboard.press('Escape');
+    if (await p.isVisible('#railHelp')) fail.push('Esc ne zatvara prečice');
 
     // --- regioni (Zadatak 4.1): teren u glavnom delu, vreme + grafici dole, grafici sklopivi i zapamćeni ---
     await p.click('#rail [data-ws=taktike]');
     await p.waitForSelector('#ws-editor:not(.ed-closed)', { timeout: 10000 }).catch(() => fail.push('Taktike: editor se nije otvorio'));
-    for (const id of ['#ws-teren #viewwrap', '#ws-editor #editorPane', '#ws-vreme #timeline', '#ws-grafici #charts', '#ws-stari-alati #bar',
+    for (const id of ['#ws-teren #viewwrap', '#ws-editor #editorPane', '#ws-vreme #timeline', '#ws-grafici #charts', '#ws-tool #ws-poruka #msg',
       '#ws-side #card-koraci #steps', '#ws-side #card-dnevnik #log', '#ws-side #card-dnevnik #showProto', '#ws-side #card-dnevnik #logErrOnly'])
       if (!(await p.$(id))) fail.push('region: nema ' + id);
     if (await p.$('#side-panel, #card-stari-paneli')) fail.push('stari-paneli još postoji');
@@ -49,6 +70,11 @@ const { chromium } = require('playwright');
       '#ws-taktike-alati #run', '#ws-editor #edCommands #apiList', '#ws-editor #edClose'])
       if (!(await p.$(id))) fail.push('Taktike alati: nema ' + id);
     if (await p.$('#edBtn, #rowSim, #apiDrawer, #edCmdBtn')) fail.push('stari ✎ Editor / Simulate red / fioka Commands još postoje');
+    // Prikaz ▾ (4.6): dve grupe, „Šta crtam“ i „Kako izgleda“
+    await p.click('#viewMenuBtn');
+    const groups = await p.$$eval('#viewMenu .vm-g', l => l.map(g => [g.querySelector('.vm-h').textContent, g.querySelectorAll('label').length]));
+    if (JSON.stringify(groups) !== JSON.stringify([['Šta crtam', 7], ['Kako izgleda', 3]])) fail.push('Prikaz ▾ grupe: ' + JSON.stringify(groups));
+    await p.click('#viewMenuBtn');
     await p.click('#edClose');                                       // × zatvara editor, sto dobija celu širinu
     await p.waitForSelector('#ws-editor.ed-closed');
     if (!(await p.isVisible('#edOpen'))) fail.push('„✎ Editor“ se ne vidi kad je editor zatvoren');

@@ -8,21 +8,23 @@
 // (sklopljeno/otvoreno) se pamti po prostoru u localStorage `eurosim.cards` (core/regions.js).
 // Zajedničke stavke reda komandi (Taktika, Strana; core/toolitems.js): koren i mount jednom, a pri promeni prostora
 // čvor se premešta u panel tog prostora koji ga navodi u `shared` (na njegovo mesto data-slot, inače na kraj korena).
-// Paneli sa `when(state, ws)` (npr. ESP, Postavka stola) se ponovo raspoređuju kad se promene session, caps ili drive.
+// Paneli sa `when(state, ws)` (npr. ESP, Postavka stola) se ponovo raspoređuju kad se promene session, caps ili drive;
+// kartice sa `open(ws, state)` (Grafici u Snimcima dok postoji referenca) i kad se promeni refLabel.
 // Stavke bočne trake:
 //   Taktike -> otvoren editor (sesija, ako radi, nastavlja da radi, traka i njen STOP takođe);
 //   Vožnja -> SIM ili ROBOT (izbor ispod stavke, store.drive): red komandi Vožnja (panels/voznja-alati.js) i kartice
 //             idu za njim;  Snimci -> lista sačuvanih snimaka (osveži je: legacy.openRuns);  Test dela -> „Test dela dolazi u Fazi 5“.
 // Dok sesija radi, prelaz SIM <-> ROBOT se odbija porukom „Sesija radi: prvo je završi“; traka i njen STOP (i Esc)
-// rade u svakom prostoru.
+// rade u svakom prostoru. Tastatura (core/keys.js): Alt+1..4 = prostori (redom kao u bočnoj traci), „?“ = prečice.
 //   mountShell({store, command, legacy}) -> {go, setDrive, setBadge, openCard}
 //   openCard(id): otvori karticu u tekućem prostoru (zapamti kao klik), npr. Dnevnik za ⚠ na traci
-//   legacy = {notice(text, err), openEditor(), openRuns(), loadRun(name), openSources(drive, running), openRepo(), openProfile(),
-//             showErrors(), resizeView()}
+//   legacy = {notice(text, err), openEditor(), openRuns(), loadRun(name), clearRef(), openSources(drive, running),
+//             openRepo(), openProfile() (dijalog; ponovni klik ga zatvara), showErrors(), resizeView()}
 
 import { panelsFor, allPanels, WORKSPACES, loadWorkspace, saveWorkspace } from '../core/panels.js';
 import { placePanels, isCard, cardsOpen, setCard, loadCards, saveCards, REGION_ORDER } from '../core/regions.js';
 import { allToolItems, sharedHomes, sharedMoves } from '../core/toolitems.js';
+import { wsForKey, isHelpKey, isTyping } from '../core/keys.js';
 import { mountStrip } from './strip.js';
 import { mountRail } from './rail.js';
 
@@ -44,6 +46,18 @@ export function installEscStop(target, isRunning, stop) {
   };
   target.addEventListener('keydown', onKey, { capture: true });
   return () => target.removeEventListener('keydown', onKey, { capture: true });
+}
+
+// Alt+1..4 = radni prostor, odakle god (i iz editora i polja); preventDefault da pregledač ne prebaci svoju karticu
+// (gde to dozvoljava). „?“ = spisak prečica, ali ne dok se kuca u polje ili editor.
+export function installKeys(target, { go, help }) {
+  const onKey = e => {
+    const ws = wsForKey(e);
+    if (ws) { e.preventDefault(); go(ws); return; }
+    if (help && isHelpKey(e) && !isTyping(e.target)) { e.preventDefault(); help(); }
+  };
+  target.addEventListener('keydown', onKey);
+  return () => target.removeEventListener('keydown', onKey);
 }
 
 function el(tag, id, cls) {
@@ -137,7 +151,7 @@ export function mountShell({ store, command, legacy }) {
   function applyPanels(ws) {
     curWs = ws;
     const list = panelsFor(ws, caps(), store.get());
-    const place = placePanels(list), open = cardsOpen(list, ws, cards);
+    const place = placePanels(list), open = cardsOpen(list, ws, cards, store.get());
     const shown = new Set(list.map(p => p.id));
     for (const id in roots) roots[id].box.classList.toggle('ws-off', !shown.has(id));
     for (const name of REGION_ORDER) {
@@ -198,12 +212,13 @@ export function mountShell({ store, command, legacy }) {
 
   store.subscribe((st, prev) => {
     if (st.drive !== prev.drive) saveDrive(st.drive);
-    if (curWs && (st.caps !== prev.caps || st.drive !== prev.drive || st.session !== prev.session))
-      applyPanels(curWs);                       // `needs`: siv ili ne; `when`: ESP, Postavka stola (SIM / ROBOT, sesija)
+    if (curWs && (st.caps !== prev.caps || st.drive !== prev.drive || st.session !== prev.session || st.refLabel !== prev.refLabel))
+      applyPanels(curWs);                       // `needs`: siv ili ne; `when`: ESP, Postavka stola; open(ws, state): Grafici
   });
   mountStrip($('strip'), ctx);
-  mountRail($('rail'), ctx);
+  const rail = mountRail($('rail'), ctx);
   installEscStop(window, () => !!store.get().session, () => command(['stop']));
+  installKeys(window, { go, help: rail.toggleHelp });
 
   // Početak: prostor iz localStorage; primenjuje se samo kartica (editor i meni se ne otvaraju sami).
   const ws = loadWorkspace(), drive = loadDrive();

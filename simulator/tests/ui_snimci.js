@@ -102,7 +102,7 @@ const { chromium } = require('playwright');
   await p.click('#sessStart');
   await p.waitForFunction(() => !!window.eurosim.store.get().caps, null, { timeout: 15000 });
   await p.click('#endBtn');
-  await p.waitForSelector('#msgAct:not([hidden])', { timeout: 15000 });
+  await p.waitForSelector('#ws-poruka #msgAct:not([hidden])', { timeout: 15000 });   // poruka: desni kraj reda komandi (4.6)
   check((await p.textContent('#msgAct')) === 'Otvori u Snimcima', 'dugme uz poruku');
   await p.click('#msgAct');
   check(await p.evaluate(() => window.eurosim.store.get().ws) === 'snimci', 'Otvori u Snimcima vodi u Snimci');

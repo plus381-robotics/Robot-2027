@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import { createRegistry } from '../../web/core/panels.js';
 import { createToolItems, sharedHomes, sharedMoves } from '../../web/core/toolitems.js';
 
-// Registar kao posle Zadatka 4.3 (+ voznja-alati iz 4.4, da se vidi deljenje između prostora).
+// Registar kao posle Zadatka 4.6 (voznja-alati se dodaje u testu, da se vidi deljenje između prostora).
 function registry() {
   const r = createRegistry();
-  r.registerPanel({ id: 'stari-alati', workspaces: ['taktike', 'voznja', 'snimci'], region: 'tool', priority: 90,
-    shared: ['taktika', 'strana'] });
+  r.registerPanel({ id: 'poruka', workspaces: ['taktike', 'test', 'voznja', 'snimci'], region: 'tool', priority: 95 });
   r.registerPanel({ id: 'taktike-alati', workspaces: ['taktike'], region: 'tool', priority: 10, shared: ['taktika', 'strana'] });
+  r.registerPanel({ id: 'snimci-alati', workspaces: ['snimci'], region: 'tool', priority: 10, shared: ['taktika', 'strana'] });
   r.registerPanel({ id: 'teren', workspaces: ['taktike', 'voznja', 'snimci'], region: 'main', priority: 20 });
   return r;
 }
@@ -17,11 +17,11 @@ function registry() {
 test('sharedHomes: u prostoru stavka ide u najvažniji panel koji je navodi', () => {
   const r = registry();
   assert.deepEqual(sharedHomes(r.panelsFor('taktike')), { taktika: 'taktike-alati', strana: 'taktike-alati' });
-  assert.deepEqual(sharedHomes(r.panelsFor('voznja')), { taktika: 'stari-alati', strana: 'stari-alati' });
+  assert.deepEqual(sharedHomes(r.panelsFor('voznja')), {});                     // još bez voznja-alati
   assert.deepEqual(sharedHomes(r.panelsFor('test')), {});
   r.registerPanel({ id: 'voznja-alati', workspaces: ['voznja'], region: 'tool', priority: 10, shared: ['strana', 'taktika'] });
   assert.deepEqual(sharedHomes(r.panelsFor('voznja')), { strana: 'voznja-alati', taktika: 'voznja-alati' });
-  assert.deepEqual(sharedHomes(r.panelsFor('snimci')), { taktika: 'stari-alati', strana: 'stari-alati' });
+  assert.deepEqual(sharedHomes(r.panelsFor('snimci')), { taktika: 'snimci-alati', strana: 'snimci-alati' });
 });
 
 test('sharedHomes: panel bez shared i prazna lista', () => {
@@ -43,7 +43,7 @@ test('sharedMoves: seli samo ono što menja dom; bez doma u prostoru stavka osta
   for (const m of toV) where[m.id] = m.to;
   assert.deepEqual(sharedMoves(where, sharedHomes(r.panelsFor('test'))), []);            // Test dela: ostaju u Vožnji
   const toS = sharedMoves(where, sharedHomes(r.panelsFor('snimci')));
-  assert.deepEqual(toS.map(m => m.to), ['stari-alati', 'stari-alati']);
+  assert.deepEqual(toS.map(m => m.to), ['snimci-alati', 'snimci-alati']);
 });
 
 test('registerToolItem: provere', () => {

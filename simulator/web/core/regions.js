@@ -1,8 +1,9 @@
 // Raspored regiona (varijanta A) bez DOM-a, da ga uveze i `node --test`. DOM radi shell/layout.js.
 //   placePanels(list)              list = panelsFor(ws) -> {tool, main, side, bottom}: paneli po regionu, po prioritetu
 //   isCard(p)                      bočni paneli su uvek kartice; donji samo sa `collapsible: true` (npr. grafici)
-//   defaultOpen(p, ws)             p.open: true/false ili lista prostora u kojima je kartica podrazumevano otvorena
-//   cardsOpen(list, ws, saved)     {id: otvorena?} za kartice tog prostora: zapamćeno stanje, inače podrazumevano;
+//   defaultOpen(p, ws, state)      p.open: true/false, lista prostora u kojima je kartica podrazumevano otvorena, ili
+//                                  funkcija (ws, state) -> bool (npr. Grafici u Snimcima samo dok postoji referenca)
+//   cardsOpen(list, ws, saved, state)  {id: otvorena?} za kartice tog prostora: zapamćeno stanje, inače podrazumevano;
 //                                  bočnih otvorenih podrazumevano najviše MAX_OPEN (zapamćeno korisnikovo se poštuje)
 //   setCard(saved, ws, id, open)   novo stanje (staro se ne menja)
 //   loadCards() / saveCards(saved) localStorage `eurosim.cards` = {ws: {id: bool}}, svaki pristup u try/catch
@@ -22,17 +23,18 @@ export function placePanels(list) {
 
 export const isCard = p => p.region === 'side' || (p.region === 'bottom' && !!p.collapsible);
 
-export function defaultOpen(p, ws) {
+export function defaultOpen(p, ws, state = {}) {
+  if (typeof p.open === 'function') return !!p.open(ws, state || {});
   return Array.isArray(p.open) ? p.open.includes(ws) : !!p.open;
 }
 
-export function cardsOpen(list, ws, saved = {}) {
+export function cardsOpen(list, ws, saved = {}, state = {}) {
   const mine = (saved && saved[ws]) || {};
   const cards = list.filter(isCard), res = {};
   let n = cards.filter(p => p.region === 'side' && mine[p.id] === true).length;
   for (const p of cards) {
     if (typeof mine[p.id] === 'boolean') { res[p.id] = mine[p.id]; continue; }
-    let o = defaultOpen(p, ws);
+    let o = defaultOpen(p, ws, state);
     if (o && p.region === 'side') { if (n >= MAX_OPEN) o = false; else n++; }
     res[p.id] = o;
   }

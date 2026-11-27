@@ -12,14 +12,15 @@ istoriju. Aplikacija se zato pokreće **iz kloniranog repoa**:
 2. Pokretanje bez instaliranja Python-a: dvoklik na **`start.bat`** (Windows) ili `./start.sh` (Linux/Mac) u
    korenu repoa. Prvi put [uv](https://docs.astral.sh/uv/) skine Python i biblioteke (~1 min, pita pre
    skidanja uv-a); posle radi i bez interneta. Uvek je to verzija iz repoa: posle pull-a samo ponovo pokreni.
-3. U aplikaciji **⎇ Repo**: šta je novo na GitHub-u (i da li je promenjen profil robota), **Pull latest**,
-   i **Save to GitHub** (commit + push samo taktika i profila, sa porukom šta je promenjeno). Treba Git
+3. U aplikaciji stavka **Repo** u bočnoj traci (levo dole; značka ↓ novo / ! profil / ● izmenjeno): šta je novo na
+   GitHub-u (i da li je promenjen profil robota), **Preuzmi najnovije**, i **Sačuvaj na GitHub** (commit + push
+   samo taktika i profila, sa porukom šta je promenjeno). Treba Git
    (GitHub Desktop ili Git for Windows) i nalog sa pristupom repou.
 
 Ako se aplikacija pokrene **van repoa**, na vrhu stoji crvena traka: taktike i profil se NE čuvaju u timski
-repo. Dugmad: **Clone repo…** (klonira u izabrani folder), **Open repo
-folder…** (postojeći klon; putanja se pamti u `~/.eurosim.json`, pa sledeći put radi bez pitanja) ili
-**Continue without repo** (žuta traka: čuva se samo na tom računaru u `~/Eurosim/`).
+repo (i stavke Repo u bočnoj traci nema). Dugmad: **Kloniraj repo…** (klonira u izabrani folder), **Otvori folder
+repoa…** (postojeći klon; putanja se pamti u `~/.eurosim.json`, pa sledeći put radi bez pitanja) ili
+**Nastavi bez repoa** (žuta traka: čuva se samo na tom računaru u `~/Eurosim/`).
 
 Predlog pravila: taktike svako u svom fajlu; profil robota menja mehanika (najbolje preko PR-a); `ESP32/lib`
 i `protocol/` samo preko PR-a.
@@ -31,17 +32,24 @@ Exe i GitHub Release se više ne prave: iz repoa je uvek najnovija verzija.
     pip install -r simulator/requirements.txt      # jednom (aiohttp)
     python simulator/sim.py serve                  # otvara http://localhost:8270
 
-- Gore: taktika, strana, režim (meč ili test), **Simulate** (Ctrl+Enter). Simulacija ide do kraja (meč od
+- Levo bočna traka: prostori **Taktike**, **Test dela**, **Vožnja** (SIM / ROBOT), **Snimci** (Alt+1 … 4), a dole
+  Izvori, Repo, Profil i **Pomoć** (spisak prečica, i taster „?“). Gore statusna traka sa ■ STOP (i Esc).
+- Ispod nje red komandi prostora; na njegovom desnom kraju je **poruka** (šta se upravo desilo; greška crveno, cela u
+  oblačiću), u svakom prostoru, ponekad sa dugmetom (npr. „Otvori u Snimcima“ posle kraja sesije).
+- Taktike: taktika, strana, režim (meč ili test), **▶ Pokreni** (Ctrl+Enter). Simulacija ide do kraja (meč od
   100 s za par sekundi), pa se snimak pušta.
-- Sto u 3D ili odozgo (**Top**): robot, pređena putanja (bela), odometrija (narandžasto; robot-duh kad se
+- Sto u 3D ili **Odozgo**: robot, pređena putanja (bela), odometrija (narandžasto; robot-duh kad se
   razlikuje od stvarne poze), početak svakog koraka (broj, boja po ishodu), ciljevi GOTO komandi,
   protivnik. Miš: okretanje / pomeranje / zum; pozicija miša u koordinatama terena i taktike;
-  **dupli klik kopira koordinate** za taktiku.
+  **dupli klik kopira koordinate** za taktiku, **Alt+klik** ubacuje `goto(x, y)` u editor (Taktike).
+  **Prikaz ▾**: „Šta crtam“ (odometrija, tačke i nazivi koraka, IR zraci, lidar, nacrt iz editora, legenda) i
+  „Kako izgleda“ (crtež stola po pravilima, veličina oznaka, Kamera prati robota).
 - Desno: stanje u trenutku (poza, odometrija i greška, v/ω i reference, točkovi, faza regulacije na
   STM32, IR, aktuatori, vreme meča), trenutni korak sa trakom do timeout-a, lista koraka i dnevnik
   (i poruke ESP<->STM32). Klik na korak ili red dnevnika skače na taj trenutak.
 - Dole: pusti/pauza (razmak), brzina ×0.25..×25, frame napred/nazad (←/→), korak napred/nazad
-  (Shift+←/→), klizač sa oznakama koraka, grafici brzine, okretanja i točkova (klik = skok).
+  (Shift+←/→), klizač sa oznakama koraka, grafici brzine, okretanja, točkova i ugla (klik = skok; kartica Grafici je
+  sklopljena, u Snimcima se sama otvori dok porediš sa referencom; tvoj izbor se pamti po prostoru).
 - Prostor **Snimci**: **Sačuvaj snimak…** čuva snimak u `simulator/runs/` (ide u git); lista sačuvanih snimaka
   (izvor S / R / H, taktika, strana, ime, datum, ishod; filter po izvoru i tekstu) ga učitava klikom.
 
@@ -83,7 +91,7 @@ nesačuvan tekst, sesija koristi taj tekst (napomena „koristi se tekst iz edit
   - **Lidar**: Meni → Lidar test radi sa lažnim RPLIDAR-om (`ESP32/sim/fakelidar.py`, isti bajtovi kao pravi)
     koji vidi ivice stola, kamenolome i protivnike sa stola (profil `[lidar]`: položaj, visina ravni).
     Dok lidar radi, poslednji krug (ono što je ESP izmerio) se crta na stolu kao plave tačke na visini
-    lidara, najbliža tačka žutim prstenom (prekidač „tačke lidara“ u Prikaz ▾); snima se i u snimak (događaj
+    lidara, najbliža tačka žutim prstenom (prekidač „lidar“ u Prikaz ▾ → Šta crtam); snima se i u snimak (događaj
     `lidar`, ~10 puta u sekundi), pa se vidi i pri puštanju. Tačke pored prepreka = pogrešan `LIDAR_MOUNT_DEG`.
 - **Naoruži** (izabrana taktika i strana), **Povuci činč** (meč kreće, 100 s), **Test** (taktika odmah, bez meča).
 - **■ STOP** je na statusnoj traci gore desno (i taster Esc), iz svakog prostora.
@@ -131,15 +139,15 @@ dobija 📌), pa pokreni ili učitaj drugi (simulacija, Live ili robot); ✕ ukl
 putanja i robot-duh (ljubičasto) se crtaju preko, poravnato po početku taktike. Npr. simulacija
 kao referenca, pa ista taktika na robotu.
 
-### Profil robota (⚙ Robot profile)
+### Profil robota (stavka Profil u bočnoj traci)
 
 Sve vrednosti iz `profiles/*.toml` (dimenzije, pogon, odometrija, regulacija, IR, aktuatori) sa komentarima;
-**(P)** = pretpostavka. Save upisuje u fajl (komentari ostaju) i sledeća simulacija ga koristi.
+**(P)** = pretpostavka. **Sačuvaj i koristi** upisuje u fajl (komentari ostaju) i sledeća simulacija ga koristi.
 
 ### Sto i elementi igre 2027
 
 Izgled stola je slika iz pravila 2027 (dodatak G.1, slika 8; `web/table2027.jpg`, x nadesno, y nagore);
-"rules table" prebacuje na običnu mrežu. Taktike se pišu za **žutu** stranu (`tac.REF_SIDE`, startna zona
+„crtež stola po pravilima“ (Prikaz ▾ → Kako izgleda) prebacuje na običnu mrežu. Taktike se pišu za **žutu** stranu (`tac.REF_SIDE`, startna zona
 x 0..500), na plavoj se ogledaju.
 
 **Elementi igre** (`eurosim/field.py`, položaji izmereni sa slike 8, 1 px = 1 mm): 10 kamenoloma po 3 kamena

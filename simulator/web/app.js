@@ -1,5 +1,7 @@
-// Eurosim UI: run a tactic in the simulator, then play back the recording (speed, pause,
-// frame / step stepping, scrubbing). All data comes from one recording (server: /api/run).
+// Eurosim UI: ponašanje iza panela okvira varijante A (shell/layout.js, web/panels/): simulacija taktike i puštanje
+// snimka (vreme, koraci, dnevnik, stanje, grafici), editor, sesija uživo / sa robotom, protivnici i kamenolomi,
+// poređenje i lista snimaka. Paneli premeštaju DOM delove (id-jevi ostaju), app.js ih vezuje po id-ju i piše u store
+// ono što traka i paneli prikazuju. Odvojeno: repo (repo.js), profil (profil.js), Komande (komande.js), server (core/api.js).
 import { FieldView } from './view3d.js';
 import { Charts } from './charts.js';
 import { EspPanel } from './esp.js';
@@ -11,6 +13,10 @@ import { mountShell } from './shell/layout.js';
 import './panels/index.js';                    // paneli okvira (prijava pri uvozu)
 import { snapshotAt } from './shell/strip.js';
 import { logLines, errorCount } from './core/log.js';
+import { api } from './core/api.js';
+import { mountRepo } from './repo.js';
+import { mountProfile } from './profil.js';
+import { renderCommands } from './komande.js';
 
 const $ = id => document.getElementById(id);
 // Most ka novom okviru (statusna traka, bočna traka): stari kod piše ovde ono što traka treba. Polja: shell/strip.js.
@@ -19,24 +25,25 @@ const $ = id => document.getElementById(id);
 // (GET /api/runs?detail=1, null dok ne stigne), runName = sačuvan snimak koji se gleda, refName = sačuvan snimak koji je
 // referenca (null: nesačuvan, npr. simulacija ili sesija), refLabel = ime reference za prikaz (i nesačuvane; null = nema).
 // Referenca (?ref=1) se učitava bez menjanja serverovog „poslednjeg“ snimka: Sačuvaj snimak čuva ono što se gleda.
+// repo: null kad aplikacija nije u timskom repou (stavka Repo se ne vidi), inače značka za stavku Repo (web/repo.js).
 const store = createStore({ ws: 'taktike', drive: 'sim', session: null, caps: null, paused: false, speed: null, telemetry: null,
   linkAge: null, linkState: null, connAge: null, snap: null, notice: null, edUnsaved: false, running: null,
-  runs: null, runName: null, refName: null, refLabel: null });
-const SIDE_NAME = { plava: 'Blue', zuta: 'Yellow' };
+  runs: null, runName: null, refName: null, refLabel: null, repo: null });
+const SIDE_NAME = { plava: 'Blue', zuta: 'Yellow' };     // kartica rezultata (#result) i naslovi taktika u Koracima
+const STRANA = { zuta: 'Žuta', plava: 'Plava' };
 const REASON = { BLOCKED: 'blocked', TIMEOUT: 'timeout', PREEMPTED: 'preempted', MATCH_OVER: 'match over',
   STOPPED: 'stopped', INVALID: 'rejected', NOREPLY: 'no reply', SUPERSEDED: 'superseded', STOP: 'STOP' };
 let REF_SIDE = 'zuta';                // strana za koju se pišu taktike (ESP32/lib/tac.py), stiže sa servera
 
 let info, view, charts, esp, run = null;
 let shell = null;                     // mountShell(...): setBadge, openCard (bočne kartice)
+let repo = null, profile = null;      // web/repo.js, web/profil.js: dijalozi iz bočne trake (toggle)
 let opponents = [], oppSel = -1;
 let ref = null;                       // reference run for comparing (pinned or loaded)
 let ed = null;                        // {editor, api, name, sha, saved} when the editor is open
 let edOpening = null;                 // Promise dok se editor otvara (bočna traka Taktike ne sme da ga otvori dvaput)
 let live = null;                       // {s (core/session.js), kind, raw: {meta, frames, events}, follow, dirty, lidarSrc}
 const play = { t: 0, playing: false, speed: 1, last: 0 };
-
-// ---------------- recording -> run ----------------
 
 // ---------------- formatting ----------------
 
@@ -63,8 +70,6 @@ function stateCells(c, i) {
     ['zaglavljen', c.stuck[i] == null ? '–' : c.stuck[i] ? 'DA' : 'ne', c.stuck[i] ? 'bad' : ''], ['aktuatori', act],   // IR: slika ispod (#irPanel)
   ];
 }
-
-// ---------------- panels ----------------
 
 // ---- IR senzori odozgo (plan U2): lepeza na stvarnom mestu svakog senzora, napred gore ----
 
@@ -245,7 +250,6 @@ function runFlags(r) {
 }
 
 function renderMarks() {
-  $('marks').innerHTML = '';
   const D = run.duration || 1, pct = t => (Math.max(0, Math.min(D, t)) / D * 100) + '%';
   const st = $('bandSteps'); st.innerHTML = '';
   run.steps.forEach((s, k) => {
@@ -392,19 +396,13 @@ function frameJump(dir) {
 
 // ---------------- server ----------------
 
+// Poruka (panels/poruka.js, desni kraj reda komandi u svakom prostoru); err = crveno.
 // act = {label, title, fn}: dugme uz poruku (npr. „Otvori u Snimcima“ posle kraja sesije); sledeća poruka ga sklanja.
 function msg(text, err = false, act = null) {
   const m = $('msg'); m.textContent = text; m.className = 'msg' + (err ? ' err' : ''); m.title = text;
   const b = $('msgAct');
   b.hidden = !act;
   if (act) { b.textContent = act.label; b.title = act.title || ''; b.onclick = () => { b.hidden = true; act.fn(); }; }
-}
-
-async function api(path, body) {
-  const r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
-  const d = await r.json();
-  if (!r.ok || d.error) { const e = new Error(d.error || r.statusText); e.data = d; e.status = r.status; throw e; }
-  return d;
 }
 
 // runName: ime sačuvanog snimka (Snimci ga ističu u listi); null za simulaciju, sesiju i ostalo.
@@ -440,11 +438,11 @@ async function simulate(keepTime = null) {
   localStorage.setItem('eurosim.sel', JSON.stringify(body));
   if (ed) { body.tactic = ed.name; body.source = ed.editor.text(); }
   $('run').disabled = true;
-  msg(`simulating ${body.tactic}…`);
+  msg(`simuliram ${body.tactic}…`);
   try {
     const d = await api('/api/run', body);
     if (seq !== simSeq) return;                 // u međuvremenu pokrenuta novija (npr. izmena protivnika): ova je zastarela
-    load(d, `${body.tactic}: simulated ${secs(d.result.sim_ms)} s in ${d.wall_s} s`, keepTime);
+    load(d, `${body.tactic}: simulirano ${secs(d.result.sim_ms)} s za ${d.wall_s} s`, keepTime);
     if (ed && d.diagnostics) edDiagnostics(d.diagnostics);
   } catch (e) {
     if (seq !== simSeq) return;
@@ -736,8 +734,8 @@ async function edLoad(name) {
   try {
     const dr = JSON.parse(localStorage.getItem('eurosim.draft.' + name) || 'null');
     if (dr && dr.text !== source) {
-      if (dr.sha === sha) { text = dr.text; msg(`${name}: restored your unsaved changes`); }
-      else { localStorage.removeItem('eurosim.draft.' + name); msg(`${name}: file changed on disk, an old unsaved draft was dropped`, true); }
+      if (dr.sha === sha) { text = dr.text; msg(`${name}: vraćene su tvoje nesačuvane izmene`); }
+      else { localStorage.removeItem('eurosim.draft.' + name); msg(`${name}: fajl je promenjen na disku, stari nesačuvan nacrt je odbačen`, true); }
     }
   } catch (e) { /* ignore */ }
   ed.editor.setText(text);
@@ -758,12 +756,12 @@ async function edSave(force = false) {
     info = await api('/api/info');
     fillTacticSelects();
     edState();
-    msg(info.where && info.where.mode !== 'repo' ? `saved ONLY on this computer: ${info.where.tactics}/${ed.name}.py`
-      : `saved ESP32/tactics/${ed.name}.py`);
-    repoRefresh();
+    msg(info.where && info.where.mode !== 'repo' ? `sačuvano SAMO na ovom računaru: ${info.where.tactics}/${ed.name}.py`
+      : `sačuvano ESP32/tactics/${ed.name}.py`);
+    repo.refresh();
   } catch (e) {
     if (e.status === 409 && !force &&
-        confirm(`ESP32/tactics/${ed.name}.py was changed on disk after you opened it.\n\nOverwrite it with your version?`)) {
+        confirm(`ESP32/tactics/${ed.name}.py je promenjen na disku pošto si ga otvorio.\n\nDa ga zamenim tvojom verzijom?`)) {
       ed.sha = e.data.sha;
       return edSave(true);
     }
@@ -774,18 +772,18 @@ async function edSave(force = false) {
 const NAME_OK = n => /^[A-Za-z_][A-Za-z0-9_]{0,40}$/.test(n);
 
 function askName(title, def) {
-  const name = (prompt(title + '\n(letters, digits and _, not starting with a digit)', def) || '').trim();
+  const name = (prompt(title + '\n(slova, cifre i _, ne počinje cifrom)', def) || '').trim();
   if (!name) return null;
-  if (!NAME_OK(name)) { msg('name: letters, digits and _ only, not starting with a digit', true); return null; }
+  if (!NAME_OK(name)) { msg('ime: samo slova, cifre i _, ne počinje cifrom', true); return null; }
   return name;
 }
 
 async function edSaveAs() {
-  const name = askName(`Save "${ed.name}" as:`, ed.name + '_2');
+  const name = askName(`Sačuvaj „${ed.name}“ kao:`, ed.name + '_2');
   if (!name || name === ed.name) return;
   let sha = null;
   if (info.tactics.includes(name)) {
-    if (!confirm(`ESP32/tactics/${name}.py already exists.\n\nOverwrite it with this text?`)) return;
+    if (!confirm(`ESP32/tactics/${name}.py već postoji.\n\nDa ga zamenim ovim tekstom?`)) return;
     try { sha = (await api('/api/tactic/' + encodeURIComponent(name))).sha; } catch (e) { msg(e.message, true); return; }
   }
   const old = ed.name, oldSha = ed.sha, oldSaved = ed.saved;
@@ -797,97 +795,44 @@ async function edSaveAs() {
 }
 
 async function edRename() {
-  if (!ed.sha) { msg('save the tactic first', true); return; }
-  if (ed.editor.text() !== ed.saved) { msg('save your changes before renaming', true); return; }
-  const name = askName(`Rename "${ed.name}" to:`, ed.name);
+  if (!ed.sha) { msg('prvo sačuvaj taktiku', true); return; }
+  if (ed.editor.text() !== ed.saved) { msg('sačuvaj izmene pre preimenovanja', true); return; }
+  const name = askName(`Preimenuj „${ed.name}“ u:`, ed.name);
   if (!name || name === ed.name) return;
   try {
     await api('/api/tactic/rename', { name: ed.name, new: name });
     info = await api('/api/info');
     ed.name = name; $('tactic').value = name;
     fillTacticSelects(); edState();
-    msg(`renamed to ESP32/tactics/${name}.py`);
+    msg(`preimenovano u ESP32/tactics/${name}.py`);
   } catch (e) { msg(e.message, true); }
 }
 
 async function edDelete() {
-  if (!confirm(`Delete ESP32/tactics/${ed.name}.py?\n\nIn the repo you can get it back with git; outside the repo it is gone.`)) return;
+  if (!confirm(`Obrisati ESP32/tactics/${ed.name}.py?\n\nU repou se vraća preko git-a; van repoa ga više nema.`)) return;
   try {
     await api('/api/tactic/delete', { name: ed.name });
     try { localStorage.removeItem('eurosim.draft.' + ed.name); } catch (e) { /* ignore */ }
     info = await api('/api/info');
-    msg(`deleted ${ed.name}`);
+    msg(`obrisano: ${ed.name}`);
     await edLoad(info.tactics.includes('primer') ? 'primer' : info.tactics[0]);
   } catch (e) { msg(e.message, true); }
 }
 
 function edNew() {
-  const name = askName('Name of the new tactic:', 'nova');
+  const name = askName('Ime nove taktike:', 'nova');
   if (!name) return;
-  if (info.tactics.includes(name)) { msg(`${name} already exists`, true); return; }
+  if (info.tactics.includes(name)) { msg(`${name} već postoji`, true); return; }
   ed.name = name; ed.sha = null; ed.saved = '';
   ed.editor.setText(ed.api.template);
   fillTacticSelects();
   edChanged(ed.editor.text());
 }
 
-// ---- panel Commands: Gambit Micro običnim jezikom (plan S4); opisi iz eurosim/apidoc.py, potpisi iz tac.py ----
-
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-
-function tableSvg(ex) {                            // mala slika stola sa osama i tačkom iz primera
-  const m = /\((\d+),\s*(\d+)/.exec(ex || '');
-  const W = 240, H = 160, sx = W / 3000, sy = H / 2000;
-  const pt = m ? [+m[1], +m[2]] : null;
-  return `<svg class="tbl" viewBox="-52 -8 ${W + 62} ${H + 30}" width="${W + 62}" height="${H + 30}">
-    <rect x="0" y="0" width="${W}" height="${H}" fill="#24302b" stroke="#6b7785"/>
-    <rect x="0" y="${H - 1250 * sy}" width="${500 * sx}" height="${500 * sy}" fill="#f7b50055"/>
-    <rect x="${W - 500 * sx}" y="${H - 1250 * sy}" width="${500 * sx}" height="${500 * sy}" fill="#2f7fc155"/>
-    <text x="-4" y="${H + 12}" fill="#c8d0da" font-size="10" text-anchor="end">0,0</text>
-    <text x="${W}" y="${H + 12}" fill="#ff9b9b" font-size="10" text-anchor="end">x 3000 →</text>
-    <text x="-4" y="6" fill="#9bee9b" font-size="10" text-anchor="end">y 2000</text>
-    ${pt ? `<line x1="0" y1="${H - pt[1] * sy}" x2="${pt[0] * sx}" y2="${H - pt[1] * sy}" stroke="#ffd166" stroke-dasharray="3 2"/>
-    <line x1="${pt[0] * sx}" y1="${H}" x2="${pt[0] * sx}" y2="${H - pt[1] * sy}" stroke="#ffd166" stroke-dasharray="3 2"/>
-    <circle cx="${pt[0] * sx}" cy="${H - pt[1] * sy}" r="4" fill="#ffd166"/>
-    <text x="${pt[0] * sx + 6}" y="${H - pt[1] * sy - 5}" fill="#ffd166" font-size="10">x=${pt[0]}, y=${pt[1]}</text>` : ''}
-    <text x="${250 * sx}" y="${H - 1000 * sy + 3}" fill="#f7b500" font-size="9" text-anchor="middle">start</text>
-  </svg>`;
-}
-
+// Kartica Komande: Gambit Micro običnim jezikom (web/komande.js); „Ubaci u kod“ stavlja primer u kod.
 function renderApiHelp() {
   if (!ed) return;
-  const f = $('apiFilter').value.toLowerCase().trim();
-  const groups = {};
-  for (const [name, fn] of Object.entries(ed.api.funcs)) {
-    const h = fn.help || { group: 'Other', say: fn.doc, params: [], ret: '', example: '' };
-    if (f && !(name + ' ' + h.say + ' ' + fn.doc).toLowerCase().includes(f)) continue;
-    (groups[h.group] = groups[h.group] || []).push([name, fn, h]);
-  }
-  const order = ['Motion', 'Actuators', 'Waiting', 'Sensors', 'Match time', 'Where is the robot', 'Other'];
-  const title = { Motion: 'Kretanje', Actuators: 'Aktuatori', Waiting: 'Čekanje', Sensors: 'Senzori', 'Match time': 'Vreme meča',
-    'Where is the robot': 'Gde je robot', Other: 'Ostalo' };
-  const parts = [`<p class="coords">${esc(ed.api.coords || '')}</p>`];
-  for (const g of order.concat(Object.keys(groups).filter(k => !order.includes(k)))) {
-    if (!groups[g]) continue;
-    parts.push(`<h4>${esc(title[g] || g)}</h4>`);
-    for (const [name, fn, h] of groups[g]) {
-      const params = (h.params || []).map(([p, t]) => {
-        const d = (fn.params.find(x => x[0] === p) || [])[1];
-        const note = d == null || /default|optional/i.test(t) ? '' : d === 'None' ? ' <span class="dim">(nije obavezno)</span>' : ` <span class="dim">(podrazumevano ${esc(d)})</span>`;
-        return `<tr><td><code>${esc(p)}</code>${d == null ? ' <span class="req">obavezno</span>' : ''}</td><td>${esc(t)}${note}</td></tr>`;
-      }).join('');
-      parts.push(`<details class="cmd"${f ? ' open' : ''}><summary><code>${esc(name)}</code> <span>${esc(h.say)}</span></summary>
-        <div class="sig"><code>${esc(fn.sig)}</code></div>
-        ${params ? `<table>${params}</table>` : ''}
-        ${h.ret ? `<p><b>Vraća:</b> ${esc(h.ret)}</p>` : ''}
-        ${h.xy ? tableSvg(h.example) : ''}
-        ${h.example ? `<pre>${esc(h.example)}</pre><button class="ins" data-ex="${esc(h.example.split('\n')[0].split('#')[0].trim())}">Ubaci u kod</button>` : ''}
-      </details>`);
-    }
-  }
-  parts.push(`<h4>Imena aktuatora</h4><p>${ed.api.actuators.map(a => `<code>${esc(a)}</code>`).join(' ') || '–'} <span class="dim">(ESP32/config.py ACTUATORS)</span></p>`);
-  $('apiList').innerHTML = parts.join('');
-  for (const b of $('apiList').querySelectorAll('button.ins')) b.onclick = () => { ed.editor.insertLine(b.dataset.ex); };
+  renderCommands($('apiList'), ed.api, $('apiFilter').value, line => ed.editor.insertLine(line));
 }
 
 // Kartice ispod koda: Problemi | Komande (Gambit Micro; ranije fioka „📖 Commands“ preko stola).
@@ -1152,116 +1097,6 @@ function setRef(r, name, saved = null) {       // saved: ime sačuvanog snimka (
   if (run) show();
 }
 
-// ---------------- profile (F4) ----------------
-
-async function openProfile(file) {
-  const d = file ? await api('/api/profile', { file }) : await api('/api/profile');
-  const info2 = file ? await api('/api/profile') : d;
-  $('profFile').innerHTML = (info2.files || []).map(f => `<option>${f}</option>`).join('');
-  $('profFile').value = d.file.split(/[\\/]/).pop();
-  $('profPath').textContent = d.file;
-  const body = $('profBody');
-  body.innerHTML = '';
-  for (const sec of d.sections) {
-    const h = document.createElement('h4'); h.textContent = sec.name || 'general'; body.appendChild(h);
-    for (const it of sec.items) {
-      const row = document.createElement('div'); row.className = 'pr';
-      const key = (sec.name ? sec.name + '.' : '') + it.key;
-      const isBool = typeof it.value === 'boolean';
-      row.innerHTML = `<span>${it.key}</span><input data-key="${key}" ${isBool ? 'type="checkbox"' : ''}>` +
-        `<span class="c ${/\(P\)/.test(it.comment) ? 'p' : ''}"></span>`;
-      const inp = row.querySelector('input');
-      if (isBool) inp.checked = it.value; else inp.value = it.value;
-      inp.dataset.orig = isBool ? String(it.value) : String(it.value);
-      inp.oninput = inp.onchange = () => inp.classList.toggle('changed', (isBool ? String(inp.checked) : inp.value) !== inp.dataset.orig);
-      row.querySelector('.c').textContent = it.comment;
-      row.querySelector('.c').title = it.comment;
-      body.appendChild(row);
-    }
-  }
-  $('profDialog').hidden = false;
-}
-
-async function saveProfile() {
-  const changes = {};
-  for (const inp of document.querySelectorAll('#profBody input.changed')) {
-    changes[inp.dataset.key] = inp.type === 'checkbox' ? inp.checked : (isNaN(+inp.value) ? inp.value : +inp.value);
-  }
-  try {
-    const d = await api('/api/profile', { file: $('profFile').value, changes });
-    info = await api('/api/info');
-    msg(`profile saved (${Object.keys(changes).length} change(s)): ${d.file} · press Simulate to use it`);
-    $('profDialog').hidden = true;
-  } catch (e) { msg(e.message, true); }
-}
-
-// ---------------- repo kao radni prostor (plan S10) ----------------
-
-function showRepoBanner() {
-  const w = info.where || {};
-  const b = $('repoBanner');
-  if (w.mode === 'repo') { b.hidden = true; document.title = 'Eurosim'; return; }
-  let local = false;
-  try { local = sessionStorage.getItem('eurosim.norepo') === '1'; } catch (e) { /* ignore */ }
-  b.hidden = false;
-  b.classList.toggle('local', local);
-  $('rbLocal').hidden = local;
-  $('repoBannerText').textContent = local
-    ? `⚠ No repo: tactics and profiles are saved ONLY on this computer (${w.home}). Nobody else sees them.`
-    : '⚠ Eurosim is not in the Robot-2027 repo. Tactics and the robot profile are NOT saved to the team repo and ' +
-      'nobody else will see them. Start it from the cloned repo (start.bat / start.sh), or:';
-  document.title = 'Eurosim (NO REPO)';
-}
-
-async function repoOpen() {
-  const def = (info.where.user_home || '') + (info.where.user_home && info.where.user_home.includes('\\') ? '\\' : '/') + 'Robot-2027';
-  const path = prompt('Folder of the Robot-2027 repo on this computer (where ESP32 and simulator are):', def);
-  if (!path) return;
-  try { const d = await api('/api/repo/open', { path }); await repoSwitched(d); } catch (e) { alert(e.message); }
-}
-
-async function repoClone() {
-  const parent = prompt('Clone the team repo into which folder? (a Robot-2027 folder is made inside it)\n' +
-    'Needs Git; GitHub may ask you to sign in.', info.where.user_home || '');
-  if (!parent) return;
-  msg('cloning Robot-2027 from GitHub… (this can take a minute)');
-  try { const d = await api('/api/repo/clone', { parent }); await repoSwitched(d); } catch (e) { msg(e.message, true); alert(e.message); }
-}
-
-async function repoSwitched(d) {
-  if (d.note) alert(d.note);
-  location.reload();                                // sve (taktike, profil, putanje) iz novog repoa
-}
-
-async function repoRefresh(fetch = false) {
-  if (!info.where || info.where.mode !== 'repo') { $('repoBtn').hidden = true; return null; }
-  let st;
-  try { st = await api('/api/repo/status' + (fetch ? '?fetch=1' : '')); } catch (e) { st = { error: e.message }; }
-  const badge = $('repoBadge');
-  const n = (st.changed || []).length, behind = st.behind || 0, prof = (st.profile_changed_upstream || []).length;
-  badge.hidden = !(n || behind || prof);
-  badge.textContent = [behind ? `↓${behind}` : '', prof ? '! profile' : '', n ? `●${n}` : ''].filter(Boolean).join(' ');
-  badge.title = [behind ? `${behind} new commit(s) on GitHub: Pull latest` : '', prof ? 'the robot profile was changed on GitHub' : '',
-    n ? `${n} changed file(s) not saved to GitHub` : ''].filter(Boolean).join('\n');
-  if (!$('repoDialog').hidden) renderRepo(st);
-  return st;
-}
-
-function renderRepo(st) {
-  $('repoRoot').textContent = st.root || '';
-  const b = [];
-  if (st.error) b.push(`<p class="err">${esc(st.error)}</p>`);
-  if (st.branch) b.push(`<p>branch <b>${esc(st.branch)}</b> · ${esc(st.commit || '')}</p>`);
-  if (st.behind != null) b.push(`<p>${st.behind ? `<span class="warn">${st.behind} new on GitHub</span>` : 'up to date with GitHub'}` +
-    `${st.ahead ? ` · ${st.ahead} of yours not pushed yet` : ''}</p>`);
-  else if (st.branch) b.push('<p class="dim">this branch is not on GitHub yet</p>');
-  if ((st.profile_changed_upstream || []).length) b.push(`<p class="warn">The robot profile was changed on GitHub (${st.profile_changed_upstream.map(esc).join(', ')}): Pull latest.</p>`);
-  const ch = st.changed || [];
-  b.push(ch.length ? `<p>Changed here, not on GitHub yet:</p><ul>${ch.map(c => `<li><code>${esc(c.state)}</code> ${esc(c.file)}</li>`).join('')}</ul>`
-    : '<p class="dim">No changed tactics or profiles.</p>');
-  $('repoBody').innerHTML = b.join('');
-}
-
 // ---------------- start ----------------
 
 async function main() {
@@ -1275,25 +1110,9 @@ async function main() {
   } catch (e) { /* ignore */ }
   fillRuns(info.runs);
   refreshRuns();
-  showRepoBanner();
-  $('rbOpen').onclick = repoOpen;
-  $('rbClone').onclick = repoClone;
-  $('rbLocal').onclick = () => { try { sessionStorage.setItem('eurosim.norepo', '1'); } catch (e) { /* ignore */ } showRepoBanner(); };
-  $('repoBtn').onclick = async () => {
-    const d = $('repoDialog'); d.hidden = !d.hidden;
-    if (!d.hidden) { $('repoBody').textContent = 'checking GitHub…'; renderRepo(await repoRefresh(true) || {}); }
-  };
-  $('repoClose').onclick = () => { $('repoDialog').hidden = true; };
-  $('repoFetch').onclick = async () => { $('repoBody').textContent = 'checking GitHub…'; renderRepo(await repoRefresh(true) || {}); };
-  $('repoPull').onclick = async () => {
-    try { renderRepo(await api('/api/repo/pull', {})); info = await api('/api/info'); fillTacticSelects(); msg('pulled the latest from GitHub'); repoRefresh(); }
-    catch (e) { alert(e.message); }
-  };
-  $('repoSave').onclick = async () => {
-    try { renderRepo(await api('/api/repo/save', { message: $('repoMsg').value })); $('repoMsg').value = ''; msg('saved to GitHub'); repoRefresh(); }
-    catch (e) { alert(e.message); }
-  };
-  repoRefresh();
+  const setInfo = i => { info = i; };
+  repo = mountRepo({ store, msg, getInfo: () => info, setInfo, onPulled: fillTacticSelects });   // traka, dijalog, značka
+  profile = mountProfile({ msg, setInfo });
   view = new FieldView($('view'), info);
   buildIrBox(); renderIr(0, 0xFF);
   charts = new Charts($('charts'), t => seek(t));
@@ -1301,25 +1120,25 @@ async function main() {
     if (!p) { $('cursor').textContent = ''; return; }
     const side = run ? run.meta.side : $('side').value;
     const tx = mirrorX(p[0], side, REF_SIDE);
-    $('cursor').textContent = `field ${Math.round(p[0])}, ${Math.round(p[1])}` +
-      (side !== REF_SIDE ? `   ·   in tactic (${SIDE_NAME[REF_SIDE]}) ${Math.round(tx)}, ${Math.round(p[1])}` : '') +
-      '   (double-click: copy)';
+    $('cursor').textContent = `sto ${Math.round(p[0])}, ${Math.round(p[1])}` +
+      (side !== REF_SIDE ? `   ·   u taktici (${STRANA[REF_SIDE]}) ${Math.round(tx)}, ${Math.round(p[1])}` : '') +
+      '   (dupli klik: kopiraj · Alt+klik: u editor)';
   };
   view.onPreviewClick = line => { if (ed) ed.editor.reveal(line); };
   view.onAltPick = p => {                                   // Alt+klik: tačka sa mape u editor (koordinate taktike)
-    if (!ed) { msg('open the editor to put a point into a tactic (Alt+click)'); return; }
+    if (!ed) { msg('Alt+klik ubacuje tačku u taktiku: otvori editor (Taktike, ✎ Editor)'); return; }
     if (store.get().ws !== 'taktike') { msg('Alt+klik ubacuje tačku u editor: samo u Taktikama (tamo je editor)'); return; }
     const side = $('side').value;
     const x = Math.round(mirrorX(p[0], side, REF_SIDE) / 10) * 10, y = Math.round(p[1] / 10) * 10;
     ed.editor.putPoint(x, y);
-    msg(`goto ${x}, ${y} (tactic coordinates, ${SIDE_NAME[REF_SIDE]} side)`);
+    msg(`goto ${x}, ${y} (koordinate taktike, strana ${STRANA[REF_SIDE]})`);
   };
   view.onPick = p => {
     const side = run ? run.meta.side : $('side').value;
     const x = mirrorX(p[0], side, REF_SIDE);
     const s = `${Math.round(x)}, ${Math.round(p[1])}`;
     navigator.clipboard?.writeText(s);
-    msg(`copied ${s} (tactic coordinates)`);
+    msg(`kopirano ${s} (koordinate taktike)`);
   };
 
   $('run').onclick = () => simulate();
@@ -1333,8 +1152,8 @@ async function main() {
       if (running) { msg('izvori se ne menjaju dok sesija radi (prvo Završi / Prekini vezu)', true); return; }
       if (drive === 'robot') $('robotConnect').hidden = false; else $('lidarSrc').focus();
     },
-    openRepo: () => $('repoBtn').click(),
-    openProfile: () => $('profBtn').click(),
+    openRepo: () => repo.toggle(),                                   // stavke Repo i Profil u bočnoj traci
+    openProfile: () => profile.toggle(),
     resizeView: () => { view.resize(); charts.resize(); },        // panel teren posle premeštanja
     showErrors: () => {
       if (shell) shell.openCard('dnevnik');                           // sklopljen (npr. u Taktikama): otvori ga
@@ -1398,15 +1217,11 @@ async function main() {
   $('rPush').onclick = () => { const [n, src] = robotTactic(); liveSend(['push', n, src]); msg(`šaljem ${n}…`); };
   $('rRun').onclick = () => {
     const [n, src] = robotTactic();
-    const strana = { zuta: 'Žuta', plava: 'Plava' }[$('side').value] || $('side').value;
+    const strana = STRANA[$('side').value] || $('side').value;
     if (live && live.host !== '127.0.0.1' &&
         !confirm(`Pokrenuti „${n}“ na ${live.host} sada (${strana})?\n\nROBOT ĆE SE POMERITI. Slobodan prostor, ruka na prekidaču motora.`)) return;
     liveSend(['push', n, src]); liveSend(['run', n, $('side').value]); msg(`pokrećem ${n} na robotu…`);
   };
-  $('profBtn').onclick = () => ($('profDialog').hidden ? openProfile().catch(e => msg(e.message, true)) : ($('profDialog').hidden = true));
-  $('profClose').onclick = () => { $('profDialog').hidden = true; };
-  $('profSave').onclick = saveProfile;
-  $('profFile').onchange = e => openProfile(e.target.value).catch(er => msg(er.message, true));
   $('cmpPin').onclick = () => {                 // tokom Live-a snimak i dalje raste (deli nizove): referenca je kopija
     if (!run) return;
     const saved = live ? null : store.get().runName;
@@ -1524,13 +1339,17 @@ async function main() {
   });
   requestAnimationFrame(tick);
   const w = info.where || {};
-  msg(w.mode === 'standalone' ? `standalone: tactics, profiles and runs in ${w.home}` : `repo ${w.root}: tactics in ESP32/tactics`);
-  document.querySelector('.brand').title = JSON.stringify(w, null, 1);
+  msg(w.mode === 'standalone' ? `bez repoa: taktike, profili i snimci u ${w.home}` : `repo ${w.root}: taktike u ESP32/tactics`);
+  $('msg').title = JSON.stringify(w, null, 1);     // gde su fajlovi (ranije title natpisa „Eurosim“ u starom redu)
 }
 
 window.eurosim = { get ed() { return ed; }, get run() { return run; }, get view() { return view; }, play, edMarks, store };   // za testove i konzolu
 main().catch(e => {
-  msg('cannot start: ' + e.message, true);
-  const bar = $('bar');                           // greška pre mountShell: #bar (sa porukom) je još u skrivenom #parts
-  if (bar && bar.closest('#parts')) $('content').prepend(bar);
+  msg('ne mogu da pokrenem: ' + e.message, true);
+  if ($('msg').closest('#parts')) {               // greška pre mountShell: poruka je još u skrivenom #parts
+    const row = document.createElement('div');
+    row.className = 'tool-row boot-msg';
+    row.append($('msg'));
+    $('content').prepend(row);
+  }
 });
