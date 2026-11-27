@@ -10,7 +10,8 @@
 //   Taktike -> stara kartica Simulate + otvoren editor;  Vožnja -> Live (SIM) ili Robot (ROBOT), izbor ispod stavke;
 //   Snimci -> otvara stari meni „⋯ Runs“;  Test dela -> „Test dela dolazi u Fazi 5“.
 // Dok sesija radi, prelaz SIM <-> ROBOT odbija stari setTab (sa porukom); traka i njen STOP rade u svakom prostoru.
-//   mountShell({store, command, legacy}) -> {go, setDrive, setBadge}
+//   mountShell({store, command, legacy}) -> {go, setDrive, setBadge, openCard}
+//   openCard(id): otvori karticu u tekućem prostoru (zapamti kao klik), npr. Dnevnik za ⚠ na traci
 //   legacy = {setTab(t) -> bool, openEditor(), openRuns(), openSources(drive, running), openRepo(), openProfile(), showErrors(),
 //             resizeView()}
 
@@ -48,7 +49,7 @@ function el(tag, id, cls) {
 
 export function mountShell({ store, command, legacy }) {
   const $ = id => document.getElementById(id);
-  const ctx = { store, command, go, setDrive, openSources, setBadge, legacy };
+  const ctx = { store, command, go, setDrive, openSources, setBadge, openCard, legacy };
 
   // Regioni (ispod repo trake, ako je ima).
   const content = $('content');
@@ -64,7 +65,7 @@ export function mountShell({ store, command, legacy }) {
     const root = el('div', 'ws-' + p.id, 'ws-panel');
     const r = { p, root, box: root };
     if (isCard(p)) {
-      const card = el('section', 'card-' + p.id, 'ws-card ws-card-' + p.region + (p.grow ? ' grow' : ''));
+      const card = el('section', 'card-' + p.id, 'ws-card ws-card-' + p.region + (p.grow ? ' grow' : '') + (p.shrink ? ' shrink' : ''));
       const head = el('button', null, 'ws-card-h');
       head.type = 'button';
       const title = el('span', null, 'ws-card-t');
@@ -99,6 +100,11 @@ export function mountShell({ store, command, legacy }) {
     saveCards(cards);
     setOpen(r, open);
     if (open && r.p.shown) r.p.shown(r.root, ctx);
+  }
+
+  function openCard(id) {
+    const r = roots[id];
+    if (r && r.card && r.card.classList.contains('closed') && !r.box.classList.contains('ws-off')) toggleCard(id);
   }
 
   function setBadge(id, text) {
@@ -175,5 +181,5 @@ export function mountShell({ store, command, legacy }) {
   applyPanels(ws);
   if (ws === 'taktike') legacy.setTab('sim');
   else if (ws === 'voznja') setDrive(drive);
-  return { go, setDrive, setBadge };
+  return { go, setDrive, setBadge, openCard };
 }

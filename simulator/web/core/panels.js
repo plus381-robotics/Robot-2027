@@ -3,11 +3,11 @@
 //                  needs: [cap|dataKey], open, mount(el, ctx), update(state)})
 //     open: true/false ili lista prostora u kojima je kartica podrazumevano otvorena (core/regions.js);
 //     dodatno (shell/layout.js): collapsible (donji panel kao kartica), grow (kartica popunjava bočnu kolonu),
-//     shown(el, ctx) posle svakog prikaza (npr. teren: ponovo izmeri sto)
+//     shrink (deli kolonu kao grow, ali se skuplja do naslova; sadržaj skroluje sam), shown(el, ctx) posle prikaza
 //   panelsFor(workspace, caps) -> [panel]   po regionu, pa po priority (manji broj = važniji, ide prvi);
 //                                            needs koji nije u caps -> {..., disabled: true, reason: 'potrebno: ...'}
 //   allPanels() -> [panel]                     svi prijavljeni (okvir ih montira jednom, na početku)
-//   ctx = { store, command(c), go(workspace), setDrive, openSources, setBadge(id, text), legacy }
+//   ctx = { store, command(c), go(workspace), setDrive, openSources, setBadge(id, text), openCard(id), legacy }
 // Paneli su u web/panels/ (jedan fajl po panelu, prijava pri uvozu panels/index.js).
 // Bez DOM-a na nivou modula, da ga uveze i `node --test`.
 

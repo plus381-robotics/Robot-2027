@@ -41,7 +41,12 @@ const { chromium } = require('playwright');
     await p.click('#rail [data-ws=taktike]');
     await p.waitForSelector('#ws-editor:not(.ed-closed)', { timeout: 10000 }).catch(() => fail.push('Taktike: editor se nije otvorio'));
     for (const id of ['#ws-teren #viewwrap', '#ws-editor #editorPane', '#ws-vreme #timeline', '#ws-grafici #charts', '#ws-stari-alati #bar',
-      '#ws-side #side-panel']) if (!(await p.$(id))) fail.push('region: nema ' + id);
+      '#ws-side #card-koraci #steps', '#ws-side #card-dnevnik #log', '#ws-side #card-dnevnik #showProto', '#ws-side #card-dnevnik #logErrOnly'])
+      if (!(await p.$(id))) fail.push('region: nema ' + id);
+    if (await p.$('#side-panel, #card-stari-paneli')) fail.push('stari-paneli još postoji');
+    // Taktike: Koraci otvoreni, Dnevnik sklopljen, Korak sada i Stanje i IR nisu u ovom prostoru (Zadatak 4.2)
+    const tkCards = await p.$$eval('#ws-side > .ws-card:not(.ws-off)', l => l.map(c => c.id + (c.classList.contains('closed') ? '-' : '+')));
+    if (tkCards.join() !== 'card-koraci+,card-dnevnik-') fail.push('Taktike kartice: ' + tkCards);
     if (!(await p.$eval('#card-grafici', e => e.classList.contains('closed')))) fail.push('Taktike: grafici nisu sklopljeni');
     const terenH = await p.$eval('#ws-teren', e => e.getBoundingClientRect().height);
     if (terenH < 420) fail.push('teren nizak: ' + terenH);
@@ -57,6 +62,16 @@ const { chromium } = require('playwright');
     if (!(await p.$eval('#tabLive', e => e.classList.contains('on')))) fail.push('Vožnja SIM nije otvorila Live');
     await p.click('#liveBtn');
     await p.waitForFunction(() => window.eurosim.run && window.eurosim.run.live, null, { timeout: 15000 });
+    // Vožnja: Korak sada, Koraci, Dnevnik otvoreni, Stanje i IR sklopljeno; kolona ne skroluje (Zadatak 4.2)
+    const vzCards = await p.$$eval('#ws-side > .ws-card:not(.ws-off)', l => l.map(c => c.id + (c.classList.contains('closed') ? '-' : '+')));
+    if (vzCards.join() !== 'card-korak+,card-koraci+,card-dnevnik+,card-stanje-') fail.push('Vožnja kartice: ' + vzCards);
+    await p.click('#card-stanje .ws-card-h');                      // IR: klik na senzor u Live = ir_mask
+    await p.waitForSelector('#irBox .ir-s.click');
+    await p.click('#irBox .ir-s.click');
+    await p.waitForTimeout(300);
+    if (!(await p.evaluate(() => window.__sent.some(s => /ir_mask/.test(s))))) fail.push('IR klik nije poslao ir_mask');
+    const side = await p.$eval('#ws-side', e => [e.scrollHeight, e.clientHeight]);
+    if (side[0] > side[1]) fail.push('bočna kolona skroluje: ' + side);
     await p.click('#armBtn'); await p.waitForTimeout(600);
     await p.click('#cordBtn'); await p.waitForTimeout(1500);
     if (!/MEČ/.test(await p.textContent('#stripMatch'))) fail.push('traka: meč ne odbrojava: ' + await p.textContent('#stripMatch'));

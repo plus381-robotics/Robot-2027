@@ -10,6 +10,7 @@ import { connect } from './core/session.js';
 import { mountShell } from './shell/layout.js';
 import './panels/index.js';                    // paneli okvira (prijava pri uvozu)
 import { snapshotAt } from './shell/strip.js';
+import { logLines, errorCount } from './core/log.js';
 
 const $ = id => document.getElementById(id);
 // Most ka novom okviru (statusna traka, bočna traka): stari kod piše ovde ono što traka treba. Polja: shell/strip.js.
@@ -21,6 +22,7 @@ const REASON = { BLOCKED: 'blocked', TIMEOUT: 'timeout', PREEMPTED: 'preempted',
 let REF_SIDE = 'zuta';                // strana za koju se pišu taktike (ESP32/lib/tac.py), stiže sa servera
 
 let info, view, charts, esp, run = null;
+let shell = null;                     // mountShell(...): setBadge, openCard (bočne kartice)
 let opponents = [], oppSel = -1;
 let ref = null;                       // reference run for comparing (pinned or loaded)
 let ed = null;                        // {editor, api, name, sha, saved} when the editor is open
@@ -44,15 +46,15 @@ function stateCells(c, i) {
   const rem = match == null ? '–' : Math.max(0, (100000 - match) / 1000).toFixed(1) + ' s';
   const act = c.act && c.act[i] ? Object.entries(c.act[i]).map(([k, v]) => `${k}=${v}`).join(' ') : '–';
   return [
-    ['time', secs(t) + ' s'], ['match left', rem],
-    ['flow', c.mec[i] || '–'], ['STM32', c.link[i] ? 'link ok' : 'no link', c.link[i] ? 'good' : 'bad'],
-    ['x / y', `${f0(c.x[i])} / ${f0(c.y[i])}`], ['angle', f1(c.th[i]) + '°'],
+    ['vreme', secs(t) + ' s'], ['do kraja', rem],
+    ['tok', c.mec[i] || '–'], ['STM32', c.link[i] ? 'veza ok' : 'nema veze', c.link[i] ? 'good' : 'bad'],
+    ['x / y', `${f0(c.x[i])} / ${f0(c.y[i])}`], ['ugao', f1(c.th[i]) + '°'],
     ['odom x/y', `${f0(c.ox[i])} / ${f0(c.oy[i])}`], ['odom ∠', c.oth[i] == null ? '–' : f1(c.oth[i]) + '°'],
-    ['odom err', dx == null ? '–' : f1(dx) + ' mm', dx > 10 ? 'warn' : ''], ['STM phase', c.reg[i] === '' || c.reg[i] == null ? (c.phase[i] || '–') : `${c.phase[i]} ${c.reg[i]}/${c.ms[i]}`],
-    ['v', f2(c.v[i]) + ' m/s'], ['v ref', f2(c.v_ref[i])],
-    ['ω', c.w[i] == null ? '–' : f2(c.w[i]) + ' r/s'], ['ω ref', f2(c.w_ref[i])],
-    ['wheel L', f2(c.vl[i])], ['wheel R', f2(c.vr[i])],
-    ['stuck', c.stuck[i] == null ? '–' : c.stuck[i] ? 'YES' : 'no', c.stuck[i] ? 'bad' : ''], ['actuators', act],   // IR: slika ispod (#irPanel)
+    ['greška odom', dx == null ? '–' : f1(dx) + ' mm', dx > 10 ? 'warn' : ''], ['faza STM', c.reg[i] === '' || c.reg[i] == null ? (c.phase[i] || '–') : `${c.phase[i]} ${c.reg[i]}/${c.ms[i]}`],
+    ['v', f2(c.v[i]) + ' m/s'], ['v zadato', f2(c.v_ref[i])],
+    ['ω', c.w[i] == null ? '–' : f2(c.w[i]) + ' r/s'], ['ω zadato', f2(c.w_ref[i])],
+    ['točak L', f2(c.vl[i])], ['točak D', f2(c.vr[i])],
+    ['zaglavljen', c.stuck[i] == null ? '–' : c.stuck[i] ? 'DA' : 'ne', c.stuck[i] ? 'bad' : ''], ['aktuatori', act],   // IR: slika ispod (#irPanel)
   ];
 }
 
@@ -73,7 +75,7 @@ function buildIrBox() {
   const cell = (key, side) => {
     const ks = (corner[key] || []).slice().sort((i, j) => sens[j].z - sens[i].z);   // gornji prvi
     const rows = ks.map(k => {
-      const lvl = `<span class="ir-lvl">${sens[k].z > 200 ? 'upper' : 'lower'}</span>`;
+      const lvl = `<span class="ir-lvl">${sens[k].z > 200 ? 'gornji' : 'donji'}</span>`;
       const chip = `<button type="button" class="ir-s" data-k="${k}"></button>`;
       return side === 'L' ? lvl + chip : chip + lvl;
     }).join('');
@@ -103,9 +105,9 @@ function renderIr(raw, mask) {                                 // raw == null: r
   });
   $('irBox').querySelectorAll('.ir-ct').forEach(t => { t.textContent = name(sens[+t.dataset.k]).slice(0, 2); });
   const off = sens.filter((s, k) => !(mask & (1 << k))).map(name), sees = sens.filter((s, k) => raw & (1 << k)).map(name);
-  $('irText').innerHTML = `<span class="dim">F/B front/back · L/R left/right · U upper (over the boxes) / D lower</span><br>` +
-    `sees: <b>${none ? 'nema podataka sa robota' : sees.join(' ') || '–'}</b> · off: <b>${off.join(' ') || '–'}</b>` +
-    (blue ? ' <span class="dim">(blue: names as in the tactic, L/R swapped)</span>' : '');
+  $('irText').innerHTML = `<span class="dim">F/B napred/nazad · L/R levo/desno · U gornji (iznad kutija) / D donji</span><br>` +
+    `vidi: <b>${none ? 'nema podataka sa robota' : sees.join(' ') || '–'}</b> · isključeni: <b>${off.join(' ') || '–'}</b>` +
+    (blue ? ' <span class="dim">(plava: imena kao u taktici, L/R zamenjeni)</span>' : '');
 }
 
 function renderState(i) {
@@ -116,7 +118,7 @@ function renderState(i) {
   const t = c.t[i];
   const s = [...run.steps].reverse().find(s => s.t <= t);
   const active = s && (s.end == null || s.end > t);
-  $('stepname').textContent = s ? `${s.idx}. ${s.name}` : (c.tac[i] ? 'starting…' : '—');
+  $('stepname').textContent = s ? `${s.idx}. ${s.name}` : (c.tac[i] ? 'počinje…' : '—');
   $('stepcount').textContent = c.n[i] ? `${s ? s.idx : 0}/${c.n[i]}` : (s ? `#${s.idx}` : '');
   const bar = $('stepbar');
   if (s && active && s.timeout) {
@@ -127,8 +129,8 @@ function renderState(i) {
     bar.style.width = s && !active ? '100%' : '0';
     bar.classList.remove('over');
   }
-  $('stepnext').textContent = s ? (active ? `running ${secs(t - s.t)} s${s.timeout ? ' / timeout ' + secs(s.timeout) + ' s' : ''}` :
-    `finished: ${s.ok ? 'OK' : (REASON[s.reason] || s.reason || 'fail')}`) + (s.next ? ` · next: ${s.next}` : '') : '';
+  $('stepnext').textContent = s ? (active ? `traje ${secs(t - s.t)} s${s.timeout ? ' / timeout ' + secs(s.timeout) + ' s' : ''}` :
+    `završen: ${s.ok ? 'OK' : (REASON[s.reason] || s.reason || 'fail')}`) + (s.next ? ` · sledeći: ${s.next}` : '') : '';
   const m = c.match[i];
   $('matchtime').textContent = m == null ? '' : `meč ${secs(m)} s`;
 }
@@ -154,6 +156,7 @@ function renderSteps() {
     s.row = tr;
     tb.appendChild(tr);
   }
+  if (shell) shell.setBadge('koraci', run.steps.length);
 }
 
 function updateSteps(t) {
@@ -167,11 +170,10 @@ function updateSteps(t) {
 
 let logShown = -1;
 function renderLog() {
-  const el = $('log'), proto = $('showProto').checked;
+  const el = $('log');
   el.innerHTML = '';
   run.logEls = [];
-  for (const e of run.log) {
-    if (e.proto && !proto) continue;
+  for (const e of logLines(run.log, { proto: $('showProto').checked, errorsOnly: $('logErrOnly').checked })) {
     const d = document.createElement('div');
     d.className = e.cls;
     d.innerHTML = `<span class="t">${secs(e.t)}</span>`;
@@ -181,6 +183,7 @@ function renderLog() {
     run.logEls.push([e.t, d]);
   }
   logShown = -1;
+  if (shell) shell.setBadge('dnevnik', errorCount(run.log) || '');      // bez grešaka: bez broja
 }
 
 function updateLog(t) {
@@ -1269,7 +1272,7 @@ async function main() {
   $('run').onclick = () => simulate();
   for (const b of document.querySelectorAll('.tabs button')) b.onclick = () => setTab(b.dataset.tab);
   try { const t = localStorage.getItem('eurosim.tab'); if (t) setTab(t); } catch (e) { /* ignore */ }
-  mountShell({ store, command: sessionCommand, legacy: {          // okvir: statusna traka, bočna traka, Esc = STOP
+  shell = mountShell({ store, command: sessionCommand, legacy: {          // okvir: statusna traka, bočna traka, Esc = STOP
     setTab,
     openEditor: () => {
       if (ed || edOpening) return;
@@ -1284,6 +1287,7 @@ async function main() {
     openProfile: () => $('profBtn').click(),
     resizeView: () => { view.resize(); charts.resize(); },        // panel teren posle premeštanja
     showErrors: () => {
+      if (shell) shell.openCard('dnevnik');                           // sklopljen (npr. u Taktikama): otvori ga
       const errs = $('log').querySelectorAll('div.err');
       if (errs.length) errs[errs.length - 1].scrollIntoView({ block: 'nearest' });
     },
@@ -1423,6 +1427,7 @@ async function main() {
   $('nextStep').onclick = () => stepJump(1);
   $('slider').oninput = e => run && seek(run.cols.t[+e.target.value]);
   $('showProto').onchange = () => { if (run) { renderLog(); show(); } };
+  $('logErrOnly').onchange = () => { if (run) { renderLog(); show(); } };
   const vis = () => view.setVisibility({ odom: $('showOdom').checked, targets: $('showTargets').checked });
   $('showOdom').onchange = () => { vis(); if (run) show(); };
   $('showTargets').onchange = vis;

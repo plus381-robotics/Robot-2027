@@ -180,28 +180,23 @@
     <div id="result"></div>
   </section>
 
-  <aside id="side-panel">
-    <div class="card" id="status">
-      <h3>State</h3>
-      <div class="grid mono" id="stgrid"></div>
-      <div id="irPanel" title="IR sensors: robot seen from above (front up), in each corner an upper (U, over the boxes) and a lower (D) sensor. Green = on, nothing seen · red = sees something and stops the robot · grey dashed = switched off (ir_off) · in Live: click a sensor to switch it">
-        <div id="irBox"></div><div id="irText" class="small"></div>
-      </div>
-      <div id="stepnow">
-        <div class="stepline"><span id="stepname">—</span><span id="stepcount" class="dim"></span></div>
-        <div class="bar"><div id="stepbar"></div></div>
-        <div class="dim small" id="stepnext"></div>
-      </div>
-    </div>
-    <div class="card grow" id="stepscard">
-      <h3>Steps</h3>
-      <table id="steps" class="mono"><thead><tr><th>#</th><th>step</th><th>result</th><th>time</th></tr></thead><tbody></tbody></table>
-    </div>
-    <div class="card grow">
-      <h3>Log <label class="small"><input type="checkbox" id="showProto"> ESP↔STM32 messages</label></h3>
-      <div id="log" class="mono"></div>
-    </div>
-  </aside>
+  <!-- Bočne kartice (Zadatak 4.2): Korak sada (#stepnow), Koraci (#steps), Dnevnik (#logTools + #log),
+       Stanje i IR (#stgrid + #irPanel); svaki deo premešta svoj panel iz web/panels/. -->
+  <div id="stepnow">
+    <div class="stepline"><span id="stepname">—</span><span id="stepcount" class="dim"></span></div>
+    <div class="bar"><div id="stepbar"></div></div>
+    <div class="dim small" id="stepnext"></div>
+  </div>
+  <table id="steps" class="mono"><thead><tr><th>#</th><th>korak</th><th>ishod</th><th>vreme</th></tr></thead><tbody></tbody></table>
+  <div id="logTools" class="small">
+    <label title="Prikaži i poruke između ESP32 i STM32"><input type="checkbox" id="showProto"> ESP↔STM32 poruke</label>
+    <label title="Prikaži samo redove grešaka (crveni)"><input type="checkbox" id="logErrOnly"> samo greške</label>
+  </div>
+  <div id="log" class="mono"></div>
+  <div class="grid mono" id="stgrid"></div>
+  <div id="irPanel" title="IR sensors: robot seen from above (front up), in each corner an upper (U, over the boxes) and a lower (D) sensor. Green = on, nothing seen · red = sees something and stops the robot · grey dashed = switched off (ir_off) · in Live: click a sensor to switch it">
+    <div id="irBox"></div><div id="irText" class="small"></div>
+  </div>
 
 <footer id="timeline">
   <div class="controls">

@@ -35,7 +35,7 @@ const { chromium } = require('playwright');
     await ev(t => { window.eurosim.play.playing = false; window.eurosim.play.t = t; }, tOff);
     await p.click('#nextFrame');
     const u2 = await ev(() => [document.getElementById('irText').textContent, document.querySelectorAll('#irBox .ir-s.off').length]);
-    if (!/off: BLD BLU BRD BRU/.test(u2[0]) || u2[1] !== 4) fail.push('U2: ' + JSON.stringify(u2));
+    if (!/isključeni: BLD BLU BRD BRU/.test(u2[0]) || u2[1] !== 4) fail.push('U2: ' + JSON.stringify(u2));
 
     // E3: klik na kamenolom (projekcija iz 3D prikaza), jedan kamen manje, simulacija sa izmenjenim stolom
     const xy = await ev(() => { const v = window.eurosim.view, g = v.elGroup.children[0];

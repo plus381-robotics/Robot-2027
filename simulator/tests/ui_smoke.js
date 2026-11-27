@@ -16,7 +16,7 @@ const { chromium } = require('playwright');
   await p.waitForFunction(() => document.getElementById('result').style.display === 'block', null, { timeout: 30000 });
   await p.keyboard.press('End');
   await p.waitForTimeout(300);
-  const steps = await p.$$eval('#steps tbody tr', r => r.length);
+  const steps = await p.$$eval('#card-koraci:not(.closed) #steps tbody tr', r => r.length);   // kartica Koraci (Zadatak 4.2)
   const result = await p.textContent('#result');
   if (process.argv[3]) await p.screenshot({ path: process.argv[3] });
   await b.close();

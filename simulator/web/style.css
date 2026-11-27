@@ -59,16 +59,9 @@ button.on { border-color: var(--accent); color: var(--accent); }
 #result.ok { border-left-color: var(--ok); } #result.fail { border-left-color: var(--fail); }
 #result b { font-size: 14px; }
 
-#side-panel { display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--panel);
-  border-left: 1px solid var(--line); min-height: 0; overflow: hidden; }
-.card { background: var(--panel2); border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; }
-.card.grow { flex: 1; min-height: 120px; display: flex; flex-direction: column; overflow: hidden; }
-.card h3 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--dim);
-  display: flex; justify-content: space-between; align-items: center; }
 .grid { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 2px 8px; }
 .grid .k { color: var(--dim); } .grid .v { text-align: right; }
 .v.bad { color: var(--fail); } .v.good { color: var(--ok); } .v.warn { color: var(--warn); }
-#stepnow { margin-top: 8px; }
 .stepline { display: flex; justify-content: space-between; font-weight: 600; }
 .bar { height: 6px; background: var(--line); border-radius: 3px; margin: 4px 0; overflow: hidden; }
 #stepbar { height: 100%; width: 0; background: var(--accent); }
@@ -386,15 +379,22 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 .ws-card-why { text-transform: none; letter-spacing: 0; }
 .ws-card-arrow { margin-left: auto; font-size: 13px; }
 .ws-card.closed > .ws-panel { display: none; }
-/* Određena visina = ostatak kolone (osnova 0, ne sadržaj): Koraci i Dnevnik u njoj skroluju sami, kao ranije u
-   #side-panel fiksne visine; kolona zato ne skroluje i State/IR ostaju na vrhu. */
-.ws-card.grow:not(.closed) { flex: 1 1 0; min-height: 0; }
-.ws-card.grow > .ws-panel { flex: 1; display: flex; flex-direction: column; }
+/* Određena visina = ostatak kolone (osnova 0, ne sadržaj): Koraci i Dnevnik u njoj skroluju sami (i kad app.js tokom
+   puštanja zove scrollIntoView za tekući red), a kolona #ws-side ne skroluje. Najmanje 72 px (Dnevnik 96): na 1366×768
+   sa otvorenim graficima (kolona 324 px) staju sve četiri otvorene kartice bez skrolovanja kolone. */
+.ws-card.grow:not(.closed) { flex: 1 1 0; min-height: 72px; }
+#card-dnevnik:not(.closed) { min-height: 96px; }          /* + red „ESP↔STM32 poruke / samo greške“: i dalje ~3 reda */
+/* shrink (Stanje i IR): deli kolonu ravnopravno sa grow karticama (osnova 0, ne sadržaj, da ne istisne Korake i
+   Dnevnik), a kad mesta nema skupi se do naslova; sadržaj skroluje sam. */
+.ws-card.shrink:not(.closed) { flex: 1 1 0; min-height: 30px; }
+.ws-card.shrink > .ws-panel { overflow-y: auto; }
+.ws-card.grow:not(.closed) > .ws-panel { flex: 1; display: flex; flex-direction: column; }   /* ne nadjačava .closed */
 .ws-card.ws-dis > .ws-panel { opacity: .45; pointer-events: none; }
 .ws-card-bottom { border-radius: 0; border: 0; border-top: 1px solid var(--line); background: var(--panel); }
 .ws-card-bottom > .ws-card-h { padding: 3px 12px; border-radius: 0; }
-/* Prelazno: stara desna kolona u kartici „Stari paneli (prelazno)“. */
-#ws-stari-paneli > #side-panel { flex: 1; padding: 0 8px 8px; border-left: 0; background: none; }
-/* Kad nema mesta za sve, State (+ IR, korak sada) se skupi i skroluje sam; Steps i Log zadržavaju svojih min. 120 px.
-   Tako #side-panel ne prelazi svoju visinu i scrollIntoView reda u Steps/Log ne gura State van pogleda. */
-#ws-stari-paneli #status { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+/* Bočne kartice (Zadatak 4.2): Korak sada, Koraci, Dnevnik, Stanje i IR. */
+#ws-korak, #ws-koraci, #ws-dnevnik, #ws-stanje { padding: 0 10px 8px; }
+#logTools { flex: none; display: flex; gap: 14px; color: var(--dim); padding-bottom: 4px; }
+#logTools label { display: flex; gap: 4px; align-items: center; }
+#card-koraci .ws-card-badge { background: var(--line); color: var(--text); }
+#card-dnevnik .ws-card-badge { background: var(--fail); color: #fff; }
