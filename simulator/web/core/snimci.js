@@ -55,6 +55,14 @@ export function filterRuns(list, { izvor = '', text = '' } = {}) {
   return (list || []).filter(r => (!izvor || izvorOf(r) === izvor) && words.every(w => searchText(r).includes(w)));
 }
 
+// Oznaka reference na stolu (#refTag): referenca se crta preko snimka u svakom prostoru sa stolom, a ime i ✕ su u redu
+// komandi samo u Snimcima — van Snimaka oznaka na stolu kaže šta je ljubičasta putanja i daje ✕.
+//   refTagView(label, ws) -> null (nema reference, ili Snimci) | {text, title}
+export function refTagView(label, ws) {
+  if (!label || ws === 'snimci') return null;
+  return { text: `referenca: ${label}`, title: `Ljubičasta putanja i robot-duh: referenca „${label}“ (klik: Snimci, ✕: ukloni)` };
+}
+
 // Broj snimaka po izvoru (za dugmad filtera).
 export function countByIzvor(list) {
   const out = { S: 0, R: 0, H: 0 };

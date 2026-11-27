@@ -17,10 +17,11 @@ const $ = id => document.getElementById(id);
 // caps: mogućnosti sesije iz poruke hello (null bez sesije); edUnsaved: editor ima nesačuvan tekst (Live / Pošalji ga
 // koriste: napomena u redu komandi Vožnja, core/voznja.js). Snimci (panels/snimci.js): runs = lista sačuvanih snimaka
 // (GET /api/runs?detail=1, null dok ne stigne), runName = sačuvan snimak koji se gleda, refName = sačuvan snimak koji je
-// referenca (null: nesačuvan, npr. simulacija ili sesija).
+// referenca (null: nesačuvan, npr. simulacija ili sesija), refLabel = ime reference za prikaz (i nesačuvane; null = nema).
+// Referenca (?ref=1) se učitava bez menjanja serverovog „poslednjeg“ snimka: Sačuvaj snimak čuva ono što se gleda.
 const store = createStore({ ws: 'taktike', drive: 'sim', session: null, caps: null, paused: false, speed: null, telemetry: null,
   linkAge: null, linkState: null, connAge: null, snap: null, notice: null, edUnsaved: false, running: null,
-  runs: null, runName: null, refName: null });
+  runs: null, runName: null, refName: null, refLabel: null });
 const SIDE_NAME = { plava: 'Blue', zuta: 'Yellow' };
 const REASON = { BLOCKED: 'blocked', TIMEOUT: 'timeout', PREEMPTED: 'preempted', MATCH_OVER: 'match over',
   STOPPED: 'stopped', INVALID: 'rejected', NOREPLY: 'no reply', SUPERSEDED: 'superseded', STOP: 'STOP' };
@@ -1147,7 +1148,7 @@ function setRef(r, name, saved = null) {       // saved: ime sačuvanog snimka (
   $('cmpName').textContent = r ? `referenca: ${name}` : '';
   $('cmpName').title = r ? `Referenca (crta se preko snimka): ${name}` : '';
   $('cmpClear').hidden = !r;
-  store.set({ refName: r ? saved : null });
+  store.set({ refName: r ? saved : null, refLabel: r ? name : null });
   if (run) show();
 }
 
@@ -1327,6 +1328,7 @@ async function main() {
     openEditor,
     openRuns: () => { $('msgAct').hidden = true; refreshRuns(); },     // Snimci: lista sa diska (i posle git pull)
     loadRun,
+    clearRef: () => setRef(null),                                    // ✕ na oznaci reference na stolu (panels/teren.js)
     openSources: (drive, running) => {
       if (running) { msg('izvori se ne menjaju dok sesija radi (prvo Završi / Prekini vezu)', true); return; }
       if (drive === 'robot') $('robotConnect').hidden = false; else $('lidarSrc').focus();
@@ -1414,7 +1416,7 @@ async function main() {
   $('cmpRun').onchange = async e => {
     const n = e.target.value; e.target.value = '';
     if (!n) return;
-    try { setRef(buildRun(await api('/api/runs/' + encodeURIComponent(n))), n, n); } catch (er) { msg(er.message, true); }
+    try { setRef(buildRun(await api('/api/runs/' + encodeURIComponent(n) + '?ref=1')), n, n); } catch (er) { msg(er.message, true); }
   };
   $('endBtn').onclick = () => liveSend(['quit']);              // Završi (SIM) / Prekini vezu (ROBOT)
   $('armBtn').onclick = () => liveSend(['arm', curTactic(), $('side').value]);

@@ -15,18 +15,20 @@ const { chromium } = require('playwright');
   const check = (ok, what) => { if (!ok) fails.push(what); };
   p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => { if (m.type() === 'error' && !/ERR_BLOCKED_BY_CLIENT/.test(m.text())) errs.push(m.text()); });
+  let runsDir = null;
+  try {
   await p.goto(url);
   await p.waitForSelector('#tactic option', { state: 'attached' });
   const info = await p.evaluate(() => fetch('/api/info').then(r => r.json()));
-  const runsDir = info.where.runs;
+  runsDir = info.where.runs;
 
   // snimak v1 (bez meta.origin, robot u result) direktno u folder snimaka
   const v1name = 'ui_snimci_v1_' + Date.now();
   fs.mkdirSync(runsDir, { recursive: true });
   const v1 = { version: 1, meta: { tactic: 'primer', side: 'plava', mode: 'test' }, result: { robot: true, sim_ms: 40 },
     frames: [0, 20, 40].map(t => ({ t, x: 0.3, y: 1.0, th: 0, ox: 0.3, oy: 1.0, oth: 0 })), events: [] };
-  fs.writeFileSync(path.join(runsDir, v1name + '.json.gz'), zlib.gzipSync(JSON.stringify(v1)));
   made.push(v1name);
+  fs.writeFileSync(path.join(runsDir, v1name + '.json.gz'), zlib.gzipSync(JSON.stringify(v1)));
 
   // brza simulacija u Taktikama, pa Snimci: Sačuvaj snimak…
   await p.click('#rail [data-ws=taktike]');
@@ -39,9 +41,9 @@ const { chromium } = require('playwright');
     await p.isVisible('#ws-snimci-alati #cmpRun'), 'red komandi Snimci');
   check(!(await p.$('#moreBtn')) && !(await p.$('#cmpTools')) && !(await p.$('#runs')), 'stari meni i #cmpTools obrisani');
   const name = 'ui_snimci_' + Date.now();
+  made.push(name);                                   // pre klika: briše se i ako test padne posle čuvanja
   p.once('dialog', d => d.accept(name));
   await p.click('#save');
-  made.push(name);
   await p.waitForSelector(`#snList .sn-row.cur[data-name="${name}"]`);
   const row = await p.textContent(`#snList .sn-row[data-name="${name}"]`);
   check(/^S/.test(row) && row.includes('primer') && row.includes('OK'), 'red: izvor S, taktika, ishod OK: ' + row);
@@ -74,6 +76,23 @@ const { chromium } = require('playwright');
   check(!(await p.$('#snList .sn-row.cur')), 'nesačuvana simulacija nije istaknuta');
   await p.selectOption('#cmpRun', v1name);
   await p.waitForFunction(n => document.getElementById('cmpName').textContent.includes(n), v1name);
+  // Sačuvaj snimak posle „Uporedi sa…“ čuva simulaciju koja se gleda (Plava), ne referencu (v1)
+  const name2 = 'ui_snimci_b_' + Date.now();
+  made.push(name2);
+  p.once('dialog', d => d.accept(name2));
+  await p.click('#save');
+  await p.waitForSelector(`#snList .sn-row.cur[data-name="${name2}"]`);
+  const sv = await p.evaluate(n => fetch('/api/runs/' + n + '?ref=1').then(r => r.json()), name2);
+  check(sv.meta.side === 'plava' && sv.meta.origin.engine === 'sim', 'sačuvana je simulacija, ne referenca');
+  // oznaka reference na stolu van Snimaka (ime + ✕); u Snimcima je u redu komandi
+  check(!(await p.isVisible('#refTag')), 'u Snimcima nema oznake na stolu');
+  await p.click('#rail [data-ws=taktike]');
+  check(await p.isVisible('#refTag') && (await p.textContent('#refTagName')).includes(v1name), 'oznaka reference u Taktikama');
+  await p.click('#refTagClear');
+  check(!(await p.isVisible('#refTag')) && await p.evaluate(() => !window.eurosim.view.cmp), '✕ na stolu uklanja referencu');
+  await p.click('#rail [data-ws=snimci]');
+  await p.selectOption('#cmpRun', v1name);
+  await p.waitForFunction(n => document.getElementById('cmpName').textContent.includes(n), v1name);
   await p.click('#cmpClear');
   check(await p.evaluate(() => !window.eurosim.view.cmp) && (await p.textContent('#cmpName')) === '', '✕ uklanja referencu');
 
@@ -88,8 +107,12 @@ const { chromium } = require('playwright');
   await p.click('#msgAct');
   check(await p.evaluate(() => window.eurosim.store.get().ws) === 'snimci', 'Otvori u Snimcima vodi u Snimci');
 
-  for (const n of made) { try { fs.unlinkSync(path.join(runsDir, n + '.json.gz')); } catch (e) { /* ignore */ } }
-  await b.close();
+  } catch (e) {
+    fails.push('izuzetak: ' + e.message);
+  } finally {                                       // simulator/runs/ ide u git: test ne sme da ostavi snimke
+    if (runsDir) for (const n of made) { try { fs.unlinkSync(path.join(runsDir, n + '.json.gz')); } catch (e) { /* ignore */ } }
+    await b.close();
+  }
   const ok = errs.length === 0 && fails.length === 0;
   console.log(JSON.stringify({ ok, fails, errs }));
   process.exit(ok ? 0 : 1);

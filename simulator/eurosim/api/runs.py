@@ -5,6 +5,7 @@ import multiprocessing as mp
 import os
 import re
 import time
+import zlib
 
 from aiohttp import web
 
@@ -206,8 +207,8 @@ def _runs_detail():
             seen.add(str(f))
         except OSError:                       # fajl obrisan u međuvremenu
             continue
-    for k in [k for k in _DETAIL_CACHE if k not in seen and os.path.dirname(k) == str(d)]:
-        del _DETAIL_CACHE[k]                  # obrisani fajlovi
+    for k in [k for k in list(_DETAIL_CACHE) if k not in seen and os.path.dirname(k) == str(d)]:
+        _DETAIL_CACHE.pop(k, None)            # obrisani fajlovi (dva paralelna zahteva: niti iz executor-a)
     return sorted(out, key=lambda r: (datetime.datetime.fromisoformat(r["date"]), r["name"]), reverse=True)
 
 
@@ -234,13 +235,17 @@ async def run_save(request):
 
 
 async def run_load(request):
+    """GET /api/runs/{name}: snimak za puštanje; postaje „poslednji“ (to čuva /api/runs/save).
+    ?ref=1: samo za poređenje (referenca), „poslednji“ ostaje ono što se gleda."""
     name = _safe_name(request.match_info["name"])
     f = _runs_dir() / (name + ".json.gz")
     if not f.exists():
         return web.json_response({"error": "nema snimka %s" % name}, status=404)
     try:
         r = Recording.load(f)
-    except (OSError, ValueError, KeyError, EOFError) as e:      # oštećen fajl: poruka umesto HTML greške 500
+    except (OSError, ValueError, KeyError, EOFError, TypeError, zlib.error) as e:   # oštećen fajl: 422 umesto HTML 500
         return web.json_response({"error": "snimak %s se ne čita: %s" % (name, e)}, status=422)
-    request.app[STATE]["last"] = r.to_dict()
-    return web.json_response(pack(r.to_dict()), dumps=_dumps)
+    d = r.to_dict()
+    if request.query.get("ref") not in ("1", "true"):
+        request.app[STATE]["last"] = d
+    return web.json_response(pack(d), dumps=_dumps)

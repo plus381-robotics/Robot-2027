@@ -1,7 +1,8 @@
 // Testovi za web/core/snimci.js: izvor S / R / H, ishod, datum, filter liste u prostoru Snimci.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { izvorOf, ishodOf, fmtDate, fmtDuration, fold, filterRuns, countByIzvor, sideName } from '../../web/core/snimci.js';
+import { izvorOf, ishodOf, fmtDate, fmtDuration, fold, filterRuns, countByIzvor, sideName, refTagView }
+  from '../../web/core/snimci.js';
 
 // Redovi kao iz GET /api/runs?detail=1 (najnoviji prvi).
 const RUNS = [
@@ -69,4 +70,16 @@ test('filterRuns: po izvoru, po tekstu (sve reči, bez kvačica), oba zajedno', 
 test('countByIzvor', () => {
   assert.deepEqual(countByIzvor(RUNS), { S: 2, R: 1, H: 1 });               // nečitljiv se ne broji
   assert.deepEqual(countByIzvor([]), { S: 0, R: 0, H: 0 });
+});
+
+test('refTagView: oznaka reference na stolu van Snimaka (u Snimcima je u redu komandi)', () => {
+  assert.equal(refTagView(null, 'taktike'), null);
+  assert.equal(refTagView('', 'voznja'), null);
+  assert.equal(refTagView('pre_PID_fixa', 'snimci'), null);
+  for (const ws of ['taktike', 'voznja', 'test']) {
+    const v = refTagView('pre_PID_fixa', ws);
+    assert.equal(v.text, 'referenca: pre_PID_fixa');
+    assert.match(v.title, /pre_PID_fixa/);
+  }
+  assert.equal(refTagView('primer (mec)', 'voznja').text, 'referenca: primer (mec)');   // nesačuvana (📌 simulacija)
 });

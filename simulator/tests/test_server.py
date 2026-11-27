@@ -147,6 +147,48 @@ def test_lista_snimaka_sa_detaljima_v1_i_v2(base, monkeypatch):
     assert get(base + "/api/runs?detail=1") == []
 
 
+def test_referenca_ne_menja_sta_se_cuva(base):
+    """Uporedi sa… učitava referencu sa ?ref=1: Sačuvaj snimak i dalje čuva simulaciju koja se gleda."""
+    d = server.RUNS
+    _gz(d / "ref_x.json.gz", {"version": 2, "meta": {"tactic": "referenca", "side": "plava",
+                                                      "origin": {"engine": "robot", "parts": {}}},
+                               "result": {"ok": None}, "frames": [{"t": 0, "x": 0.3, "y": 1.0}], "events": []})
+    try:
+        st, sim = post(base + "/api/run", {"tactic": "provera", "mode": "test", "side": "zuta"})
+        assert st == 200
+        assert get(base + "/api/runs/ref_x?ref=1")["meta"]["tactic"] == "referenca"
+        st, sv = post(base + "/api/runs/save", {"name": "posle_reference"})
+        assert st == 200
+        saved = get(base + "/api/runs/posle_reference?ref=1")
+        assert saved["meta"]["tactic"] == "provera" and saved["meta"]["origin"]["engine"] == "sim"
+        # bez ?ref učitan snimak postaje „poslednji“ (staro ponašanje „Load run“)
+        get(base + "/api/runs/ref_x")
+        post(base + "/api/runs/save", {"name": "posle_ucitavanja"})
+        assert get(base + "/api/runs/posle_ucitavanja")["meta"]["tactic"] == "referenca"
+    finally:
+        for n in ("ref_x", "posle_reference", "posle_ucitavanja"):
+            (d / (n + ".json.gz")).unlink(missing_ok=True)
+
+
+def test_detalji_paralelno_bez_greske(base):
+    """Dva paralelna ?detail=1 (niti iz executor-a) dok se fajlovi brišu: keš se ne menja tokom iteracije."""
+    from concurrent.futures import ThreadPoolExecutor
+    d = server.RUNS
+    names = ["par_%d" % i for i in range(20)]
+    for n in names:
+        _gz(d / (n + ".json.gz"), {"version": 2, "meta": {"tactic": n}, "result": {}, "frames": [], "events": []})
+    try:
+        get(base + "/api/runs?detail=1")
+        for n in names[:10]:
+            (d / (n + ".json.gz")).unlink()
+        with ThreadPoolExecutor(4) as ex:
+            rows = list(ex.map(lambda _: get(base + "/api/runs?detail=1"), range(8)))
+        assert all({r["name"] for r in rs} >= set(names[10:]) for rs in rows)
+    finally:
+        for n in names:
+            (d / (n + ".json.gz")).unlink(missing_ok=True)
+
+
 def test_peek_cita_samo_pocetak(tmp_path):
     from eurosim import record
     frames = [{"t": t, "x": t * 0.001} for t in range(200000)]

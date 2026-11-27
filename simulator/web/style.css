@@ -224,6 +224,12 @@ button.danger { background: #b3261e; border-color: #e5484d; color: #fff; font-we
 #legend { position: absolute; left: 8px; bottom: 34px; display: flex; flex-wrap: wrap; gap: 4px 12px; max-width: calc(100% - 330px);
   background: #1a1f26cc; padding: 3px 8px; border-radius: 4px; font-size: 11px; color: var(--dim); pointer-events: none; }
 #legend[hidden] { display: none; }
+/* Referenca van Snimaka (Zadatak 4.5, fix 1): šta je ljubičasta putanja + ✕; u Snimcima je to u redu komandi. */
+#refTag { top: 44px; left: 8px; display: flex; gap: 6px; align-items: center; padding: 3px 4px 3px 8px; font-size: 12px; }
+#refTag[hidden] { display: none; }
+#refTag .lg-ref { display: inline-block; width: 16px; height: 2px; background: #c77dff; }
+#refTag button { padding: 1px 6px; background: transparent; border: 0; color: var(--text); }
+#refTag #refTagName { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #legend i { display: inline-block; vertical-align: middle; margin-right: 4px; }
 #legend .lg-dot { width: 9px; height: 9px; border-radius: 50%; background: #4cc9f0; box-shadow: 0 0 0 2px #3ecf8e; }
 #legend .lg-path { width: 16px; height: 4px; background: linear-gradient(90deg, #4cc9f0 50%, #f72585 50%); }
