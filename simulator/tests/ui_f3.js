@@ -14,13 +14,15 @@ const { chromium } = require('playwright');
   await p.waitForSelector('#tactic option', { state: 'attached' });
   await p.selectOption('#tactic', 'primer');
   // --- live ---
-  await p.click('#tabLive'); await p.click('#liveBtn');
+  const openSto = () => p.$eval('#card-sto', c => { if (c.classList.contains('closed')) c.querySelector('.ws-card-h').click(); });
+  await p.click('#rail [data-ws=voznja]'); await p.click('#rail [data-drive=sim]'); await p.click('#sessStart');
   await p.waitForTimeout(1200);
   const lit = await p.evaluate(() => {                        // OLED nije prazan
     const c = document.querySelector('#espPanel canvas'), d = c.getContext('2d').getImageData(0, 0, 128, 64).data;
     let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 100) n++; return n;
   });
   if (lit < 50) fail.push('OLED prazan');
+  await openSto();                                            // Postavka stola (Zadatak 4.4)
   await p.click('#addOpp');
   await p.fill('#oppX', '1000'); await p.dispatchEvent('#oppX', 'change');
   await p.click('#armBtn'); await p.waitForTimeout(600);
@@ -35,6 +37,7 @@ const { chromium } = require('playwright');
   await p.waitForSelector('#tactic option', { state: 'attached' });
   await p.selectOption('#tactic', 'primer');
   await p.click('#cam2d');
+  await openSto();
   await p.click('#addOpp');
   await p.click('#run');
   await p.waitForFunction(() => /^OK/.test(document.getElementById('result').textContent));

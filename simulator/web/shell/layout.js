@@ -8,16 +8,17 @@
 // (sklopljeno/otvoreno) se pamti po prostoru u localStorage `eurosim.cards` (core/regions.js).
 // Zajedničke stavke reda komandi (Taktika, Strana; core/toolitems.js): koren i mount jednom, a pri promeni prostora
 // čvor se premešta u panel tog prostora koji ga navodi u `shared` (na njegovo mesto data-slot, inače na kraj korena).
-// Stavke bočne trake i dalje upravljaju starim karticama (dok njihovi delovi ne pređu u panele):
-//   Taktike -> otvoren editor (+ stara kartica Simulate, ali samo dok sesija NE radi: inače bi stari setTab odbio sa
-//              „end Live first“; sesija nastavlja da radi, traka i njen STOP takođe);
-//   Vožnja -> Live (SIM) ili Robot (ROBOT), izbor ispod stavke;  Snimci -> otvara stari meni „⋯ Runs“;
-//   Test dela -> „Test dela dolazi u Fazi 5“.
-// Dok sesija radi, prelaz SIM <-> ROBOT odbija stari setTab (sa porukom); traka i njen STOP rade u svakom prostoru.
+// Paneli sa `when(state, ws)` (npr. ESP, Postavka stola) se ponovo raspoređuju kad se promene session, caps ili drive.
+// Stavke bočne trake:
+//   Taktike -> otvoren editor (sesija, ako radi, nastavlja da radi, traka i njen STOP takođe);
+//   Vožnja -> SIM ili ROBOT (izbor ispod stavke, store.drive): red komandi Vožnja (panels/voznja-alati.js) i kartice
+//             idu za njim;  Snimci -> otvara stari meni „⋯ Runs“;  Test dela -> „Test dela dolazi u Fazi 5“.
+// Dok sesija radi, prelaz SIM <-> ROBOT se odbija porukom „Sesija radi: prvo je završi“; traka i njen STOP (i Esc)
+// rade u svakom prostoru.
 //   mountShell({store, command, legacy}) -> {go, setDrive, setBadge, openCard}
 //   openCard(id): otvori karticu u tekućem prostoru (zapamti kao klik), npr. Dnevnik za ⚠ na traci
-//   legacy = {setTab(t) -> bool, openEditor(), openRuns(), openSources(drive, running), openRepo(), openProfile(), showErrors(),
-//             resizeView()}
+//   legacy = {notice(text, err), openEditor(), openRuns(), openSources(drive, running), openRepo(), openProfile(),
+//             showErrors(), resizeView()}
 
 import { panelsFor, allPanels, WORKSPACES, loadWorkspace, saveWorkspace } from '../core/panels.js';
 import { placePanels, isCard, cardsOpen, setCard, loadCards, saveCards, REGION_ORDER } from '../core/regions.js';
@@ -135,7 +136,7 @@ export function mountShell({ store, command, legacy }) {
 
   function applyPanels(ws) {
     curWs = ws;
-    const list = panelsFor(ws, caps());
+    const list = panelsFor(ws, caps(), store.get());
     const place = placePanels(list), open = cardsOpen(list, ws, cards);
     const shown = new Set(list.map(p => p.id));
     for (const id in roots) roots[id].box.classList.toggle('ws-off', !shown.has(id));
@@ -169,7 +170,11 @@ export function mountShell({ store, command, legacy }) {
 
   function setDrive(d) {
     d = d === 'robot' ? 'robot' : 'sim';
-    if (!legacy.setTab(d === 'robot' ? 'robot' : 'live')) return false;      // sesija radi: stari setTab odbija sa porukom
+    const s = store.get().session;
+    if (s && (s.kind === 'robot' ? 'robot' : 'sim') !== d) {               // izvor se ne menja dok sesija radi
+      if (legacy.notice) legacy.notice('Sesija radi: prvo je završi');
+      return false;
+    }
     store.set({ drive: d });
     return true;
   }
@@ -180,7 +185,7 @@ export function mountShell({ store, command, legacy }) {
     saveWorkspace(ws);
     applyPanels(ws);
     const st = store.get();
-    if (ws === 'taktike') { if (!st.session) legacy.setTab('sim'); legacy.openEditor(); }   // sesija radi: bez setTab
+    if (ws === 'taktike') legacy.openEditor();                            // sesija, ako radi, nastavlja da radi
     else if (ws === 'voznja') setDrive(st.session ? (st.session.kind === 'robot' ? 'robot' : 'sim') : st.drive);
     else if (ws === 'snimci') legacy.openRuns();
   }
@@ -192,8 +197,9 @@ export function mountShell({ store, command, legacy }) {
   }
 
   store.subscribe((st, prev) => {
-    if (st.drive !== prev.drive) saveDrive(st.drive);                     // i stare kartice Live/Robot
-    if (st.caps !== prev.caps && curWs) applyPanels(curWs);                 // panel sa `needs`: siv ili ne
+    if (st.drive !== prev.drive) saveDrive(st.drive);
+    if (curWs && (st.caps !== prev.caps || st.drive !== prev.drive || st.session !== prev.session))
+      applyPanels(curWs);                       // `needs`: siv ili ne; `when`: ESP, Postavka stola (SIM / ROBOT, sesija)
   });
   mountStrip($('strip'), ctx);
   mountRail($('rail'), ctx);
@@ -203,7 +209,5 @@ export function mountShell({ store, command, legacy }) {
   const ws = loadWorkspace(), drive = loadDrive();
   store.set({ ws, drive });
   applyPanels(ws);
-  if (ws === 'taktike') legacy.setTab('sim');
-  else if (ws === 'voznja') setDrive(drive);
   return { go, setDrive, setBadge, openCard };
 }

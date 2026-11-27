@@ -66,11 +66,13 @@ izboru „Taktika“ gore) pored stola; „×“ ga zatvara i sto dobija celu š
   drugi editor), pita pre nego što prepiše. **Novo** pravi taktiku iz šablona; **Fajl ▾**: sačuvaj kao, preimenuj, obriši. Nesačuvane izmene se čuvaju u
   browseru i vraćaju posle osvežavanja stranice.
 
-### Live režim (● Live)
+### Vožnja SIM: simulacija uživo
 
-Interaktivna simulacija u stvarnom vremenu (×0.25..×5, pauza): "robot je upaljen", ESP se poveže sa
-STM32 i čeka, kao na stolu.
-- **ESP panel** (dole desno): pravi ekran robota (`ui.py`/`pages.py` crtaju u simulirani SSD1306) i tasteri
+Prostor **Vožnja**, ispod njega u bočnoj traci **SIM**, pa **▶ Pokreni sesiju**: interaktivna simulacija u
+stvarnom vremenu (brzina ×0.25..×5, Pauza): "robot je upaljen", ESP se poveže sa STM32 i čeka, kao na stolu.
+Red komandi pokazuje samo ono što sesija ume (poruka `hello`, `capabilities`). Dok editor u Taktikama ima
+nesačuvan tekst, sesija koristi taj tekst (napomena „koristi se tekst iz editora (nesačuvan)“).
+- **ESP** (bočna kartica): pravi ekran robota (`ui.py`/`pages.py` crtaju u simulirani SSD1306) i tasteri
   enkoder ⟲ ● ⟳, BACK, OK, STOP. Tasteri idu kroz pravi `inputs.py` (lažni pinovi: debounce, dugi pritisak,
   kvadraturni enkoder), pa se meni, izbor taktike i strane, naoružavanje i "drži OK" ponašaju kao na
   robotu. Točkić miša na ekranu = enkoder.
@@ -80,40 +82,44 @@ STM32 i čeka, kao na stolu.
   - **Lidar**: Meni → Lidar test radi sa lažnim RPLIDAR-om (`ESP32/sim/fakelidar.py`, isti bajtovi kao pravi)
     koji vidi ivice stola, kamenolome i protivnike sa stola (profil `[lidar]`: položaj, visina ravni).
     Dok lidar radi, poslednji krug (ono što je ESP izmerio) se crta na stolu kao plave tačke na visini
-    lidara, najbliža tačka žutim prstenom (prekidač "lidar points" u Show); snima se i u snimak (događaj
+    lidara, najbliža tačka žutim prstenom (prekidač „tačke lidara“ u Prikaz ▾); snima se i u snimak (događaj
     `lidar`, ~10 puta u sekundi), pa se vidi i pri puštanju. Tačke pored prepreka = pogrešan `LIDAR_MOUNT_DEG`.
-- **Arm match** (izabrana taktika i strana), **Pull cord** (činč: meč kreće, 100 s), **Run test**, **STOP**.
-- **Follow**: prikaz prati robota; isključi ga (ili klikni na klizač/korak) da se vratiš unazad dok
+- **Naoruži** (izabrana taktika i strana), **Povuci činč** (meč kreće, 100 s), **Test** (taktika odmah, bez meča).
+- **■ STOP** je na statusnoj traci gore desno (i taster Esc), iz svakog prostora.
+- **Prati**: vreme prati sesiju; isključi ga (ili klikni na klizač/korak) da se vratiš unazad dok
   simulacija radi dalje.
-- **End**: kraj; sesija ostaje kao snimak (reprodukcija, Save run).
+- **Završi**: kraj; sesija ostaje kao snimak (reprodukcija, Save run).
+- Dok sesija radi, SIM/ROBOT se ne menja („Sesija radi: prvo je završi“).
 
 ### Hibridna simulacija: pravi lidar sa robota, ostalo simulirano
 
-U Live kartici, levo od **▶ Start Live**, bira se odakle dolaze krugovi lidara:
-- **Lidar: simulated**: lažni lidar vidi sto iz simulacije (podrazumevano).
-- **Lidar: robot (WiFi)**: pravi lidar na robotu. Simulator pošalje robotu `LIDAR ON` (host i lozinka iz
-  Robot → Connect…), prima krugove iz telemetrije i daje ih simuliranom ESP-u kroz lažni RPLIDAR, pa ih ESP kod
+U Vožnji SIM, levo od **▶ Pokreni sesiju**, bira se odakle dolaze krugovi lidara (**Lidar:**):
+- **simuliran**: lažni lidar vidi sto iz simulacije (podrazumevano).
+- **robot (WiFi)**: pravi lidar na robotu. Simulator pošalje robotu `LIDAR ON` (host i lozinka iz dijaloga
+  Poveži, Vožnja ROBOT), prima krugove iz telemetrije i daje ih simuliranom ESP-u kroz lažni RPLIDAR, pa ih ESP kod
   čita istim drajverom kao na robotu. Pogon, odometrija, IR i protivnici ostaju simulirani. Brzina je ×1 i
   nema pauze (pravi uređaj). Svaki krug se snima u `simulator/lidar/<vreme>.jsonl.gz`; na kraju `LIDAR OFF`.
-- **Lidar: <snimak>**: ponavlja snimljene krugove (u krug), bez robota; radi na svakoj brzini.
+- **<snimak>**: ponavlja snimljene krugove (u krug), bez robota; radi na svakoj brzini.
 - Iz terminala: `python simulator/sim.py run <taktika> --lidar file:<snimak>`.
 
 Tačke pokazuju okolinu **pravog** robota, nacrtanu oko **virtuelnog**: poklapaju se sa stolom samo kad pravi
 robot stoji na stolu na istom mestu. Za proveru drajvera i prepoznavanja protivnika (kutija ispred robota)
 robot može da stoji bilo gde.
 
-### Robot (🤖 Robot): pravi robot uživo
+### Vožnja ROBOT: pravi robot uživo
 
-Veza preko postojećeg ESP upload servera (TCP 8267) i telemetrije (UDP 8268), kao `tools/tactic.py` i
+Prostor **Vožnja**, u bočnoj traci **ROBOT**, pa **▶ Pokreni sesiju** otvara dijalog (host, lozinka, **Poveži**,
+**Virtuelni robot**, **Otkaži**). Veza preko postojećeg ESP upload servera (TCP 8267) i telemetrije (UDP 8268), kao `tools/tactic.py` i
 `tools/watch.py`; laptop mora biti na mreži robota. Host je `eurokik.local` ili IP sa ekrana VEZA, lozinka
 iz `ESP32/webrepl_cfg.py` (ili upiši).
-- **Push** šalje taktiku (tekst iz editora ako je otvoren, inače fajl), **Push & Run** je i pokreće odmah
-  (test, bez meča; pita pre pokretanja jer robot kreće), **■ STOP** (i taster Esc).
+- **Pošalji** šalje taktiku (tekst iz editora ako je otvoren, inače fajl), **Pošalji i pokreni** je i pokreće
+  odmah (test, bez meča; pita pre pokretanja jer robot kreće), **■ STOP** na statusnoj traci (i taster Esc).
 - Telemetrija (10 Hz) crta robota, korake (ishod iz dnevnika), dnevnik, brzinu i stanje meča, isto kao
-  simulacija; **Follow** / klizač za vraćanje. **Disconnect**: sesija ostaje kao snimak (Save run).
+  simulacija; stanje veze je na statusnoj traci (Veza); **Prati** / klizač za vraćanje. **Prekini vezu**: sesija
+  ostaje kao snimak (Save run).
 - Robot šalje odometriju (ne zna stvarnu pozu) i ne šalje ekran; koraci kraći od 100 ms mogu da promaknu.
 - **Lidar robota**: dok lidar na robotu radi, krugovi se crtaju na stolu (plave tačke) oko poze iz telemetrije.
-- **Virtual robot**: na ovom računaru pokrene virtuelnog robota (pravi ESP kod sa upload serverom i
+- **Virtuelni robot**: na ovom računaru pokrene virtuelnog robota (pravi ESP kod sa upload serverom i
   telemetrijom nad simuliranim STM32) i poveže se na njega. Isto iz terminala: `python simulator/sim.py robot`,
   pa `python tools/tactic.py primer --host 127.0.0.1 --password eurosim` i `python tools/watch.py --host 127.0.0.1`.
 
@@ -138,10 +144,11 @@ x 0..500), na plavoj se ogledaju.
 (320 x 110 x 110 mm, 330 mm visoko). IR senzori su iznad njih (340 mm), pa ih ne vide; robot koji naleti
 na kamenolom ga **gura** (sporije, `[elements] push_resist`), osim kad iza nema mesta (ivica, druga prepreka):
 tada se zaglavi (BLOCKED). Zone bedema (kule, zidovi), kapije i štale su u `field.ZONES`. Prekidač
-"game elements" (ili `--no-elements`) ih isključuje.
+„elementi igre“ u kartici Postavka stola (ili `--no-elements`) ih isključuje.
 
-**Menjanje stola:** klik na kamenolom -> panel (− / + kamen, okreni 90°, ukloni), prevlačenje mišem, **Reset
-table** = po pravilima. **Save scenario / load scenario…** čuva kamenolome i protivnike u
+**Menjanje stola** (bočna kartica **Postavka stola**, u Taktikama i u Vožnji SIM): klik na kamenolom -> uređivač
+u kartici (− / + kamen, okreni 90°, ukloni), prevlačenje mišem, **Resetuj sto** = po pravilima, „elementi igre“
+uključuje/isključuje kamenolome. **Sačuvaj scenario / učitaj scenario…** čuva kamenolome i protivnike u
 `simulator/scenarios/<ime>.json` (deli se kroz git). U snimku se vidi kako je kamenolom gurnut.
 
 **IR senzori** (`[ir]` u profilu): u svakom od 4 ugla po dva, donji D (`low_z`, 40 mm, vidi kamenolome) i gornji U
@@ -161,7 +168,7 @@ Sada: pogonska ploča iz Fusion-a (`web/models/pogon2027.glb`). Iz STEP-a:
 
 ### Protivnik
 
-**+ Opponent** dodaje protivnika (300 x 300 mm, visina 350); prevlači se mišem po stolu, a dimenzije,
+**+ Protivnik** (Postavka stola) dodaje protivnika (300 x 300 mm, visina 350); prevlači se mišem po stolu, a dimenzije,
 ugao, visina i oblik (pravougaonik ili krug) menjaju se u panelu dole levo. IR senzori ga vide (zavisno
 od visine), sudar zaustavlja robota. U brzom režimu simulacija se sama ponovi kad pustiš protivnika (ostaje
 isti trenutak); u Live režimu protivnik se pomera dok robot vozi. Protivnici se pamte u browseru.

@@ -27,16 +27,6 @@ button.on { border-color: var(--accent); color: var(--accent); }
 #bar { display: flex; flex-direction: column; gap: 5px; padding: 6px 12px; background: var(--panel);
   border-bottom: 1px solid var(--line); }
 #bar .bar-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 28px; }
-#bar .row2 { padding-top: 5px; border-top: 1px solid var(--line); }
-#bar .tabrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-#bar .tabrow[hidden] { display: none; }
-.tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-.tabs button { border: none; border-radius: 0; padding: 4px 14px; background: transparent; }
-.tabs button + button { border-left: 1px solid var(--line); }
-.tabs button.on[data-tab=sim] { background: #1f4f7a; color: #fff; }
-.tabs button.on[data-tab=live] { background: #1f6b4a; color: #fff; }
-.tabs button.on[data-tab=robot] { background: #7a2a2a; color: #fff; }
-.tabs button:disabled { opacity: .4; }
 .more-wrap { position: relative; }
 #moreMenu { position: absolute; right: 0; top: 100%; margin-top: 4px; background: #1a1f26f2; border: 1px solid var(--line);
   border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px; z-index: 60; min-width: 180px; }
@@ -102,24 +92,24 @@ button.on { border-color: var(--accent); color: var(--accent); }
 .u-legend { font-size: 11px; }
 .u-legend .u-marker { width: 10px; height: 3px; }
 
-/* ---------- F3: live, ESP panel, opponents ---------- */
-.group { display: inline-flex; gap: 6px; align-items: center; padding-left: 8px; border-left: 1px solid var(--line); }
-.group[hidden] { display: none; }
+/* ---------- F3: live, ESP, opponents ---------- */
 button.danger { background: #b3261e; border-color: #e5484d; color: #fff; font-weight: 600; }
 .overlay { position: absolute; background: #1a1f26ee; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 .overlay[hidden] { display: none; }
 .ov-title { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--dim); margin-bottom: 6px;
   display: flex; gap: 8px; align-items: center; }
 .ov-title button { margin-left: auto; padding: 0 6px; }
-#espPanel { right: 8px; bottom: 8px; width: 300px; }
 #espPanel .oled { background: #000; border-radius: 4px; padding: 6px; border: 2px solid #2a313b; }
 #espPanel canvas { width: 100%; image-rendering: pixelated; display: block; }
 #espPanel.live .oled { border-color: #4aa3ff; }
-.esp-btns { display: flex; gap: 5px; margin-top: 7px; align-items: center; }
-.esp-btns button { padding: 4px 8px; user-select: none; touch-action: none; }
+/* Kartica ESP (Zadatak 4.4): ekran levo, tasteri desno u dve kolone (enkoder ⟲ ● ⟳ | BACK OK STOP), da kartica
+   stane u bočnu kolonu na 1366×768 zajedno sa Korak sada i Koracima. */
+.esp-body { display: flex; gap: 8px; align-items: flex-start; }
+.esp-body .oled { flex: 1; min-width: 0; }
+.esp-btns { display: grid; grid-template-rows: repeat(3, auto); grid-auto-flow: column; gap: 4px; flex: none; }
+.esp-btns button { padding: 4px 8px; user-select: none; touch-action: none; min-width: 46px; }
 .esp-btns button.down { background: var(--accent); color: #fff; }
 #espPanel:not(.live) .esp-btns button { opacity: .45; cursor: default; }
-#oppEdit { left: 8px; bottom: 36px; width: 250px; }
 #oppEdit .row { display: flex; justify-content: flex-end; margin-top: 6px; }
 .ov-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-bottom: 4px; }
 .ov-grid label { display: flex; gap: 5px; align-items: center; color: var(--dim); }
@@ -158,16 +148,10 @@ button.danger { background: #b3261e; border-color: #e5484d; color: #fff; font-we
 .cm-step-fail { background: #ff5c5c22; }
 .cm-step-err { background: #ff5c5c44; }
 
-#espPanel .ov-title { cursor: pointer; }
-#espPanel.collapsed .oled, #espPanel.collapsed .esp-btns { display: none; }
-#espPanel.collapsed { width: auto; }
-#espPanel.collapsed .ov-title { margin: 0; }
 #result { cursor: pointer; }
 #result.mini > :not(b) { display: none; }
 
 /* ---------- F4/F5: robot, profile, compare ---------- */
-.pill { padding: 2px 8px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--line); font-size: 12px; }
-.pill.ok { border-color: var(--ok); color: var(--ok); } .pill.bad { border-color: var(--fail); color: var(--fail); }
 .overlay.pop { position: fixed; top: calc(var(--strip-h) + 46px); z-index: 50; box-shadow: 0 8px 30px #000a; }
 #robotConnect { left: 50%; transform: translateX(-50%); width: 430px; }
 #robotConnect input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
@@ -254,7 +238,6 @@ button.danger { background: #b3261e; border-color: #e5484d; color: #fff; font-we
 #legend .lg-ir { width: 16px; height: 2px; background: #ff4d4d; }
 #legend b { font-weight: 600; } #legend b.ok { color: #3ecf8e; } #legend b.fail { color: #ff5c5c; } #legend b.run { color: #ffb547; }
 i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
-#elEdit { right: 12px; top: 120px; min-width: 280px; }
 #elEdit .row { display: flex; gap: 6px; align-items: center; margin: 6px 0; }
 #irPanel { margin: 6px 0; }
 #irBox { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; gap: 8px 10px; align-items: center; }
@@ -413,8 +396,20 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 .seg-side button.on[data-v=zuta] { background: var(--yellow); color: #1a1a1a; }
 .seg-side button.on[data-v=plava] { background: var(--blue); color: #fff; }
 #edClose { font-size: 16px; line-height: 1; padding: 3px 9px; }
-/* Sesija radi, a korisnik je u Taktikama: stari red sa komandama Live/Robot ide u svoj red ispod (cela širina),
-   da se dugmad ne gužvaju pored reda Taktika. */
-#ws-tool:has(#rowLive:not([hidden]), #rowRobot:not([hidden])) { flex-wrap: wrap; }
-#ws-tool:has(#rowLive:not([hidden]), #rowRobot:not([hidden])) > #ws-stari-alati { flex-basis: 100%; border-left: 0;
-  border-top: 1px solid var(--line); }
+/* Red komandi Vožnja (Zadatak 4.4): sme da se skupi i prelomi u dva reda pre nego što istisne stari red. */
+#ws-tool > #ws-voznja-alati { flex: 0 1 auto; min-width: 0; }
+#ws-voznja-alati.tool-row { gap: 8px; padding: 6px 10px; }
+#ws-voznja-alati #tactic { max-width: 140px; }
+#ws-stari-alati #msg { flex: 1 1 0; min-width: 40px; }           /* poruka u istom redu (skraćena, cela u title) */
+#ws-stari-alati #bar .bar-row { gap: 8px; }
+.ed-note { color: var(--warn); max-width: 240px; line-height: 1.2; }
+/* Kartice ESP i Postavka stola (Zadatak 4.4): ranije plutale nad stolom. */
+#ws-esp, #ws-sto { padding: 0 10px 8px; }
+#espPanel .ov-title { margin: 0 0 4px; min-height: 14px; }
+#card-sto:not(.closed) { flex: 0 1 auto; min-height: 30px; }     /* sadržaj; kad nema mesta, skuplja se i skroluje */
+#ws-sto { overflow-y: auto; }
+#stoTools .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 2px 0 6px; }
+#stoTools label { display: flex; gap: 4px; align-items: center; color: var(--dim); }
+#scenLoad { max-width: 150px; }
+.sto-ed { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 4px; }
+.sto-ed[hidden] { display: none; }

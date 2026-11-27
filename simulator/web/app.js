@@ -14,8 +14,10 @@ import { logLines, errorCount } from './core/log.js';
 
 const $ = id => document.getElementById(id);
 // Most ka novom okviru (statusna traka, bočna traka): stari kod piše ovde ono što traka treba. Polja: shell/strip.js.
-const store = createStore({ ws: 'taktike', drive: 'sim', session: null, paused: false, speed: null, telemetry: null,
-  linkAge: null, linkState: null, connAge: null, snap: null, notice: null });
+// caps: mogućnosti sesije iz poruke hello (null bez sesije); edUnsaved: editor ima nesačuvan tekst (Live / Pošalji ga
+// koriste: napomena u redu komandi Vožnja, core/voznja.js).
+const store = createStore({ ws: 'taktike', drive: 'sim', session: null, caps: null, paused: false, speed: null, telemetry: null,
+  linkAge: null, linkState: null, connAge: null, snap: null, notice: null, edUnsaved: false });
 const SIDE_NAME = { plava: 'Blue', zuta: 'Yellow' };
 const REASON = { BLOCKED: 'blocked', TIMEOUT: 'timeout', PREEMPTED: 'preempted', MATCH_OVER: 'match over',
   STOPPED: 'stopped', INVALID: 'rejected', NOREPLY: 'no reply', SUPERSEDED: 'superseded', STOP: 'STOP' };
@@ -321,9 +323,15 @@ function bridgeSnap(t) {
 }
 
 function bridgeSession() {                      // sesija počela / završila: traka kreće iz početnog stanja veze
-  const L = live;
+  const L = live;                               // caps stižu porukom hello (sessionHello); do tada nijedna komanda
   store.set({ session: L ? { kind: L.kind === 'robot' ? 'robot' : 'sim', host: L.host || null, virtual: !!L.virtual,
-    lidar: L.lidarSrc || 'sim' } : null, paused: false, speed: null, telemetry: null, linkAge: null, linkState: null, connAge: null });
+    lidar: L.lidarSrc || 'sim', edText: !!L.edText } : null, caps: null,
+    paused: false, speed: null, telemetry: null, linkAge: null, linkState: null, connAge: null });
+  $('speed').hidden = !!L;                     // brzina puštanja snimka; u sesiji važi brzina iz reda komandi Vožnja
+}
+
+function sessionHello(s) {                      // hello: red komandi Vožnja i kartica ESP po mogućnostima sesije
+  s.on('hello', m => { if (live && live.s === s) store.set({ caps: [...(m.capabilities || [])].sort() }); });
 }
 
 function notice(text, err = true) {             // kratka poruka ispod trake (i u staroj liniji poruka)
@@ -332,7 +340,7 @@ function notice(text, err = true) {             // kratka poruka ispod trake (i 
   msg(text, err);
 }
 
-// Komanda sesiji iz okvira (STOP iz trake, Esc, stara STOP dugmad): nikad ne propada nečujno.
+// Komanda sesiji iz okvira (STOP iz trake, Esc): nikad ne propada nečujno.
 function sessionCommand(c) {
   const name = c[0] === 'stop' ? 'STOP' : String(c[0]);
   if (!live) { notice(`${name}: nijedna sesija ne radi`, false); return false; }
@@ -497,16 +505,16 @@ function elementsChanged(final, fromView = false) {   // fromView: kamenolom pre
 async function fillScenarios() {
   try {
     const d = await api('/api/scenarios');
-    $('scenLoad').innerHTML = '<option value="">load scenario…</option>' + d.scenarios.map(n => `<option>${n}</option>`).join('');
+    $('scenLoad').innerHTML = '<option value="">učitaj scenario…</option>' + d.scenarios.map(n => `<option>${n}</option>`).join('');
   } catch (e) { /* ignore */ }
 }
 
 async function saveScenario() {
-  const name = askName('Save the table (quarries) and opponents as a scenario:', 'scenario');
+  const name = askName('Sačuvaj sto (kamenolome) i protivnike kao scenario:', 'scenario');
   if (!name) return;
   try {
     await api('/api/scenarios/save', { name, elements: curElements(), opponents });
-    fillScenarios(); msg(`scenario ${name} saved (simulator/scenarios/${name}.json)`);
+    fillScenarios(); msg(`scenario ${name} sačuvan (simulator/scenarios/${name}.json)`);
   } catch (e) { msg(e.message, true); }
 }
 
@@ -537,7 +545,7 @@ function refreshOpponents() {
   $('oppX').value = o.x; $('oppY').value = o.y;
   $('oppW').value = round ? o.r * 2 : o.w; $('oppH').value = o.h; $('oppH').disabled = round;
   $('oppTh').value = o.th || 0; $('oppZ').value = o.z || 350; $('oppRound').checked = round;
-  $('oppTac').innerHTML = '<option value="">stands still</option>' + (info.opp_tactics || []).map(n => `<option>${n}</option>`).join('');
+  $('oppTac').innerHTML = '<option value="">stoji</option>' + (info.opp_tactics || []).map(n => `<option>${n}</option>`).join('');
   $('oppTac').value = o.tactic || ''; $('oppSeed').value = o.seed || 1;
 }
 
@@ -613,6 +621,7 @@ function edDiagnostics(list) {
 
 function edState() {
   const dirty = ed.editor.text() !== ed.saved;
+  store.set({ edUnsaved: dirty });                 // Vožnja: „koristi se tekst iz editora (nesačuvan)“
   $('edState').textContent = (ed.sha ? '' : 'nova · ') + (dirty ? '● nesačuvano' : 'sačuvano') + ` · ESP32/tactics/${ed.name}.py`;
   $('edState').classList.toggle('dirty', dirty);
   return dirty;
@@ -624,22 +633,6 @@ function fillTacticSelects() {                  // jedna lista taktika (gore); e
   const cur = ed ? ed.name : $('tactic').value;
   $('tactic').innerHTML = names.map(t => `<option>${t}</option>`).join('');
   if (names.includes(cur)) $('tactic').value = cur;
-}
-
-// Kartice Simulate / Live / Robot (plan U1): drugi red pokazuje samo dugmad izabrane kartice. Dok traje Live
-// ili veza sa robotom, ostale kartice su zaključane (prvo End / Disconnect). Vraća false kad je odbijeno.
-// Okvir (bočna traka) zove isto: Taktike -> sim, Vožnja SIM/ROBOT -> live/robot. Kartica Simulate nema više svoj
-// red (Zadatak 4.3: meč | test i ▶ Pokreni su u redu komandi Taktika); klik na nju vodi u Taktike.
-function setTab(t) {
-  if (live && ((live.kind === 'robot') !== (t === 'robot') || (!live.kind && t !== 'live'))) {
-    msg(live.kind === 'robot' ? 'disconnect from the robot first' : 'end Live first', true);
-    return false;
-  }
-  for (const b of document.querySelectorAll('.tabs button')) b.classList.toggle('on', b.dataset.tab === t);
-  $('rowLive').hidden = t !== 'live'; $('rowRobot').hidden = t !== 'robot';
-  try { localStorage.setItem('eurosim.tab', t); } catch (e) { /* ignore */ }
-  if (t === 'live' || t === 'robot') store.set({ drive: t === 'robot' ? 'robot' : 'sim' });   // izbor SIM/ROBOT u bočnoj traci
-  return true;
 }
 
 let edCheckSeq = 0;
@@ -883,6 +876,7 @@ async function toggleEditor() {
     ed.editor.flush();                                                   // poslednje izmene (< 600 ms) u nacrt
     clearTimeout(autoSimTimer);                                          // (flush može da pokrene edCheck, ne i auto-sim)
     ed.editor.view.destroy(); ed = null;
+    store.set({ edUnsaved: false });                                     // Live / Pošalji sada koriste fajl
     fillTacticSelects();
     return;
   }
@@ -902,11 +896,10 @@ function liveSend(c) {                          // true = poslato (ili čeka otv
   return !!(live && live.s.command(c));
 }
 
-function setFollow(on) {
+function setFollow(on) {                        // „Prati“: vreme prati sesiju uživo
   if (!live) return;
   live.follow = on;
   $('followBtn').classList.toggle('on', on);
-  $('rFollow').classList.toggle('on', on);
   $('play').textContent = on ? '⏸' : '▶';
 }
 
@@ -946,14 +939,14 @@ async function startLive() {
   }
   if (live) return;                             // u međuvremenu (await iznad) pokrenuta druga sesija
   const s = connect({ engine: 'sim', ...Object.fromEntries(q) });      // /ws/session (isto što i stari /ws/live)
-  live = { s, raw: { meta: null, frames: [], events: [] }, follow: true, dirty: false, screen: null, lidarSrc: src };
-  bridgeSession();
-  $('liveGroup').hidden = false;
-  $('liveBtn').hidden = true;                     // u Live kartici sada: Arm, Cord, Test, STOP... End
+  live = { s, raw: { meta: null, frames: [], events: [] }, follow: true, dirty: false, screen: null, lidarSrc: src,
+    edText: !!(ed && ed.editor.text() !== ed.saved) };                // pokrenuta sa nesačuvanim tekstom editora
+  sessionHello(s);
+  bridgeSession();                                // red komandi Vožnja: Naoruži, Povuci činč, Test... Završi (po hello)
   $('run').disabled = true; $('result').style.display = 'none';
   esp.setEnabled(true);
   setFollow(true);
-  msg('live: robot is on, ESP connected to STM32 · use the ESP buttons or Arm / Run test');
+  msg('uživo: robot je upaljen, ESP povezan sa STM32 · ESP tasteri ili Naoruži / Test');
   const mine = () => live && live.s === s;
   s.on('data', m => {
     if (!mine()) return;
@@ -976,23 +969,24 @@ async function startLive() {
       const f = m.frames[m.frames.length - 1];
       if (f) {
         view.setPose(f);
-        $('time').textContent = `${secs(f.t)} s · live ×${m.speed}${m.paused ? ' · paused' : ''}`;
+        $('time').textContent = `${secs(f.t)} s · uživo ×${m.speed}${m.paused ? ' · pauza' : ''}`;
       }
     }
-    $('pauseBtn').textContent = m.paused ? '▶' : '⏸';
-    $('pauseBtn').classList.toggle('on', m.paused);
+    const pb = $('pauseBtn'), pt = m.paused ? '▶ Nastavi' : '⏸ Pauza';
+    if (pb.textContent !== pt) { pb.textContent = pt; pb.title = m.paused ? 'Nastavi simulaciju' : 'Pauziraj simulaciju'; }
+    pb.classList.toggle('on', !!m.paused);
   });
   s.on('end', m => {
     if (live && !mine()) return;                 // kraj neke ranije sesije: ne dira trenutnu
     stopLiveUi();
-    load(m.run, 'live session ended: replay it or save it', 1e12);
+    load(m.run, 'sesija uživo je završena: pusti je ili sačuvaj', 1e12);
   });
   s.on('error', m => {
     if (!mine()) return;
-    msg('live: ' + m.error.split('\n')[0], true);
+    msg('uživo: ' + m.error.split('\n')[0], true);
     console.error(m.error);
   });
-  s.on('close', ev => sessionClosed(s, ev, 'live connection closed'));
+  s.on('close', ev => sessionClosed(s, ev, 'veza sesije uživo je zatvorena'));
 }
 
 // Veza sesije zatvorena: stari UI se gasi; komanda koja je čekala otvaranje (npr. STOP) a nije poslata se javlja.
@@ -1005,14 +999,14 @@ function sessionClosed(s, ev, text) {
 // Pravi uređaj u Live-u (lidar sa robota): brzina ×1 i bez pauze, jer uređaj radi u stvarnom vremenu.
 function setRealtime(on, source) {
   $('pace').disabled = on; $('pauseBtn').disabled = on;
-  if (on) { $('pace').value = '1'; msg('live with the real lidar (' + source + '): runs at ×1, no pause'); }
+  if (on) { $('pace').value = '1'; msg('uživo sa pravim lidarom (' + source + '): radi na ×1, bez pauze'); }
 }
 
 function fillLidarSources() {
   const keep = $('lidarSrc').value || 'sim';
   const files = info.lidar_files || [];
-  $('lidarSrc').innerHTML = '<option value="sim">Lidar: simulated</option><option value="robot">Lidar: robot (WiFi)</option>' +
-    files.map(f => `<option value="file:${f}">Lidar: ${f.replace('.jsonl.gz', '')}</option>`).join('');
+  $('lidarSrc').innerHTML = '<option value="sim">simuliran</option><option value="robot">robot (WiFi)</option>' +
+    files.map(f => `<option value="file:${f}">${f.replace('.jsonl.gz', '')}</option>`).join('');
   $('lidarSrc').value = [...$('lidarSrc').options].some(o => o.value === keep) ? keep : 'sim';
 }
 
@@ -1024,12 +1018,8 @@ function stopLiveUi() {
   try { live.s.close(); } catch (e) { /* ignore */ }
   if (live.virtual) api('/api/vrobot', { action: 'stop' }).catch(() => {});   // virtuelni robot ne sme da ostane da radi
   live = null;
-  bridgeSession();
+  bridgeSession();                              // red komandi Vožnja: opet „▶ Pokreni sesiju“
   $('bandCord').hidden = true;
-  $('liveGroup').hidden = true;
-  $('robotGroup').hidden = true;
-  $('liveBtn').hidden = false; $('robotBtn').hidden = false;
-  $('liveBtn').disabled = false; $('robotBtn').disabled = false;
   $('run').disabled = false;
   esp.setEnabled(false);
 }
@@ -1060,24 +1050,17 @@ function startRobot(host, password, label, virtual = false) {
   $('robotConnect').hidden = true;
   const s = connect({ engine: 'robot', host, password });         // /ws/session (isto što i stari /ws/robot)
   live = { kind: 'robot', s, raw: { meta: null, frames: [], events: [] }, follow: true, dirty: false, host, virtual };
-  bridgeSession();
-  $('robotGroup').hidden = false;
-  $('robotBtn').hidden = true;                    // u Robot kartici sada: Push, Push & Run, STOP... Disconnect
+  sessionHello(s);
+  bridgeSession();                                // red komandi Vožnja: Pošalji, Pošalji i pokreni... Prekini vezu (po hello)
   $('run').disabled = true; $('result').style.display = 'none';
-  $('robotStatus').textContent = 'connecting…'; $('robotStatus').className = 'pill';
-  esp.setEnabled(false); esp.setScreen(null);
-  esp.hint.textContent = 'the robot does not stream its screen';
+  esp.setEnabled(false); esp.setScreen(null);     // kartice ESP nema uz robota (robot ne šalje ekran)
   setFollow(true);
-  msg(`robot ${label || host}: connecting…`);
+  msg(`robot ${label || host}: povezivanje…`);
   const mine = () => live && live.s === s;
   s.on('data', m => {
     if (!mine()) return;
     const f = liveData(m);
-    store.set({ telemetry: m.age != null, linkAge: m.age ?? null });   // age null = još nijedan paket telemetrije
-    const st = $('robotStatus');
-    if (m.age == null) { st.textContent = 'no telemetry'; st.className = 'pill bad'; }
-    else if (m.age > 1500) { st.textContent = `no data ${secs(m.age)} s`; st.className = 'pill bad'; }
-    else { st.textContent = `● ${host}` + (m.mec && m.mec !== 'NEMA' ? ` · ${m.mec}` : '') + (m.running ? ` · ${m.running}` : ''); st.className = 'pill ok'; }
+    store.set({ telemetry: m.age != null, linkAge: m.age ?? null });   // age null = još nijedan paket (traka: Veza)
     if (f && live.follow) $('time').textContent = `${secs(f.t)} s · robot`;
   });
   s.on('state', m => {                            // server: veza ok / stale (> 1.5 s) / lost (> 5 s), šalje se na promenu
@@ -1087,16 +1070,16 @@ function startRobot(host, password, label, virtual = false) {
     if (!mine()) return;
     const text = `${m.cmd}: ${m.ok ? 'OK' : 'ERR'} ${(m.lines || []).slice(-2).join(' · ')}`;
     msg(text, !m.ok);
-    if (m.cmd === 'STAT' && m.ok) msg(`robot ${host}: connected · ` + (m.lines || []).slice(0, 3).join(' · '));
+    if (m.cmd === 'STAT' && m.ok) msg(`robot ${host}: povezan · ` + (m.lines || []).slice(0, 3).join(' · '));
   });
   s.on('end', m => {
     if (live && !mine()) return;
     stopLiveUi();
-    if (m.run) load(m.run, 'robot session ended: replay it, save it or compare it with a simulation', 1e12);
-    else msg('robot disconnected (no telemetry received)');
+    if (m.run) load(m.run, 'sesija sa robotom je završena: pusti je, sačuvaj ili uporedi sa simulacijom', 1e12);
+    else msg('veza sa robotom je prekinuta (telemetrija nije stigla)');
   });
   s.on('error', m => { if (mine()) msg('robot: ' + m.error.split('\n')[0], true); });
-  s.on('close', ev => sessionClosed(s, ev, 'robot connection closed'));
+  s.on('close', ev => sessionClosed(s, ev, 'veza sa robotom je zatvorena'));
 }
 
 function robotTactic() {
@@ -1289,15 +1272,12 @@ async function main() {
   };
 
   $('run').onclick = () => simulate();
-  // Stara kartica Simulate nema svoj red (meč | test, ▶ Pokreni su u redu komandi Taktika): klik vodi u Taktike.
-  for (const b of document.querySelectorAll('.tabs button')) b.onclick = () => (b.dataset.tab === 'sim' && shell ? shell.go('taktike') : setTab(b.dataset.tab));
-  try { const t = localStorage.getItem('eurosim.tab'); if (t) setTab(t); } catch (e) { /* ignore */ }
   shell = mountShell({ store, command: sessionCommand, legacy: {          // okvir: statusna traka, bočna traka, Esc = STOP
-    setTab,
+    notice,                                                               // npr. „Sesija radi: prvo je završi“
     openEditor,
     openRuns: () => { $('moreMenu').hidden = false; },
     openSources: (drive, running) => {
-      if (running) { msg('izvori se ne menjaju dok sesija radi (prvo End / Disconnect)', true); return; }
+      if (running) { msg('izvori se ne menjaju dok sesija radi (prvo Završi / Prekini vezu)', true); return; }
       if (drive === 'robot') $('robotConnect').hidden = false; else $('lidarSrc').focus();
     },
     openRepo: () => $('repoBtn').click(),
@@ -1316,33 +1296,40 @@ async function main() {
   esp = new EspPanel($('espPanel'), c => liveSend(c));
   esp.setEnabled(false);
   try { opponents = JSON.parse(localStorage.getItem('eurosim.opp') || '[]'); } catch (e) { opponents = []; }
-  view.onOppSelect = i => { oppSel = i; refreshOpponents(); };
+  // Uređivač protivnika / kamenoloma je u kartici Postavka stola: sklopljena se otvori, a njen sadržaj (kad nema mesta u
+  // koloni, kartica se skuplja i skroluje sama) se pomeri tako da se uređivač vidi.
+  const openSto = () => {
+    shell.openCard('sto');
+    const box = $('ws-sto'), edEl = !$('oppEdit').hidden ? $('oppEdit') : !$('elEdit').hidden ? $('elEdit') : null;
+    if (box && edEl) box.scrollTop += edEl.getBoundingClientRect().top - box.getBoundingClientRect().top;
+  };
+  view.onOppSelect = i => { oppSel = i; refreshOpponents(); if (i >= 0) openSto(); };
   view.onOppMove = (i, final) => {
     if (i === oppSel) { $('oppX').value = opponents[i].x; $('oppY').value = opponents[i].y; }
     opponentsChanged(final);
   };
   refreshOpponents();
   $('addOpp').onclick = () => {
-    opponents.push({ name: 'opponent ' + (opponents.length + 1), x: 1500, y: 1000, w: 300, h: 300, th: 0, z: 350, r: 0 });
+    opponents.push({ name: 'protivnik ' + (opponents.length + 1), x: 1500, y: 1000, w: 300, h: 300, th: 0, z: 350, r: 0 });
     oppSel = opponents.length - 1;
-    refreshOpponents();
+    refreshOpponents(); openSto();
     opponentsChanged(true);
   };
   $('addPami').onclick = () => {              // PAMI: mali robot na protivnikovoj strani, kreće u poslednjih 15 s
     const blue = $('side').value === 'zuta', n = opponents.filter(o => o.kind === 'pami').length;
     opponents.push({ name: 'PAMI ' + (n + 1), kind: 'pami', x: blue ? 2900 : 100, y: 1700 - n * 150, w: 150, h: 120, th: blue ? 180 : 0,
       z: 130, r: 0, tactic: (info.opp_tactics || []).includes('pami_napred') ? 'pami_napred' : undefined });
-    oppSel = opponents.length - 1; refreshOpponents(); opponentsChanged(true);
+    oppSel = opponents.length - 1; refreshOpponents(); openSto(); opponentsChanged(true);
   };
   $('oppTac').onchange = editOpponent; $('oppSeed').onchange = editOpponent;
   $('oppDel').onclick = () => { opponents.splice(oppSel, 1); oppSel = -1; refreshOpponents(); opponentsChanged(true); };
   $('oppClose').onclick = () => { oppSel = -1; refreshOpponents(); };       // samo zatvori: protivnik ostaje
   for (const id of ['oppX', 'oppY', 'oppW', 'oppH', 'oppTh', 'oppZ', 'oppRound']) $(id).onchange = editOpponent;
-  $('liveBtn').onclick = () => (live ? liveSend(['quit']) : startLive());
-  for (const id of ['tabSim', 'tabLive', 'tabRobot']) $(id).title = { tabSim: 'Brza simulacija: vodi u Taktike (▶ Pokreni: ceo meč za par sekundi, pa puštanje)',
-    tabLive: 'Real-time simulation: ESP screen and buttons, cord, STOP, move the opponent while it drives',
-    tabRobot: 'The real robot (or a virtual one) over WiFi: push and run tactics, live telemetry' }[id];
-  $('robotBtn').onclick = () => { $('robotConnect').hidden = !$('robotConnect').hidden; };
+  // Red komandi Vožnja (panels/voznja-alati.js): bez sesije „▶ Pokreni sesiju“ (SIM: Live; ROBOT: dijalog Poveži).
+  $('sessStart').onclick = () => {
+    if (live) return;
+    if (store.get().drive === 'robot') $('robotConnect').hidden = false; else startLive();
+  };
   $('rCancel').onclick = () => { $('robotConnect').hidden = true; };
   $('rConnect').onclick = () => {
     localStorage.setItem('eurosim.host', $('rHost').value);
@@ -1350,22 +1337,20 @@ async function main() {
   };
   $('rHost').value = localStorage.getItem('eurosim.host') || 'eurokik.local';
   $('rVirtual').onclick = async () => {
-    msg('starting a virtual robot (real ESP code, simulated STM32) on 127.0.0.1…');
+    msg('pokrećem virtuelnog robota (pravi ESP kod, simuliran STM32) na 127.0.0.1…');
     try {
       const d = await api('/api/vrobot', { action: 'start', tactic: curTactic(), side: $('side').value, obstacles: opponents });
       startRobot(d.host, d.password, 'virtual (127.0.0.1)', true);
     } catch (e) { msg(e.message, true); }
   };
-  $('rPush').onclick = () => { const [n, src] = robotTactic(); liveSend(['push', n, src]); msg(`sending ${n}…`); };
+  $('rPush').onclick = () => { const [n, src] = robotTactic(); liveSend(['push', n, src]); msg(`šaljem ${n}…`); };
   $('rRun').onclick = () => {
     const [n, src] = robotTactic();
+    const strana = { zuta: 'Žuta', plava: 'Plava' }[$('side').value] || $('side').value;
     if (live && live.host !== '127.0.0.1' &&
-        !confirm(`Run "${n}" on ${live.host} now (${SIDE_NAME[$('side').value]})?\n\nTHE ROBOT WILL MOVE. Free space, hand on the motor switch.`)) return;
-    liveSend(['push', n, src]); liveSend(['run', n, $('side').value]); msg(`running ${n} on the robot…`);
+        !confirm(`Pokrenuti „${n}“ na ${live.host} sada (${strana})?\n\nROBOT ĆE SE POMERITI. Slobodan prostor, ruka na prekidaču motora.`)) return;
+    liveSend(['push', n, src]); liveSend(['run', n, $('side').value]); msg(`pokrećem ${n} na robotu…`);
   };
-  $('rStop').onclick = () => sessionCommand(['stop']);
-  $('rFollow').onclick = () => setFollow(!live.follow);
-  $('rEnd').onclick = () => liveSend(['quit']);
   $('profBtn').onclick = () => ($('profDialog').hidden ? openProfile().catch(e => msg(e.message, true)) : ($('profDialog').hidden = true));
   $('profClose').onclick = () => { $('profDialog').hidden = true; };
   $('profSave').onclick = saveProfile;
@@ -1379,14 +1364,13 @@ async function main() {
     if (!n) return;
     try { setRef(buildRun(await api('/api/runs/' + encodeURIComponent(n))), n); } catch (er) { msg(er.message, true); }
   };
-  $('endBtn').onclick = () => liveSend(['quit']);
+  $('endBtn').onclick = () => liveSend(['quit']);              // Završi (SIM) / Prekini vezu (ROBOT)
   $('armBtn').onclick = () => liveSend(['arm', curTactic(), $('side').value]);
   $('testBtn').onclick = () => liveSend(['test', curTactic(), $('side').value]);
-  document.querySelector('#espPanel .ov-title').onclick = () => $('espPanel').classList.toggle('collapsed');
   $('result').onclick = () => $('result').classList.toggle('mini');
   try { tableEl = JSON.parse(localStorage.getItem('eurosim.el') || 'null'); } catch (e) { tableEl = null; }
   drawElements();
-  view.onElSelect = i => { elSel = i; drawElements(); };
+  view.onElSelect = i => { elSel = i; drawElements(); if (i >= 0) openSto(); };
   view.onElMove = (i, final) => { if (final) elementsChanged(true, true); else refreshElPanel(); };
   $('showElements').onchange = () => { elSel = -1; drawElements(); elementsChanged(true); };
   $('elLess').onclick = () => elEdit(e => { e.stones = Math.max(0, (e.stones ?? 3) - 1); });
@@ -1394,7 +1378,7 @@ async function main() {
   $('elRot').onclick = () => elEdit(e => { e.th = ((e.th || 0) + 90) % 180; });
   $('elDel').onclick = () => { const l = curElements(); l.splice(elSel, 1); tableEl = l; elSel = -1; drawElements(); elementsChanged(true); };
   $('elClose').onclick = () => { elSel = -1; drawElements(); };
-  $('elReset').onclick = () => { tableEl = null; elSel = -1; drawElements(); elementsChanged(true); msg('table reset to the 2027 rules'); };
+  $('elReset').onclick = () => { tableEl = null; elSel = -1; drawElements(); elementsChanged(true); msg('sto vraćen na pravila 2027'); };
   $('scenSave').onclick = saveScenario;
   $('scenLoad').onchange = e => { const n = e.target.value; e.target.value = ''; if (n) loadScenario(n); };
   fillScenarios();
@@ -1427,7 +1411,6 @@ async function main() {
   window.addEventListener('beforeunload', e => { if (ed && ed.editor.text() !== ed.saved) e.preventDefault(); });
   $('cordBtn').onclick = () => liveSend(['cord']);
   $('bandCord').onclick = () => liveSend(['cord']);
-  $('stopBtn').onclick = () => sessionCommand(['stop']);
   $('pace').onchange = e => liveSend(['speed', +e.target.value]);
   $('pauseBtn').onclick = () => liveSend(['pause', !$('pauseBtn').classList.contains('on')]);
   $('followBtn').onclick = () => setFollow(!live.follow);

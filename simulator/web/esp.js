@@ -4,6 +4,7 @@
 export class EspPanel {
   constructor(root, send) {
     this.send = send;
+    this.root = root;
     this.canvas = root.querySelector('canvas');
     this.ctx = this.canvas.getContext('2d');
     this.img = this.ctx.createImageData(128, 64);
@@ -34,9 +35,9 @@ export class EspPanel {
 
   setEnabled(on) {
     this.enabled = on;
-    this.canvas.parentElement.parentElement.classList.toggle('live', on);
-    this.hint.textContent = on ? 'buttons are live · mouse wheel on the screen = encoder' :
-      'recorded screen · buttons work in Live mode';
+    this.root.classList.toggle('live', on);
+    this.hint.textContent = on ? 'tasteri rade · točkić miša na ekranu = enkoder' :
+      'snimljen ekran · tasteri rade u sesiji';
   }
 
   _audio() {

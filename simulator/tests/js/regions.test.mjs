@@ -111,3 +111,24 @@ test('loadCards / saveCards: ključ eurosim.cards, loše vrednosti se odbacuju, 
   assert.doesNotThrow(() => saveCards({ taktike: { grafici: true } }, bad));
   assert.deepEqual(loadCards(undefined), {});
 });
+
+// Zadatak 4.4: red komandi Vožnja, kartice ESP (when: espShown) i Postavka stola (when: stoShown).
+test('4.4: Vožnja SIM/ROBOT — red komandi, ESP i Postavka stola po izvoru; podrazumevano otvorene', async () => {
+  const { espShown, stoShown } = await import('../../web/core/voznja.js');
+  const r = registry43();
+  r.registerPanel({ id: 'voznja-alati', workspaces: ['voznja'], region: 'tool', priority: 10, open: true, shared: ['taktika', 'strana'] });
+  r.registerPanel({ id: 'esp', workspaces: ['voznja'], region: 'side', priority: 5, open: true, when: espShown });
+  r.registerPanel({ id: 'sto', workspaces: ['taktike', 'voznja'], region: 'side', priority: 25, open: false, when: stoShown });
+  const sim = { drive: 'sim', session: null, caps: null };
+  const vs = r.panelsFor('voznja', [], sim);
+  assert.deepEqual(ids(placePanels(vs)).tool, ['voznja-alati', 'stari-alati']);
+  assert.deepEqual(ids(placePanels(vs)).side, ['esp', 'korak', 'koraci', 'sto', 'dnevnik', 'stanje']);
+  assert.deepEqual(cardsOpen(vs, 'voznja', {}), { esp: true, korak: true, koraci: true, sto: false, dnevnik: false, stanje: false, grafici: false });
+  const robot = { drive: 'robot', session: { kind: 'robot' }, caps: ['lidar', 'push', 'run', 'stop'] };
+  const vr = r.panelsFor('voznja', robot.caps, robot);
+  assert.deepEqual(ids(placePanels(vr)).side, ['korak', 'koraci', 'dnevnik', 'stanje']);   // bez ESP i Postavke stola
+  assert.deepEqual(cardsOpen(vr, 'voznja', {}), { korak: true, koraci: true, dnevnik: true, stanje: false, grafici: false });
+  const tk = r.panelsFor('taktike', [], robot);                                         // Taktike: Postavka stola uvek
+  assert.deepEqual(ids(placePanels(tk)).side, ['koraci', 'sto', 'dnevnik']);
+  assert.deepEqual(cardsOpen(tk, 'taktike', {}), { koraci: true, sto: false, dnevnik: false, grafici: false });
+});

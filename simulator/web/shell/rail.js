@@ -40,8 +40,8 @@ export function mountRail(el, ctx) {
   el.setAttribute('aria-label', 'Radni prostori');
   el.innerHTML = RAIL_ITEMS.map(w => `<button type="button" class="rl-ws" data-ws="${w.id}" title="${w.title}">${icon(w.icon)}<span>${w.name}</span></button>` +
     (w.id === 'voznja' ? `<span class="rl-drive" id="railDrive" hidden>
-      <button type="button" data-drive="sim" title="Simulacija u stvarnom vremenu (stara kartica Live)">SIM</button>
-      <button type="button" data-drive="robot" title="Pravi ili virtuelni robot (stara kartica Robot)">ROBOT</button></span>` : '')).join('') +
+      <button type="button" data-drive="sim" title="Simulacija u stvarnom vremenu (sesija uživo, ESP ekran i tasteri)">SIM</button>
+      <button type="button" data-drive="robot" title="Pravi ili virtuelni robot preko WiFi-ja (Poveži)">ROBOT</button></span>` : '')).join('') +
     '<span class="rl-grow"></span>' +
     MINI.map(m => `<button type="button" class="rl-mini" data-act="${m.act}" title="${m.title}">${icon(m.icon)}<span>${m.name}</span></button>`).join('');
   const help = document.createElement('div');

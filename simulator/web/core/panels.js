@@ -4,9 +4,12 @@
 //     open: true/false ili lista prostora u kojima je kartica podrazumevano otvorena (core/regions.js);
 //     dodatno (shell/layout.js): collapsible (donji panel kao kartica), grow (kartica popunjava bočnu kolonu),
 //     shrink (deli kolonu kao grow, ali se skuplja do naslova; sadržaj skroluje sam), shown(el, ctx) posle prikaza,
-//     shared: ['taktika', ...] zajedničke stavke reda komandi koje panel prima (core/toolitems.js)
-//   panelsFor(workspace, caps) -> [panel]   po regionu, pa po priority (manji broj = važniji, ide prvi);
-//                                            needs koji nije u caps -> {..., disabled: true, reason: 'potrebno: ...'}
+//     shared: ['taktika', ...] zajedničke stavke reda komandi koje panel prima (core/toolitems.js),
+//     when(state, workspace) -> bool: panel se uopšte ne prikazuje kad vrati false (izvor to nikad ne daje, npr. ESP
+//     ekran uz pravog robota; core/voznja.js); okvir ponovo raspoređuje kad se promene session, caps ili drive
+//   panelsFor(workspace, caps, state) -> [panel]   po regionu, pa po priority (manji broj = važniji, ide prvi);
+//                                            needs koji nije u caps -> {..., disabled: true, reason: 'potrebno: ...'};
+//                                            when(state, workspace) false -> panela nema u listi
 //   allPanels() -> [panel]                     svi prijavljeni (okvir ih montira jednom, na početku)
 //   ctx = { store, command(c), go(workspace), setDrive, openSources, setBadge(id, text), openCard(id), legacy }
 // Paneli su u web/panels/ (jedan fajl po panelu, prijava pri uvozu panels/index.js).
@@ -30,11 +33,11 @@ export function createRegistry() {
       panels.set(p.id, panel);
       return panel;
     },
-    panelsFor(workspace, caps = []) {
-      const have = caps instanceof Set ? caps : new Set(caps);
+    panelsFor(workspace, caps = [], state = {}) {
+      const have = caps instanceof Set ? caps : new Set(caps || []);
       const order = (a, b) => REGIONS.indexOf(a.region) - REGIONS.indexOf(b.region) || a.priority - b.priority;
       return [...panels.values()]
-        .filter(p => p.workspaces.includes(workspace))
+        .filter(p => p.workspaces.includes(workspace) && (!p.when || p.when(state || {}, workspace)))
         .sort(order)                                  // stabilno: isti prioritet ostaje po redu prijave
         .map(p => {
           const missing = (p.needs || []).filter(n => !have.has(n));
@@ -48,7 +51,7 @@ export function createRegistry() {
 
 const registry = createRegistry();
 export const registerPanel = p => registry.registerPanel(p);
-export const panelsFor = (workspace, caps) => registry.panelsFor(workspace, caps);
+export const panelsFor = (workspace, caps, state) => registry.panelsFor(workspace, caps, state);
 export const getPanel = id => registry.get(id);
 export const allPanels = () => registry.all();
 

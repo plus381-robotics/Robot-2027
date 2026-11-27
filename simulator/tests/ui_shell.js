@@ -56,7 +56,7 @@ const { chromium } = require('playwright');
     await p.waitForSelector('#ws-editor:not(.ed-closed) .cm-content');
     // Taktike: Koraci otvoreni, Dnevnik sklopljen, Korak sada i Stanje i IR nisu u ovom prostoru (Zadatak 4.2)
     const tkCards = await p.$$eval('#ws-side > .ws-card:not(.ws-off)', l => l.map(c => c.id + (c.classList.contains('closed') ? '-' : '+')));
-    if (tkCards.join() !== 'card-koraci+,card-dnevnik-') fail.push('Taktike kartice: ' + tkCards);
+    if (tkCards.join() !== 'card-koraci+,card-sto-,card-dnevnik-') fail.push('Taktike kartice: ' + tkCards);   // + Postavka stola (4.4)
     if (!(await p.$eval('#card-grafici', e => e.classList.contains('closed')))) fail.push('Taktike: grafici nisu sklopljeni');
     const terenH = await p.$eval('#ws-teren', e => e.getBoundingClientRect().height);
     if (terenH < 420) fail.push('teren nizak: ' + terenH);
@@ -69,14 +69,33 @@ const { chromium } = require('playwright');
     // --- Live: Esc šalje STOP, i iz editora sa otvorenim popupom dopune ---
     await p.click('#rail [data-ws=voznja]');
     await p.click('#rail [data-drive=sim]');
-    if (!(await p.$eval('#tabLive', e => e.classList.contains('on')))) fail.push('Vožnja SIM nije otvorila Live');
-    if (!(await p.$('#ws-stari-alati #tactic, #ws-voznja-alati #tactic'))) fail.push('Vožnja: Taktika nije u redu komandi');
+    // Red komandi Vožnja (Zadatak 4.4): bez sesije Lidar + „▶ Pokreni sesiju“; stari redovi Live/Robot i STOP-ovi obrisani
+    const shownIds = () => p.$$eval('#ws-voznja-alati > [id], #ws-voznja-alati .tool-item', l => l.filter(e => e.offsetParent).map(e => e.id));
+    if ((await shownIds()).join() !== 'ti-taktika,ti-strana,lidarWrap,sessStart') fail.push('Vožnja SIM bez sesije: ' + await shownIds());
+    if (await p.$('#tabSim, #tabLive, #tabRobot, #rowLive, #rowRobot, #liveGroup, #robotGroup, #liveBtn, #robotBtn, #stopBtn, #rStop, #rFollow, #rEnd, #robotStatus'))
+      fail.push('stari Live/Robot redovi ili dugmad još postoje');
+    if (!(await p.$('#ws-voznja-alati #tactic'))) fail.push('Vožnja: Taktika nije u redu komandi');
     if (!(await p.$eval('#ws-editor', e => e.classList.contains('ws-off')))) fail.push('Vožnja: editor nije skriven (samo Taktike)');
-    await p.click('#liveBtn');
+    if ((await p.$eval('#ws-tool', e => e.getBoundingClientRect().height)) > 56) fail.push('red komandi Vožnja viši od 56 px');
+    await p.click('#sessStart');
     await p.waitForFunction(() => window.eurosim.run && window.eurosim.run.live, null, { timeout: 15000 });
-    // Vožnja: Korak sada, Koraci, Dnevnik otvoreni, Stanje i IR sklopljeno; kolona ne skroluje (Zadatak 4.2)
+    await p.waitForFunction(() => (window.eurosim.store.get().caps || []).includes('arm'), null, { timeout: 15000 });   // hello
+    if ((await shownIds()).join() !== 'ti-taktika,ti-strana,armBtn,cordBtn,testBtn,paceWrap,pauseBtn,followBtn,endBtn')
+      fail.push('Vožnja SIM sesija: ' + await shownIds());
+    if (await p.textContent('#endBtn') !== 'Završi') fail.push('SIM: nema „Završi“');
+    // Vožnja SIM: ESP, Korak sada, Koraci otvoreni (najviše tri), Postavka stola, Dnevnik, Stanje i IR sklopljeni
     const vzCards = await p.$$eval('#ws-side > .ws-card:not(.ws-off)', l => l.map(c => c.id + (c.classList.contains('closed') ? '-' : '+')));
-    if (vzCards.join() !== 'card-korak+,card-koraci+,card-dnevnik+,card-stanje-') fail.push('Vožnja kartice: ' + vzCards);
+    if (vzCards.join() !== 'card-esp+,card-korak+,card-koraci+,card-sto-,card-dnevnik-,card-stanje-') fail.push('Vožnja kartice: ' + vzCards);
+    if (!(await p.$('#card-esp #espPanel canvas'))) fail.push('ESP nije u kartici ESP');
+    await p.click('#card-sto .ws-card-h');                         // Postavka stola: + Protivnik šalje obstacles u sesiju
+    await p.click('#addOpp');
+    await p.waitForTimeout(300);
+    if (!(await p.isVisible('#card-sto #oppEdit'))) fail.push('uređivač protivnika nije u kartici Postavka stola');
+    if (!(await p.evaluate(() => window.__sent.some(s => /^\["obstacles"/.test(s))))) fail.push('+ Protivnik nije poslao obstacles');
+    await p.click('#card-sto .ws-card-h');
+    await p.click('#rail [data-drive=robot]');                     // SIM -> ROBOT dok sesija radi: odbijeno
+    if (!/Sesija radi: prvo je završi/.test(await p.textContent('#stripNotice'))) fail.push('SIM -> ROBOT tokom sesije: nema poruke');
+    if (await p.evaluate(() => window.eurosim.store.get().drive) !== 'sim') fail.push('SIM -> ROBOT tokom sesije nije odbijen');
     await p.click('#card-stanje .ws-card-h');                      // IR: klik na senzor u Live = ir_mask
     await p.waitForSelector('#irBox .ir-s.click');
     await p.click('#irBox .ir-s.click');
@@ -117,10 +136,18 @@ const { chromium } = require('playwright');
 
     // --- virtuelni robot: posle prekida telemetrije „podaci stari“, pa „veza izgubljena“ ---
     await p.click('#rail [data-drive=robot]');
-    await p.click('#robotBtn');
+    // editor u Taktikama ima nesačuvan tekst (gore je otkucano „wai“): Pošalji bi slao taj tekst -> napomena edNote
+    if ((await shownIds()).join() !== 'ti-taktika,ti-strana,sessStart,edNote') fail.push('Vožnja ROBOT bez sesije: ' + await shownIds());
+    if (await p.$('#card-esp:not(.ws-off), #card-sto:not(.ws-off)')) fail.push('ROBOT: ESP ili Postavka stola se vidi');
+    await p.click('#sessStart');                                   // ROBOT: otvara dijalog Poveži
     await p.click('#rVirtual');
     await p.waitForFunction(() => /ROBOT/.test(document.getElementById('stripSrc').textContent), null, { timeout: 15000 });
     await p.waitForFunction(() => document.getElementById('stripLink').textContent === 'povezan', null, { timeout: 20000 });
+    if ((await shownIds()).join() !== 'ti-taktika,ti-strana,rPush,rRun,followBtn,endBtn,edNote') fail.push('Vožnja ROBOT sesija: ' + await shownIds());
+    if (await p.textContent('#endBtn') !== 'Prekini vezu') fail.push('ROBOT: nema „Prekini vezu“');
+    await p.click('#rPush');
+    await p.waitForFunction(() => /^push: OK/.test(document.getElementById('msg').textContent), null, { timeout: 10000 })
+      .catch(() => fail.push('Pošalji: nema „push: OK“'));
     await p.evaluate(() => fetch('/api/vrobot', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'stop' }) }));
     await p.waitForFunction(() => /podaci stari/.test(document.getElementById('stripLink').textContent), null, { timeout: 5000 })
@@ -131,7 +158,7 @@ const { chromium } = require('playwright');
     await p.keyboard.press('Escape');                              // STOP i dalje šalje kad je veza izgubljena
     await p.waitForTimeout(300);
     if (await stops() !== n + 1) fail.push('Esc (robot, veza izgubljena) nije poslao ["stop"]');
-    await p.click('#rEnd');
+    await p.click('#endBtn');                                      // Prekini vezu
     await p.waitForFunction(() => !window.eurosim.store.get().session, null, { timeout: 15000 });
   } catch (e) {
     fail.push('izuzetak: ' + e.message);
