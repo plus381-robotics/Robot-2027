@@ -330,6 +330,7 @@ export class FieldView {
   setLidar(s) {
     if (s === this._lidarShown) return;
     this._lidarShown = s;
+    this._noPoseLabel(!!(s && s.nopose));
     const geo = this.lidarPts.geometry;
     if (!s) { geo.setDrawRange(0, 0); this.lidarNear.visible = false; return; }
     const [x, y, th] = s.pose, [ox, oy, oz] = s.o;
@@ -353,6 +354,20 @@ export class FieldView {
       this.lidarNear.position.set(px, py, z);
       this.lidarNear.visible = true;
     } else this.lidarNear.visible = false;
+  }
+
+  _noPoseLabel(on) {                               // mali natpis preko prikaza stola kad lidar nema pozu
+    if (!this._npEl) {
+      if (!on) return;
+      const d = document.createElement('div');
+      d.textContent = 'nema poze: STM32 nije povezan';
+      d.style.cssText = 'position:absolute;left:8px;bottom:8px;padding:2px 8px;font:12px sans-serif;' +
+        'color:#ffd27a;background:rgba(18,21,26,.75);border-radius:4px;pointer-events:none';
+      if (getComputedStyle(this.el).position === 'static') this.el.style.position = 'relative';
+      this.el.appendChild(d);
+      this._npEl = d;
+    }
+    this._npEl.style.display = on ? '' : 'none';
   }
 
   setShowLidar(on) { this.lidarGroup.visible = on; }
@@ -439,16 +454,11 @@ export class FieldView {
     for (let i = 0; i < n; i++) {
       pts.push(c.x[i] / 1000, c.y[i] / 1000, 0.004);
       // odometry jumps on SET_POSE: draw it as separate segments, without the jump
-      if (i > 0 && Math.hypot(c.ox[i] - c.ox[i - 1], c.oy[i] - c.oy[i - 1]) < 100) {
+      if (i > 0 && c.ox[i] != null && c.ox[i - 1] != null && Math.hypot(c.ox[i] - c.ox[i - 1], c.oy[i] - c.oy[i - 1]) < 100) {
         opts.push(c.ox[i - 1] / 1000, c.oy[i - 1] / 1000, 0.006, c.ox[i] / 1000, c.oy[i] / 1000, 0.006);
         this.odomSeg.push(i);
       }
     }
-    const mk = (arr, mat) => {
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
-      const l = new THREE.Line(g, mat); this.dyn.add(l); return l;
-    };
     // putanja: traka 14 mm, boja po koraku; cela bleda, pređeni deo puna
     const xy = [], cols = [];
     let si = -1;
@@ -472,7 +482,7 @@ export class FieldView {
     // Koraci na mapi (plan E1): JEDNA mala oznaka po koraku koji pomera robota, na mestu gde ga korak vodi
     // (cilj GOTO, ili gde je robot bio na kraju MOVE). Okreti i aktuatori nemaju oznaku (vide se na timeline-u).
     // Boja = boja koraka (ista kao putanja i traka na timeline-u); obod = ishod. Natpis: tekući korak, hover ili
-    // "all" (Show ▾ -> labels). Iznad svega (depthTest false).
+    // "all" (Prikaz ▾ -> imena koraka). Iznad svega (depthTest false).
     const over = o => { o.renderOrder = 6; if (o.material) o.material.depthTest = false; return o; };
     this.targets = this.stepMarks;                     // jedna grupa (stari prekidač "targets" je skriva)
     for (const s of run.steps) {
@@ -725,8 +735,10 @@ export class FieldView {
     this.robot.visible = true;
     this.robot.position.set(f.x / 1000, f.y / 1000, 0);
     this.robot.rotation.z = f.th * Math.PI / 180;
-    this.ghost.position.set(f.ox / 1000, f.oy / 1000, 0);
-    this.ghost.rotation.z = f.oth * Math.PI / 180;
+    if (f.ox != null && f.oy != null && f.oth != null) {   // robot ne šalje odometriju
+      this.ghost.position.set(f.ox / 1000, f.oy / 1000, 0);
+      this.ghost.rotation.z = f.oth * Math.PI / 180;
+    }
     this.setIr(f.irh || null, f.irm != null ? f.irm : 0xFF);
   }
 
@@ -744,9 +756,12 @@ export class FieldView {
     this.frame = i;
     this.robot.position.set(c.x[i] / 1000, c.y[i] / 1000, 0);
     this.robot.rotation.z = c.th[i] * Math.PI / 180;
-    this.ghost.position.set(c.ox[i] / 1000, c.oy[i] / 1000, 0);
-    this.ghost.rotation.z = c.oth[i] * Math.PI / 180;
-    const diff = Math.hypot(c.x[i] - c.ox[i], c.y[i] - c.oy[i]) > 1 || Math.abs(c.th[i] - c.oth[i]) > 0.3;
+    const hasOdom = c.ox[i] != null && c.oy[i] != null && c.oth[i] != null;
+    if (hasOdom) {
+      this.ghost.position.set(c.ox[i] / 1000, c.oy[i] / 1000, 0);
+      this.ghost.rotation.z = c.oth[i] * Math.PI / 180;
+    }
+    const diff = hasOdom && (Math.hypot(c.x[i] - c.ox[i], c.y[i] - c.oy[i]) > 1 || Math.abs(c.th[i] - c.oth[i]) > 0.3);
     this.ghost.visible = this.showOdom !== false && diff;
     this.pathDone.geometry.setDrawRange(0, 6 * i);
     this.setIr(c.irh ? c.irh[i] : null, c.irm && c.irm[i] != null ? c.irm[i] : 0xFF);

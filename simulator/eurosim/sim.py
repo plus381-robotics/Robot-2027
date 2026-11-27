@@ -16,7 +16,7 @@ import sys
 import tempfile
 import time
 
-from . import field, paths, profile as profmod
+from . import field, paths, profile as profmod, tactics as tacmod
 from .esp import Esp
 from .plant import Obstacle
 from .record import Recording, FRAME_MS
@@ -25,6 +25,12 @@ from . import stm as stmmod
 
 SETTLE_MS = 500              # posle kraja taktike još ovoliko (robot se smiri)
 WARMUP_MS = 300              # veza, PONG, auto SET_POSE pre pokretanja
+
+
+def _lidar_part(lidar):
+    """Odakle dolazi lidar u snimku: sim, pravi (robot) ili snimak (fajl)."""
+    d = lidar.describe() if lidar is not None else "sim"
+    return "pravi" if d.startswith("robot") else "snimak" if d.startswith("snimak") else "sim"
 
 
 def _git_version():
@@ -133,7 +139,15 @@ class Sim:
             "elements": [o.to_dict() for o in self.elements],
             "frame_ms": FRAME_MS, "git": _git_version(),
             "lidar_source": lidar.describe() if lidar is not None else "sim", "realtime": self.realtime,
+            "origin": {"engine": "sim", "parts": {"pogon": "sim", "lidar": _lidar_part(lidar), "ir": "sim",
+                                                  "mehanizmi": "sim", "protivnici": "sim"}},
+            "tactic_sha": None, "scenario": None,
         }
+        self._set_sha(name)
+
+    def _set_sha(self, name):
+        src = self.rec.meta.get("source")
+        self.rec.meta["tactic_sha"] = tacmod.sha(src) if src else None
 
     def _net(self, net):
         """Pravi ESP upload server i telemetrija, kao u main.py (bez WiFi-ja: mreža je ovaj računar)."""
@@ -410,6 +424,7 @@ class Sim:
                 src = self.tactics_dir / (tr.name + ".py")
                 self.rec.meta.update(tactic=tr.name, side=a.side, total=tr.total,
                                      source=src.read_text(encoding="utf-8") if src.exists() else None)
+                self._set_sha(tr.name)
                 self._meta_dirty = True
         if tr.step_name and tr.idx != self._step_idx:
             self._step_idx = tr.idx
@@ -576,6 +591,7 @@ class Sim:
         self.rec.meta.update(tactic=name, side=side, start=list(start), start_field=[mx, my, mdeg],
                              total=meta.get("TOTAL"),
                              source=src.read_text(encoding="utf-8") if name and src.exists() else None)
+        self._set_sha(name)
         self._meta_dirty = True
         self.event("sim", {"text": "robot prenet na START: %s, %s (%d, %d, %d°)" % (name, side, mx, my, mdeg)})
 

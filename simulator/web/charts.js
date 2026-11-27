@@ -1,23 +1,29 @@
-// Time charts (uPlot): speed, turn rate, wheels. A vertical line shows the current time;
-// clicking a chart seeks there.
-const DEFS = [
-  { title: 'Speed [m/s]', series: [['v', 'v', '#ffffff'], ['v_ref', 'v ref', '#4aa3ff']] },
-  { title: 'Turn rate [rad/s]', series: [['w', 'ω', '#ffffff'], ['w_ref', 'ω ref', '#4aa3ff']] },
-  { title: 'Wheels [m/s]', series: [['vl', 'left', '#3ecf8e'], ['vr', 'right', '#ff9f43']] },
+import { colHasData } from './core/run.js';
+// Grafici u vremenu (uPlot): brzina, ugaona brzina, točkovi, ugao θ. Uspravna linija pokazuje trenutno vreme;
+// klik na grafik skače na to vreme. Grafik čija kolona nema podataka (robot je ne šalje) se ne crta.
+export const DEFS = [
+  { title: 'Brzina [m/s]', series: [['v', 'v', '#ffffff'], ['v_ref', 'v zadato', '#4aa3ff']] },
+  { title: 'Ugaona brzina [rad/s]', series: [['w', 'ω', '#ffffff'], ['w_ref', 'ω zadato', '#4aa3ff']] },
+  { title: 'Točkovi [m/s]', series: [['vl', 'levi', '#3ecf8e'], ['vr', 'desni', '#ff9f43']] },
+  { title: 'Ugao θ [°]', series: [['th', 'θ', '#ffd166']] },
 ];
+
+const hasData = (c, d) => d.series.some(([k]) => colHasData(c, k));
+export const chartDefs = cols => DEFS.filter(d => hasData(cols, d));     // grafici koji imaju podatke, redom
 
 export class Charts {
   constructor(el, onSeek) {
-    this.el = el; this.onSeek = onSeek; this.plots = []; this.lines = [];
+    this.el = el; this.onSeek = onSeek; this.plots = []; this.lines = []; this.defs = []; this.stepEls = []; this.steps = [];
     new ResizeObserver(() => this.resize()).observe(el);
   }
 
   setRun(run) {
     this.el.innerHTML = '';
-    this.plots = []; this.lines = [];
+    this.plots = []; this.lines = []; this.stepEls = [];     // svi nizovi po grafiku ostaju poravnati sa this.defs
     const c = run.cols;
     const t = c.t.map(v => v / 1000);
-    for (const d of DEFS) {
+    this.defs = chartDefs(c);                              // grafik bez podataka (robot ih ne šalje) se ne crta
+    for (const d of this.defs) {
       const div = document.createElement('div');
       this.el.appendChild(div);
       const opts = {
@@ -48,13 +54,15 @@ export class Charts {
       u.over.appendChild(line);
       this.plots.push(u); this.lines.push(line);
     }
+    this.setSteps(this.steps);                      // markeri koraka za nove grafike
     this.resize();
   }
 
   update(run) {                      // live: new data in existing charts
-    if (!this.plots.length) return this.setRun(run);
     const c = run.cols, t = c.t.map(v => v / 1000);
-    DEFS.forEach((d, i) => this.plots[i].setData([t, ...d.series.map(([k]) => c[k] || t.map(() => null))]));
+    const want = chartDefs(c);
+    if (!this.plots.length || want.length !== this.defs.length || want.some((d, i) => d !== this.defs[i])) return this.setRun(run);
+    this.defs.forEach((d, i) => this.plots[i].setData([t, ...d.series.map(([k]) => c[k] || t.map(() => null))]));
     this._placeSteps();
   }
 
@@ -77,6 +85,7 @@ export class Charts {
   _placeSteps() {
     (this.stepEls || []).forEach((els, i) => {
       const u = this.plots[i];
+      if (!u) return;
       els.forEach((d, k) => { d.style.left = u.valToPos(this.steps[k].t / 1000, 'x') + 'px'; });
     });
   }
@@ -84,7 +93,7 @@ export class Charts {
   setTime(tms) {
     this.plots.forEach((u, i) => {
       const x = u.valToPos(tms / 1000, 'x');
-      this.lines[i].style.left = x + 'px';
+      if (this.lines[i]) this.lines[i].style.left = x + 'px';
     });
     this._placeSteps();                            // uPlot dobije veličinu tek posle prvog crtanja
   }

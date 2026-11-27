@@ -87,3 +87,19 @@ def test_samostalni_rezim_pravi_home(tmp_path, monkeypatch):
         monkeypatch.undo()
         paths.configure()
     assert paths.MODE == "repo"
+
+
+def test_lidar_bez_poze_se_snima():
+    """Bez STM32 (telemetrija bez x/y) krug lidara se ipak snima, oko START poze, sa oznakom nopose."""
+    rec = robotlink.TelemRecorder({})
+    s = {"t": 5000, "bins": [0, 1200, 0, 800], "near": None, "hz": 5.0}
+    rec.feed_lidar(s, (0, 0, 300))
+    ev = [e for e in rec.events if e[1] == "lidar"]
+    assert len(ev) == 1
+    assert ev[0][2]["nopose"] is True
+    assert ev[0][2]["pose"] == [250, 1000, 0]
+    assert ev[0][2]["pts"] == [1, 1200, 3, 800]
+    rec.feed({"t": 5100, "x": 100, "y": 200, "th": 90}, 0)      # sa pozom: poslednja poza, bez nopose
+    rec.feed_lidar(dict(s, t=5200), (0, 0, 300))
+    e2 = [e for e in rec.events if e[1] == "lidar"][-1]
+    assert e2[2]["pose"] == [100, 200, 90] and "nopose" not in e2[2]

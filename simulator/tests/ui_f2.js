@@ -17,7 +17,7 @@ const TMP = path.join(__dirname, '..', '..', 'ESP32', 'tactics', 'ui_test_tmp.py
     await p.evaluate(() => localStorage.clear()); await p.reload();
     await p.waitForSelector('#tactic option', { state: 'attached' });
     await p.selectOption('#tactic', 'primer');
-    await p.click('#edBtn');
+    await p.click('#edOpen');
     await p.waitForSelector('.cm-content');
     await p.waitForFunction(() => /from tac import/.test(document.querySelector('.cm-content').textContent));
     // dopuna koda
@@ -34,7 +34,7 @@ const TMP = path.join(__dirname, '..', '..', 'ESP32', 'tactics', 'ui_test_tmp.py
     // nova taktika, pokretanje, isticanje linije, čuvanje
     await p.click('#edNew');
     await p.waitForFunction(() => /START = /.test(document.querySelector('.cm-content').textContent));
-    await p.click('#tabSim'); await p.click('#run');
+    await p.click('#run');
     await p.waitForFunction(() => /^OK/.test(document.getElementById('result').textContent), null, { timeout: 20000 })
       .catch(() => fail.push('nova taktika nije prošla simulaciju'));
     await p.evaluate(() => { window.eurosim.play.t = 2000; });
@@ -43,7 +43,7 @@ const TMP = path.join(__dirname, '..', '..', 'ESP32', 'tactics', 'ui_test_tmp.py
     if (!cur.length) fail.push('linija koraka nije istaknuta');
     if (fs.existsSync(TMP)) fail.push('fajl napravljen pre Save');
     await p.click('#edSave');
-    await p.waitForFunction(() => /^saved/.test(document.getElementById('edState').textContent));
+    await p.waitForFunction(() => /^sačuvano/.test(document.getElementById('edState').textContent));
     if (!fs.existsSync(TMP)) fail.push('Save nije napravio fajl');
     if (process.argv[3]) await p.screenshot({ path: process.argv[3] });
     console.log(JSON.stringify({ ok: !fail.length && !errs.length, fail, errs, compl: compl.slice(0, 3), cur }));

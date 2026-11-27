@@ -92,6 +92,117 @@ def test_cuvanje_i_ucitavanje(base):
     assert r["meta"]["tactic"] == "provera" and "cols" in r
 
 
+def _gz(path, d):
+    import gzip
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        json.dump(d, f, separators=(",", ":"))
+
+
+def test_lista_snimaka_sa_detaljima_v1_i_v2(base, monkeypatch):
+    import os
+    from eurosim.api import runs as runsapi
+    d = server.RUNS
+    for f in d.glob("*.json.gz"):                    # ostali testovi u ovom modulu čuvaju snimke u isti folder
+        f.unlink()
+    frames = [{"t": t * 20, "x": 1.0, "y": 2.0} for t in range(3000)]       # veliki deo koji lista ne treba
+    v1 = {"version": 1, "meta": {"tactic": "stara", "side": "plava", "mode": "test", "source": "x" * 5000},
+          "result": {"ok": True, "robot": True, "sim_ms": 4200}, "frames": frames, "events": []}
+    v2 = {"version": 2, "meta": {"tactic": "nova", "side": "zuta", "mode": "mec",
+                                 "origin": {"engine": "sim", "parts": {"lidar": "pravi"}}},
+          "result": {"ok": False, "sim_ms": 98000}, "frames": frames, "events": [[0, "log", "x"]]}
+    _gz(d / "stari_v1.json.gz", v1)
+    _gz(d / "novi_v2.json.gz", v2)
+    os.utime(d / "stari_v1.json.gz", (1_700_000_000, 1_700_000_000))   # stariji
+    (d / "polomljen.json.gz").write_bytes(b"nije gzip")
+
+    assert sorted(get(base + "/api/runs")) == ["novi_v2", "polomljen", "stari_v1"]       # stari oblik: imena
+    rows = get(base + "/api/runs?detail=1")
+    by = {r["name"]: r for r in rows}
+    assert rows[-1]["name"] == "stari_v1"                                                 # najnoviji prvi
+    assert by["stari_v1"]["engine"] == "robot"                                            # v1: record.upgrade
+    assert by["stari_v1"]["tactic"] == "stara" and by["stari_v1"]["side"] == "plava"
+    assert by["stari_v1"]["ok"] is True and by["stari_v1"]["duration_ms"] == 4200
+    assert by["stari_v1"]["date"].startswith("2023-11-1")                                # mtime, ISO
+    assert by["novi_v2"] == {**by["novi_v2"], "engine": "sim", "lidar": "pravi", "tactic": "nova", "side": "zuta",
+                             "mode": "mec", "ok": False, "duration_ms": 98000}
+    assert by["polomljen"]["error"] and by["polomljen"]["tactic"] is None                 # red ostaje, sa greškom
+    with pytest.raises(urllib.error.HTTPError) as e:                                     # učitavanje: JSON greška
+        get(base + "/api/runs/polomljen")
+    assert e.value.code == 422 and "se ne čita" in json.load(e.value)["error"]
+    assert get(base + "/api/runs/stari_v1")["meta"]["origin"]["engine"] == "robot"       # v1 se i dalje učitava
+
+    # keš po mtime: isti fajl se ne čita ponovo; izmenjen (novi mtime) se čita
+    calls = []
+    real = runsapi.Recording.peek
+    monkeypatch.setattr(runsapi.Recording, "peek", staticmethod(lambda p: calls.append(p.name) or real(p)))
+    get(base + "/api/runs?detail=1")
+    assert calls == []
+    v2["meta"]["tactic"] = "nova2"
+    _gz(d / "novi_v2.json.gz", v2)
+    os.utime(d / "novi_v2.json.gz", (1_800_000_000, 1_800_000_000))
+    rows = get(base + "/api/runs?detail=1")
+    assert calls == ["novi_v2.json.gz"] and rows[0]["tactic"] == "nova2"
+    for f in d.glob("*.json.gz"):
+        f.unlink()
+    assert get(base + "/api/runs?detail=1") == []
+
+
+def test_referenca_ne_menja_sta_se_cuva(base):
+    """Uporedi sa… učitava referencu sa ?ref=1: Sačuvaj snimak i dalje čuva simulaciju koja se gleda."""
+    d = server.RUNS
+    _gz(d / "ref_x.json.gz", {"version": 2, "meta": {"tactic": "referenca", "side": "plava",
+                                                      "origin": {"engine": "robot", "parts": {}}},
+                               "result": {"ok": None}, "frames": [{"t": 0, "x": 0.3, "y": 1.0}], "events": []})
+    try:
+        st, sim = post(base + "/api/run", {"tactic": "provera", "mode": "test", "side": "zuta"})
+        assert st == 200
+        assert get(base + "/api/runs/ref_x?ref=1")["meta"]["tactic"] == "referenca"
+        st, sv = post(base + "/api/runs/save", {"name": "posle_reference"})
+        assert st == 200
+        saved = get(base + "/api/runs/posle_reference?ref=1")
+        assert saved["meta"]["tactic"] == "provera" and saved["meta"]["origin"]["engine"] == "sim"
+        # bez ?ref učitan snimak postaje „poslednji“ (staro ponašanje „Load run“)
+        get(base + "/api/runs/ref_x")
+        post(base + "/api/runs/save", {"name": "posle_ucitavanja"})
+        assert get(base + "/api/runs/posle_ucitavanja")["meta"]["tactic"] == "referenca"
+    finally:
+        for n in ("ref_x", "posle_reference", "posle_ucitavanja"):
+            (d / (n + ".json.gz")).unlink(missing_ok=True)
+
+
+def test_detalji_paralelno_bez_greske(base):
+    """Dva paralelna ?detail=1 (niti iz executor-a) dok se fajlovi brišu: keš se ne menja tokom iteracije."""
+    from concurrent.futures import ThreadPoolExecutor
+    d = server.RUNS
+    names = ["par_%d" % i for i in range(20)]
+    for n in names:
+        _gz(d / (n + ".json.gz"), {"version": 2, "meta": {"tactic": n}, "result": {}, "frames": [], "events": []})
+    try:
+        get(base + "/api/runs?detail=1")
+        for n in names[:10]:
+            (d / (n + ".json.gz")).unlink()
+        with ThreadPoolExecutor(4) as ex:
+            rows = list(ex.map(lambda _: get(base + "/api/runs?detail=1"), range(8)))
+        assert all({r["name"] for r in rs} >= set(names[10:]) for rs in rows)
+    finally:
+        for n in names:
+            (d / (n + ".json.gz")).unlink(missing_ok=True)
+
+
+def test_peek_cita_samo_pocetak(tmp_path):
+    from eurosim import record
+    frames = [{"t": t, "x": t * 0.001} for t in range(200000)]
+    d = {"version": 2, "meta": {"tactic": "a", "origin": {"engine": "sim", "parts": {}}}, "result": {"ok": True},
+         "frames": frames, "events": []}
+    _gz(tmp_path / "a.json.gz", d)
+    h = record.Recording.peek(tmp_path / "a.json.gz", chunk=7)       # mali komadi: ključevi preko granica komada
+    assert h["meta"]["tactic"] == "a" and h["result"] == {"ok": True} and "frames" not in h
+    # neobičan redosled (frames pre meta): čita se ceo fajl
+    _gz(tmp_path / "b.json.gz", {"frames": [], "meta": {"tactic": "b"}, "version": 1, "result": {}})
+    h = record.Recording.peek(tmp_path / "b.json.gz")
+    assert h["meta"]["tactic"] == "b" and h["meta"]["origin"]["engine"] == "sim"
+
+
 def test_beskonacna_petlja_bez_cekanja_se_prekida(tmp_path, monkeypatch):
     from eurosim import paths
     (tmp_path / "zauvek.py").write_text("from tac import *\nwhile True:\n    pass\n")
@@ -205,3 +316,24 @@ def test_scenariji_i_izmenjeni_kamenolomi(base, tmp_path, monkeypatch):
     assert post(base + "/api/scenarios/save", {"name": "../x", "elements": []})[0] == 400
     st, r = post(base + "/api/run", {"tactic": "primer", "mode": "test", "elements": el})
     assert st == 200 and r["meta"]["elements"][0]["z"] == 110
+
+
+def test_tactic_names_i_dumps():
+    assert "primer" in server._tactic_names()
+    assert server._dumps({"a": [1, 2]}) == '{"a":[1,2]}'
+
+
+def _port_otvoren(port):
+    with socket.socket() as s:
+        s.settimeout(0.5)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def test_vrobot_stop_gasi_proces(base):
+    code, d = post(base + "/api/vrobot", {"action": "start", "port": 18267, "telem": 18268})
+    assert code == 200 and d["running"] is True
+    assert _port_otvoren(18267)
+    code, d = post(base + "/api/vrobot", {"action": "stop"})
+    assert code == 200 and d == {"running": False}
+    assert not _port_otvoren(18267)           # proces je mrtav, pa niko ne sluša
+    assert post(base + "/api/vrobot", {"action": "stop"})[1] == {"running": False}

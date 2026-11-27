@@ -15,7 +15,7 @@ const { chromium } = require('playwright');
     await ev(() => localStorage.clear()); await p.reload();
     await p.waitForSelector('#tactic option', { state: 'attached' });
     await p.selectOption('#tactic', 'primer');
-    await p.click('#edBtn');
+    await p.click('#edOpen');
     await p.waitForSelector('.cm-content');
     await p.waitForFunction(() => /from tac import/.test(document.querySelector('.cm-content').textContent));
     await p.uncheck('#autoSim');
@@ -31,7 +31,7 @@ const { chromium } = require('playwright');
     const cross = await ev(() => window.eurosim.view.cursorGroup.children.length);
     if (!cross) fail.push('nema krsta za x, y');
     const draft = await p.textContent('#edDraft');
-    if (!/3 moves/.test(draft)) fail.push('natpis nacrta: ' + draft);
+    if (!/3 pokreta/.test(draft)) fail.push('natpis nacrta: ' + draft);
     // Alt+klik na sto: goto(x, y) u novi red
     await p.keyboard.press('End'); await p.keyboard.press('Enter');
     const box = await p.$eval('#view canvas', c => { const r = c.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
@@ -39,29 +39,29 @@ const { chromium } = require('playwright');
     await p.waitForTimeout(300);
     const lastLine = await ev(() => window.eurosim.ed.editor.text().trim().split('\n').pop());
     if (!/^goto\(\d+, \d+\)$/.test(lastLine)) fail.push('Alt+klik: ' + lastLine);
-    // S4: panel Commands (Gambit Micro): pretraga, objašnjenje, Insert ubacuje primer
-    await p.click('#edCmdBtn');
-    await p.waitForSelector('#apiDrawer:not([hidden])');
-    const title = await p.textContent('#apiDrawer .drawer-head b');
-    if (title !== 'Gambit Micro') fail.push('naslov panela: ' + title);
+    // S4: kartica Komande u editoru (Gambit Micro; Zadatak 4.3, ranije fioka): pretraga, objašnjenje, „Ubaci u kod“
+    await p.click('.ed-tabs [data-tab=edCommands]');
+    await p.waitForSelector('#edCommands:not([hidden])');
+    if (!(await p.isHidden('#edProblems'))) fail.push('Komande: Problemi i dalje vidljivi');
+    if (await p.$('#apiDrawer, #edCmdBtn')) fail.push('stara fioka Commands još postoji');
     await p.fill('#apiFilter', 'goto');
     const found = await p.$$eval('#apiList details.cmd summary code', l => l.map(x => x.textContent));
     if (!found.includes('goto')) fail.push('pretraga: ' + found);
     await p.click('#apiList details.cmd[open] button.ins');
     const ins = await ev(() => window.eurosim.ed.editor.text().trim().split('\n').pop());
     if (ins !== 'goto(600, 1000)') fail.push('Insert: ' + ins);
-    await p.click('#apiClose');
+    await p.click('.ed-tabs [data-tab=edProblems]');
     // plava strana: nacrt ogledan
-    await p.selectOption('#side', 'plava');
+    await p.click('#sideSeg [data-v=plava]');
     await p.waitForFunction(() => window.eurosim.view.prevItems.length && window.eurosim.view.prevItems[0].position.x > 2, null, { timeout: 5000 })
       .catch(() => fail.push('nacrt za plavu nije ogledan'));
     // S9 timeline: traka koraka, zastavice, klik na korak skače na njegov početak
-    await p.selectOption('#side', 'zuta');
-    await p.click('#tabSim'); await p.click('#run');
+    await p.click('#sideSeg [data-v=zuta]');
+    await p.click('#run');
     await p.waitForFunction(() => document.querySelectorAll('.bstep').length >= 4, null, { timeout: 20000 })
       .catch(() => fail.push('S9: nema traka koraka'));
     const flags = await p.$$eval('#bandFlags .flag', l => l.map(x => x.textContent));
-    if (!flags.includes('CORD') || !flags.includes('ARMED')) fail.push('S9 zastavice: ' + flags);
+    if (!flags.includes('ČINČ') || !flags.includes('NAORUŽAN')) fail.push('S9 zastavice: ' + flags);
     await p.click('.bstep >> nth=1');
     const t2 = await ev(() => [window.eurosim.play.t, window.eurosim.run.steps[1].t]);
     if (t2[0] !== t2[1]) fail.push('S9 klik na korak: ' + t2);

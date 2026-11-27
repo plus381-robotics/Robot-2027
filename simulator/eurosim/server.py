@@ -8,141 +8,22 @@
 import asyncio
 import json
 import multiprocessing as mp
-import os
-import pathlib
-import uuid
-import pathlib
-import re
-import time
+import sys
+import traceback
 import webbrowser
 
 from aiohttp import web
 
-from . import field, paths, profile as profmod, tactics as tacmod
-from .record import Recording
+from . import field, paths, profile as profmod, session, tactics as tacmod
+from .api import lidar as lidarapi, profile as profapi, repo as repoapi, runs, scenarios, tactics as tacapi
+from .api._util import STATE, _dumps, _elements_arg, _tactic_names, columns, pack
+from .api.runs import RUN_TIMEOUT_S, _live_worker, _runs, run_in_process      # noqa: F401  (testovi: server.*)
 
-RUNS = None                    # None = paths.RUNS (testovi ga menjaju)
-
-
-def _runs_dir():
-    return RUNS or paths.RUNS
-RUN_TIMEOUT_S = 60
+RUNS = None                    # None = paths.RUNS (testovi ga menjaju; api/runs.py ga čita odavde)
 PORT = 8270
-STATE = web.AppKey("state", dict)          # {"profile": Profile, "last": poslednji snimak (dict)}
-
-
-# ---------------- simulacija u posebnom procesu ----------------
-
-def _staged(kw):
-    """kw["source"] (tekst iz editora, ne mora biti sačuvan): sve taktike + ova u privremeni folder."""
-    src = kw.pop("source", None)
-    if src is None:
-        return None
-    import shutil
-    import tempfile
-    d = tempfile.TemporaryDirectory(prefix="eurosim-tac-")
-    for f in paths.TACTICS.glob("*.py"):
-        shutil.copy(f, d.name)
-    with open(os.path.join(d.name, kw["name"] + ".py"), "w", encoding="utf-8") as fh:
-        fh.write(src)
-    kw["tactics_dir"] = d.name
-    return d
-
-
-def _worker(conn, kw):
-    try:
-        import contextlib
-        import io
-        from .sim import Sim
-        err = io.StringIO()
-        tmp = _staged(kw)
-        with contextlib.redirect_stderr(err):
-            rec = Sim(**kw).run()
-        if tmp:
-            tmp.cleanup()
-        conn.send(("ok", rec.to_dict()))
-    except BaseException as e:            # noqa: BLE001  (sve greške idu nazad u UI)
-        import traceback
-        conn.send(("err", "%s\n%s" % (e, traceback.format_exc())))
-    finally:
-        conn.close()
-
-
-def run_in_process(kw, timeout=RUN_TIMEOUT_S):
-    ctx = mp.get_context("spawn")
-    a, b = ctx.Pipe(duplex=False)
-    p = ctx.Process(target=_worker, args=(b, kw), daemon=True)
-    p.start()
-    b.close()
-    try:
-        if not a.poll(timeout):
-            p.kill()
-            return "err", "simulacija nije završila za %d s (beskonačna petlja bez wait()?)" % timeout
-        return a.recv()
-    except EOFError:
-        return "err", "proces simulacije je pao"
-    finally:
-        p.join(1)
-        if p.is_alive():
-            p.kill()
-
-
-def _live_worker(conn, kw):
-    """Live simulacija: komande stižu kroz conn, podaci idu nazad ("data", d), na kraju ("end", snimak)."""
-    try:
-        import contextlib
-        import io
-        from .sim import Sim
-
-        def control():
-            out = []
-            while conn.poll():
-                out.append(conn.recv())
-            return out
-
-        def emit(d):
-            conn.send(("data", d))
-
-        tmp = _staged(kw)
-        from . import lidarsrc                       # izvor lidara se pravi ovde (nit i soket ne prelaze u proces)
-        kw["lidar"] = lidarsrc.open_source(kw.pop("lidar_spec", None), kw.pop("lidar_pw", None))
-        with contextlib.redirect_stderr(io.StringIO()):
-            rec = Sim(mode="live", control=control, emit=emit, **kw).run()
-        if tmp:
-            tmp.cleanup()
-        conn.send(("end", rec.to_dict()))
-    except BaseException as e:            # noqa: BLE001
-        import traceback
-        try:
-            conn.send(("err", "%s\n%s" % (e, traceback.format_exc())))
-        except Exception:
-            pass
-    finally:
-        conn.close()
-
-
-def columns(frames):
-    """Frame-ovi (lista dict-ova) -> kolone (dict lista), za grafike i manji JSON."""
-    keys = []
-    for f in frames:
-        for k in f:
-            if k not in keys:
-                keys.append(k)
-    return {k: [f.get(k) for f in frames] for k in keys}
-
-
-def pack(rec):
-    d = dict(rec)
-    d["cols"] = columns(d.pop("frames"))
-    return d
 
 
 # ---------------- HTTP ----------------
-
-def _safe_name(s):
-    s = re.sub(r"[^A-Za-z0-9_.-]+", "_", s.strip())[:60]
-    return s or "run"
-
 
 def _ir_layout(prof):
     """IR senzori za prikaz: [{name, x, y, d, z}] u mm, koordinate robota (isto kao plant.sensor_layout)."""
@@ -152,7 +33,7 @@ def _ir_layout(prof):
 
 async def info(request):
     prof = request.app[STATE]["profile"]
-    tactics = sorted(f.stem for f in paths.TACTICS.glob("*.py"))
+    tactics = sorted(_tactic_names())
     return web.json_response({
         "tactics": tactics, "field": field.describe(),
         "profile": {"name": prof.get("name"), "body": prof["body"], "drive": prof["drive"],
@@ -165,125 +46,19 @@ async def info(request):
     })
 
 
-def _elements_arg(v):
-    """Kamenolomi iz zahteva: True/False/"1"/"0" (po pravilima ili bez) ili lista (izmenjen sto, JSON)."""
-    if isinstance(v, str):
-        if v in ("0", "1", ""):
-            return v != "0"
-        try:
-            v = json.loads(v)
-        except ValueError:
-            return True
-    return v if isinstance(v, list) else bool(v)
-
-
 # ---------------- scenariji: izmenjen sto (kamenolomi) i protivnici, plan E3 ----------------
 
-def _scen_dir():
-    d = paths.SCENARIOS
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+
+# ---------------- sesija: jedan WebSocket za simulaciju, pravog robota i snimak ----------------
+
+STALE_MS, LOST_MS = 1500, 5000       # starost poslednjeg paketa telemetrije: "stale" / "lost" (veza se ne zatvara)
+POLL_S = 0.1
+POLL_SIM_S = 0.05                    # worker simulacije šalje na 50 ms: Live ostaje na ~20 Hz
 
 
-async def scenarios_list(request):
-    return web.json_response({"scenarios": sorted(p.stem for p in _scen_dir().glob("*.json"))})
-
-
-async def scenario_get(request):
-    n = request.match_info["name"]
-    if not tacmod.NAME_RE.match(n):
-        return web.json_response({"error": "ime"}, status=400)
-    p = _scen_dir() / (n + ".json")
-    if not p.exists():
-        return web.json_response({"error": "nema scenarija " + n}, status=404)
-    return web.json_response(json.loads(p.read_text(encoding="utf-8")))
-
-
-async def scenario_save(request):
-    q = await request.json()
-    n = q.get("name", "")
-    if not tacmod.NAME_RE.match(n or ""):
-        return web.json_response({"error": "ime: slova, cifre i _"}, status=400)
-    data = {"elements": q.get("elements"), "opponents": q.get("opponents") or [], "note": q.get("note", "")}
-    (_scen_dir() / (n + ".json")).write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
-    return web.json_response({"saved": n, "scenarios": sorted(p.stem for p in _scen_dir().glob("*.json"))})
-
-
-async def run(request):
-    q = await request.json()
-    name = q.get("tactic")
-    source = q.get("source")
-    if source is not None:
-        if not tacmod.NAME_RE.match(name or ""):
-            return web.json_response({"error": "neispravno ime taktike %r" % name}, status=400)
-    elif name not in {f.stem for f in paths.TACTICS.glob("*.py")}:
-        return web.json_response({"error": "nema taktike %r" % name}, status=400)
-    else:
-        source = (paths.TACTICS / (name + ".py")).read_text(encoding="utf-8")
-    loop = asyncio.get_running_loop()
-    api = request.app[STATE].setdefault("api", tacmod.tac_api())
-    diags = await loop.run_in_executor(None, tacmod.static_check, source, api)
-    if any(d["source"] == "syntax" for d in diags):
-        return web.json_response({"error": "taktika ima sintaksnu grešku", "diagnostics": diags}, status=422)
-    kw = dict(source=source, name=name, side=q.get("side", "zuta"), mode=q.get("mode", "mec"),
-              cord_s=float(q.get("cord_s", 1.0)), obstacles=q.get("obstacles") or [],
-              elements=_elements_arg(q.get("elements", True)),
-              prof=request.app[STATE]["profile"])
-    if q.get("max_s"):
-        kw["max_s"] = float(q["max_s"])
-    t0 = time.time()
-    kind, res = await loop.run_in_executor(None, run_in_process, kw)
-    if kind != "ok":
-        return web.json_response({"error": res, "diagnostics": diags}, status=500)
-    request.app[STATE]["last"] = res
-    out = pack(res)
-    out["diagnostics"] = diags + tacmod.runtime_diags(res)
-    out["wall_s"] = round(time.time() - t0, 2)
-    return web.json_response(out, dumps=lambda o: json.dumps(o, separators=(",", ":")))
-
-
-def _runs():
-    d = _runs_dir()
-    if not d.exists():
-        return []
-    return sorted((f.name[:-8] for f in d.glob("*.json.gz")), reverse=True)
-
-
-async def runs_list(request):
-    return web.json_response(_runs())
-
-
-async def run_save(request):
-    q = await request.json()
-    last = request.app[STATE]["last"]
-    if not last:
-        return web.json_response({"error": "nema simulacije za čuvanje"}, status=400)
-    m = last["meta"]
-    name = _safe_name(q.get("name") or "%s_%s_%s" % (time.strftime("%Y%m%d-%H%M%S"), m["tactic"], m["side"]))
-    _runs_dir().mkdir(parents=True, exist_ok=True)
-    r = Recording(m)
-    r.frames, r.events, r.result = last["frames"], last["events"], last["result"]
-    r.save(_runs_dir() / (name + ".json.gz"))
-    return web.json_response({"saved": name, "runs": _runs()})
-
-
-async def run_load(request):
-    name = _safe_name(request.match_info["name"])
-    f = _runs_dir() / (name + ".json.gz")
-    if not f.exists():
-        return web.json_response({"error": "nema snimka %s" % name}, status=404)
-    r = Recording.load(f)
-    request.app[STATE]["last"] = r.to_dict()
-    return web.json_response(pack(r.to_dict()), dumps=lambda o: json.dumps(o, separators=(",", ":")))
-
-
-async def live(request):
-    """WebSocket /ws/live?tactic=..&side=..: interaktivna simulacija u stvarnom vremenu.
-    Klijent šalje JSON liste (komande, vidi Sim.command), server šalje {"type": "data"|"end"|"error", ...}."""
-    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=32 * 1024 * 1024)
-    await ws.prepare(request)
+def _sim_source(request):
     q = request.query
-    names = {f.stem for f in paths.TACTICS.glob("*.py")}
+    names = _tactic_names()
     tactic = q.get("tactic") if q.get("tactic") in names else None
     staged = request.app[STATE].get("staged", {}).pop(q.get("stage"), None)
     try:
@@ -296,230 +71,87 @@ async def live(request):
         kw["name"], kw["source"] = staged
     if q.get("lidar") and q.get("lidar") != "sim":   # hibridna simulacija: lidar sa robota ili iz snimka
         kw["lidar_spec"], kw["lidar_pw"] = q.get("lidar"), q.get("lidar_pw") or None
-    ctx = mp.get_context("spawn")
-    a, b = ctx.Pipe()
-    p = ctx.Process(target=_live_worker, args=(b, kw), daemon=True)
-    p.start()
-    b.close()
-    loop = asyncio.get_running_loop()
-    dumps = lambda o: json.dumps(o, separators=(",", ":"))   # noqa: E731
-
-    async def outgoing():
-        while True:
-            try:
-                has = await loop.run_in_executor(None, a.poll, 0.2)
-                if not has:
-                    if not p.is_alive():
-                        await ws.send_str(dumps({"type": "error", "error": "proces simulacije je stao"}))
-                        return
-                    continue
-                kind, d = a.recv()
-            except (EOFError, OSError):
-                return
-            if ws.closed:
-                return
-            if kind == "data":
-                await ws.send_str(dumps({"type": "data", **d}))
-            elif kind == "end":
-                request.app[STATE]["last"] = d
-                await ws.send_str(dumps({"type": "end", "run": pack(d)}))
-                return
-            else:
-                await ws.send_str(dumps({"type": "error", "error": d}))
-                return
-
-    task = asyncio.create_task(outgoing())
-    try:
-        async for msg in ws:
-            if msg.type == web.WSMsgType.TEXT:
-                try:
-                    a.send(tuple(json.loads(msg.data)))
-                except (ValueError, OSError, BrokenPipeError):
-                    pass
-            if task.done():
-                break
-    finally:
-        if p.is_alive():
-            try:
-                a.send(("quit",))
-            except (OSError, BrokenPipeError):
-                pass
-        try:
-            await asyncio.wait_for(task, 5)
-        except (asyncio.TimeoutError, Exception):
-            task.cancel()
-        p.join(1)
-        if p.is_alive():
-            p.kill()
-        if not ws.closed:
-            await ws.close()
-    return ws
+    return session.SimSource(kw)
 
 
-async def tac_api_h(request):
-    api = tacmod.tac_api()                      # svaki put iz tac.py (prati izmene)
-    request.app[STATE]["api"] = api
-    return web.json_response(dict(api, template=tacmod.TEMPLATE))
+def _robot_host(request):
+    return request.query.get("host") or "eurokik.local"
 
 
-async def tactic_get(request):
-    try:
-        return web.json_response(tacmod.read(request.match_info["name"]))
-    except (ValueError, OSError) as e:
-        return web.json_response({"error": str(e)}, status=404)
-
-
-async def tactic_save(request):
-    q = await request.json()
-    try:
-        r = tacmod.save(q.get("name"), q.get("source", ""), q.get("sha"))
-    except ValueError as e:
-        return web.json_response({"error": str(e)}, status=400)
-    if r.get("conflict"):
-        return web.json_response({"error": "fajl je u međuvremenu promenjen na disku (git, drugi editor); "
-                                           "osveži ili sačuvaj pod drugim imenom", **r}, status=409)
-    return web.json_response(r)
-
-
-async def preview(request):
-    """Nacrt putanje iz teksta taktike, bez simulacije (plan S7): lažni tac beleži komande."""
-    from . import preview as pv
-    q = await request.json()
-    api = request.app[STATE].setdefault("api", tacmod.tac_api())
-    r = await asyncio.get_running_loop().run_in_executor(
-        None, lambda: pv.preview(q.get("source", ""), q.get("side", "zuta"), api["ref_side"], api["field_x"],
-                                 q.get("mode", "mec")))
-    return web.json_response(r)
-
-
-# ---------------- repo kao radni prostor (plan S10) ----------------
-
-async def _repo_call(fn, *a):
-    from . import repo
-    try:
-        return web.json_response(await asyncio.get_running_loop().run_in_executor(None, fn, *a))
-    except repo.GitError as e:
-        return web.json_response({"error": str(e)}, status=502)
-    except (ValueError, OSError) as e:
-        return web.json_response({"error": str(e)}, status=400)
-
-
-def _reload_repo(app):
-    """Posle prelaska na drugi repo: profil i API taktika iz novog repoa."""
-    app[STATE]["profile"] = profmod.load()
-    app[STATE].pop("api", None)
-
-
-async def repo_status(request):
-    from . import repo
-    return await _repo_call(repo.status, request.query.get("fetch") == "1")
-
-
-async def repo_open(request):
-    from . import repo
-    q = await request.json()
-    r = await _repo_call(repo.open_repo, q.get("path", ""))
-    if r.status == 200:
-        _reload_repo(request.app)
-    return r
-
-
-async def repo_clone(request):
-    from . import repo
-    q = await request.json()
-    r = await _repo_call(repo.clone, q.get("parent", ""))
-    if r.status == 200:
-        _reload_repo(request.app)
-    return r
-
-
-async def repo_pull(request):
-    from . import repo
-    r = await _repo_call(repo.pull)
-    _reload_repo(request.app)
-    return r
-
-
-async def repo_save(request):
-    from . import repo
-    q = await request.json()
-    return await _repo_call(repo.save, q.get("message", ""))
-
-
-async def tactic_rename(request):
-    q = await request.json()
-    try:
-        return web.json_response(tacmod.rename(q.get("name"), q.get("new")))
-    except FileExistsError as e:
-        return web.json_response({"error": str(e)}, status=409)
-    except (ValueError, OSError) as e:
-        return web.json_response({"error": str(e)}, status=400)
-
-
-async def tactic_delete(request):
-    q = await request.json()
-    try:
-        return web.json_response(tacmod.delete(q.get("name")))
-    except (ValueError, OSError) as e:
-        return web.json_response({"error": str(e)}, status=400)
-
-
-async def check(request):
-    q = await request.json()
-    api = request.app[STATE].setdefault("api", tacmod.tac_api())
-    diags = await asyncio.get_running_loop().run_in_executor(None, tacmod.static_check, q.get("source", ""), api)
-    return web.json_response({"diagnostics": diags})
-
-
-async def stage(request):
-    """Tekst iz editora za Live (ne staje u URL): vraća oznaku za /ws/live?stage=..."""
-    q = await request.json()
-    if not tacmod.NAME_RE.match(q.get("name") or ""):
-        return web.json_response({"error": "neispravno ime"}, status=400)
-    st = request.app[STATE].setdefault("staged", {})
-    if len(st) > 20:
-        st.clear()
-    key = uuid.uuid4().hex
-    st[key] = (q["name"], q.get("source", ""))
-    return web.json_response({"stage": key})
-
-
-# ---------------- pravi robot (F5) ----------------
-
-async def robot_ws(request):
-    """WebSocket /ws/robot?host=..&password=..: telemetrija robota + komande (push, run, stop, stat).
-    Isti oblik podataka kao /ws/live; na kraju {"type": "end", "run": snimak}."""
+def _robot_source(request):
     from . import robotlink
-    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=32 * 1024 * 1024)
-    await ws.prepare(request)
     q = request.query
-    host = q.get("host") or "eurokik.local"
-    pw = q.get("password") or robotlink.default_password()
-    dumps = lambda o: json.dumps(o, separators=(",", ":"))   # noqa: E731
-
-    async def emit(d):
-        if not ws.closed:
-            await ws.send_str(dumps({"type": "data", **d}))
-
-    link = robotlink.RobotLink(host, pw, emit, request.app[STATE]["profile"],
+    return session.RobotSource(_robot_host(request), q.get("password") or robotlink.default_password(),
+                               request.app[STATE]["profile"],
                                upload_port=int(q.get("port") or robotlink.UPLOAD_PORT),
                                telem_port=int(q.get("telem") or robotlink.TELEM_PORT))
-    try:
-        await link.start()
-    except OSError as e:
-        await ws.send_str(dumps({"type": "error", "error": "ne mogu da nađem %s: %s (probaj IP adresu sa ekrana "
-                                                        "VEZA)" % (host, e)}))
+
+
+def _replay_source(request):
+    f = runs._runs_dir() / (runs._safe_name(request.query.get("run") or "") + ".json.gz")
+    return session.ReplaySource(f) if f.exists() else None
+
+
+def _link_state(age):
+    return "lost" if age > LOST_MS else "stale" if age > STALE_MS else "ok"
+
+
+async def session_ws(request, engine=None):
+    """WebSocket /ws/session?engine=sim|robot|replay&..: jedan oblik poruka za sva tri izvora.
+    Server šalje {"type": "hello"|"data"|"reply"|"state"|"end"|"error", ...}, klijent JSON liste (komande).
+    /ws/live i /ws/robot su isti handler sa engine=sim / engine=robot."""
+    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=32 * 1024 * 1024)
+    await ws.prepare(request)
+    engine = engine or request.query.get("engine") or "sim"
+
+    async def send(o):
+        if not ws.closed:
+            await ws.send_str(_dumps(o))
+
+    async def refuse(text):
+        await send({"type": "error", "error": text})
         await ws.close()
         return ws
-    pump = asyncio.create_task(link.run())
-
-    async def reply(c, ok, lines):
-        if not ws.closed:
-            await ws.send_str(dumps({"type": "reply", "cmd": c, "ok": ok, "lines": lines}))
 
     try:
-        ok, lines = await link.cmd("STAT")
-        await reply("STAT", ok, lines)
+        source = {"sim": _sim_source, "robot": _robot_source, "replay": _replay_source}.get(engine, lambda r: None)(request)
+    except ValueError as e:
+        return await refuse("neispravni parametri: %s" % e)
+    if source is None:
+        return await refuse("nema snimka %s" % request.query.get("run") if engine == "replay"
+                            else "nepoznat izvor: %s" % engine)
+    try:
+        await source.start()
+    except OSError as e:
+        await source.close()
+        return await refuse("ne mogu da nađem %s: %s (probaj IP adresu sa ekrana VEZA)" % (_robot_host(request), e))
+    except Exception as e:
+        await source.close()
+        return await refuse(str(e))
+    await send({"type": "hello", "source": {"engine": source.kind, "parts": source.parts},
+                "capabilities": sorted(source.capabilities)})
+
+    async def pump():
+        """Skuplja podatke izvora i šalje ih; vraća True ako je izvor javio grešku, False kad je gotov (final)."""
+        link = "ok"
+        while True:
+            d = await source.poll()
+            err = d.pop("error", None)
+            if source.kind != "replay" or d["frames"] or d["events"] or d["meta"]:
+                await send({"type": "data", **d})
+            if source.kind == "robot":
+                age = source.link_age()
+                if _link_state(age) != link:
+                    link = _link_state(age)
+                    await send({"type": "state", "link": link, "age": age})
+            if err:
+                await send({"type": "error", "error": err})
+                return True
+            if d["final"]:
+                return False
+            await asyncio.sleep(POLL_SIM_S if source.kind == "sim" else POLL_S)
+
+    async def reader():
         async for msg in ws:
             if msg.type != web.WSMsgType.TEXT:
                 continue
@@ -527,38 +159,58 @@ async def robot_ws(request):
                 c = json.loads(msg.data)
             except ValueError:
                 continue
-            k = c[0]
-            if k == "quit":
-                break
-            if k == "push":                       # ["push", ime, tekst ili null = fajl iz ESP32/tactics]
-                name, src = c[1], c[2] if len(c) > 2 else None
-                if not tacmod.NAME_RE.match(name or ""):
-                    await reply(k, False, ["neispravno ime"])
-                    continue
-                if src is None:
-                    src = (paths.TACTICS / (name + ".py")).read_text(encoding="utf-8")
-                data = src.encode("utf-8")
-                ok, lines = await link.cmd("PUT", "/tactics/%s.py" % name, len(data), data=data)
-                await reply(k, ok, lines)
-            elif k == "run":
-                ok, lines = await link.cmd("RUN", c[1], c[2] if len(c) > 2 else "")
-                await reply(k, ok, lines)
-            elif k == "stop":
-                ok, lines = await link.cmd("STOP")
-                await reply(k, ok, lines)
-            elif k == "stat":
-                ok, lines = await link.cmd("STAT")
-                await reply(k, ok, lines)
+            if not isinstance(c, list) or not c:
+                continue
+            if c[0] == "quit":
+                return
+            try:
+                r = await source.command(c)
+            except Exception as e:
+                r = {"cmd": str(c[0]), "ok": False, "lines": [str(e)]}
+            await send({"type": "reply", **r})
+
+    failed = False
+    pumping = asyncio.create_task(pump())
+    reading = asyncio.create_task(reader())
+    try:
+        if source.kind == "robot":                    # UI iz STAT odgovora vidi "connected"
+            ok, lines = await source.link.cmd("STAT")
+            await send({"type": "reply", "cmd": "STAT", "ok": ok, "lines": lines})
+        await asyncio.wait({pumping, reading}, return_when=asyncio.FIRST_COMPLETED)
     finally:
-        pump.cancel()
-        link.close()
-        res = link.recording()
-        if res["frames"]:
-            request.app[STATE]["last"] = res
+        reading.cancel()
+        if pumping.done():
+            failed = not pumping.cancelled() and pumping.exception() is None and pumping.result()
+            if not pumping.cancelled() and pumping.exception() is not None:   # inače bi greška pumpe nestala bez traga
+                e = pumping.exception()
+                print("sesija (%s): pumpa je pala:" % engine, file=sys.stderr)
+                traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
+        else:
+            pumping.cancel()                           # prvo stop poll-a, tek onda close()
+        await asyncio.gather(pumping, reading, return_exceptions=True)
+        rec = await source.close()
+        if rec.get("frames"):
+            request.app[STATE]["last"] = rec
+        if not failed:
+            await send({"type": "end", "run": pack(rec) if rec.get("frames") else None})
         if not ws.closed:
-            await ws.send_str(dumps({"type": "end", "run": pack(res) if res["frames"] else None}))
             await ws.close()
     return ws
+
+
+async def live(request):
+    """WebSocket /ws/live?tactic=..&side=..: stari naziv za /ws/session?engine=sim."""
+    return await session_ws(request, "sim")
+
+
+async def robot_ws(request):
+    """WebSocket /ws/robot?host=..&password=..: stari naziv za /ws/session?engine=robot."""
+    return await session_ws(request, "robot")
+
+
+# ---------------- repo kao radni prostor (plan S10) ----------------
+
+
 
 
 def _vrobot_worker(kw):
@@ -581,7 +233,7 @@ async def vrobot(request):
         st["vrobot"] = None
         if q.get("action") == "stop":
             return web.json_response({"running": False})
-    names = {f.stem for f in paths.TACTICS.glob("*.py")}
+    names = _tactic_names()
     kw = dict(name=q.get("tactic") if q.get("tactic") in names else None, side=q.get("side", "zuta"),
               prof=st["profile"], obstacles=q.get("obstacles") or [],
               net={"upload": int(q.get("port", 8267)), "telem": int(q.get("telem", 8268)), "password": "eurosim"})
@@ -593,30 +245,6 @@ async def vrobot(request):
 
 
 # ---------------- profil robota (F4) ----------------
-
-async def profile_get(request):
-    f = request.app[STATE].get("profile_path") or paths.DEFAULT_PROFILE
-    return web.json_response({"file": str(f), "files": sorted(x.name for x in paths.PROFILES.glob("*.toml")),
-                              "sections": profmod.describe(f)})
-
-
-async def profile_set(request):
-    q = await request.json()
-    st = request.app[STATE]
-    f = pathlib.Path(st.get("profile_path") or paths.DEFAULT_PROFILE)
-    if q.get("file"):
-        f2 = paths.PROFILES / pathlib.Path(q["file"]).name
-        if not f2.exists():
-            return web.json_response({"error": "nema profila %s" % q["file"]}, status=404)
-        f = f2
-    try:
-        if q.get("changes"):
-            profmod.update_file(f, q["changes"])
-        prof = profmod.load(f)
-    except (ValueError, KeyError) as e:
-        return web.json_response({"error": str(e)}, status=400)
-    st["profile"], st["profile_path"] = prof, f
-    return web.json_response({"file": str(f), "sections": profmod.describe(f), "name": prof.get("name")})
 
 
 async def index(request):
@@ -638,31 +266,35 @@ def make_app(prof=None):
     app[STATE] = {"profile": prof or profmod.load(), "last": None}
     app.router.add_get("/", index)
     app.router.add_get("/api/info", info)
-    app.router.add_post("/api/run", run)
-    app.router.add_get("/api/runs", runs_list)
-    app.router.add_post("/api/runs/save", run_save)
-    app.router.add_get("/api/runs/{name}", run_load)
+    app.router.add_post("/api/run", runs.run)
+    app.router.add_get("/api/runs", runs.runs_list)
+    app.router.add_post("/api/runs/save", runs.run_save)
+    app.router.add_get("/api/runs/{name}", runs.run_load)
+    app.router.add_get("/ws/session", session_ws)
     app.router.add_get("/ws/live", live)
-    app.router.add_get("/api/tacapi", tac_api_h)
-    app.router.add_get("/api/tactic/{name}", tactic_get)
-    app.router.add_post("/api/tactic/save", tactic_save)
-    app.router.add_post("/api/tactic/rename", tactic_rename)
-    app.router.add_post("/api/preview", preview)
-    app.router.add_get("/api/scenarios", scenarios_list)
-    app.router.add_post("/api/scenarios/save", scenario_save)
-    app.router.add_get("/api/scenarios/{name}", scenario_get)
-    app.router.add_get("/api/repo/status", repo_status)
-    app.router.add_post("/api/repo/open", repo_open)
-    app.router.add_post("/api/repo/clone", repo_clone)
-    app.router.add_post("/api/repo/pull", repo_pull)
-    app.router.add_post("/api/repo/save", repo_save)
-    app.router.add_post("/api/tactic/delete", tactic_delete)
-    app.router.add_post("/api/check", check)
-    app.router.add_post("/api/stage", stage)
+    app.router.add_get("/api/tacapi", tacapi.tac_api_h)
+    app.router.add_get("/api/tactic/{name}", tacapi.tactic_get)
+    app.router.add_post("/api/tactic/save", tacapi.tactic_save)
+    app.router.add_post("/api/tactic/rename", tacapi.tactic_rename)
+    app.router.add_post("/api/preview", tacapi.preview)
+    app.router.add_get("/api/scenarios", scenarios.scenarios_list)
+    app.router.add_post("/api/scenarios/save", scenarios.scenario_save)
+    app.router.add_get("/api/scenarios/{name}", scenarios.scenario_get)
+    app.router.add_get("/api/repo/status", repoapi.repo_status)
+    app.router.add_post("/api/repo/open", repoapi.repo_open)
+    app.router.add_post("/api/repo/clone", repoapi.repo_clone)
+    app.router.add_post("/api/repo/pull", repoapi.repo_pull)
+    app.router.add_post("/api/repo/save", repoapi.repo_save)
+    app.router.add_post("/api/tactic/delete", tacapi.tactic_delete)
+    app.router.add_post("/api/check", tacapi.check)
+    app.router.add_post("/api/stage", tacapi.stage)
     app.router.add_get("/ws/robot", robot_ws)
     app.router.add_post("/api/vrobot", vrobot)
-    app.router.add_get("/api/profile", profile_get)
-    app.router.add_post("/api/profile", profile_set)
+    app.router.add_get("/api/profile", profapi.profile_get)
+    app.router.add_post("/api/profile", profapi.profile_set)
+    app.router.add_post("/api/lidar/stages", lidarapi.stages)
+    app.router.add_get("/api/lidar/files", lidarapi.files_list)
+    app.router.add_get("/api/lidar/files/{name}", lidarapi.file_get)
     app.router.add_static("/", paths.WEB, show_index=False)
     return app
 
