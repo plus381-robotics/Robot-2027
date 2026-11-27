@@ -16,7 +16,14 @@ Grana: `redizajn-ui` (lokalna). Maketa: varijanta A (`~/makete-ui/varijanta-a.ht
   `node --test simulator/tests/js/` → 25 passed.
 - Ručno u browseru (1366×768): brza simulacija, Live (Naoruži, činč, Esc = STOP, End), virtuelni robot
   (Push & Run, Esc, Disconnect), robot koji se ne javlja („no telemetry“, STOP se i dalje šalje) — bez grešaka.
-- **Sledeće: Faza 4** (prenos postojećih panela jedan po jedan u novi okvir, pa brisanje starog UI-ja).
+- **Faza 4 — gotova (preko noći, grana `redizajn-ui-2`, oznaka `posle-faza-4`)**: regioni (alati / glavni / bočne
+  kartice / dole), paneli u `web/panels/`: teren, editor (samo Taktike, sa karticom Komande), vreme, grafici (+ ugao θ),
+  Korak sada, Koraci, Dnevnik („samo greške“), Stanje i IR, alati Taktika (meč|test, ▶ Pokreni), alati Vožnja po
+  mogućnostima sesije (Pokreni sesiju, Naoruži, Povuci činč, Test, brzina, Pauza, Pošalji, Pošalji i pokreni, Prati,
+  Završi / Prekini vezu), ESP i Postavka stola kao kartice, prostor Snimci (lista sa filterom, učitavanje, referenca,
+  poređenje, „Otvori u Snimcima“), poruke desno u redu alata, Prikaz ▾ u dve grupe, Alt+1..4 i „?“ prečice. Stari UI
+  (#bar, kartice Simulate/Live/Robot, stari STOP-ovi, ⋯ Runs) je obrisan. Testovi: pytest 149, JS 65.
+- **Sledeće: Faza 5** (5.1 Izvori, 5.2 Test dela → Lidar).
 
 ## Pravila izrade (od korisnika)
 
@@ -60,6 +67,35 @@ Grana: `redizajn-ui` (lokalna). Maketa: varijanta A (`~/makete-ui/varijanta-a.ht
   first“; STOP bi mogao biti odsečen ako fontovi budu širi; Repo u bočnoj traci vidljiv i van repo režima; klik na
   stare kartice Live/Robot ne menja izbor u bočnoj traci; Meč je krupniji od Izvora; uz otvoren editor stari raspored je
   tesan na 768 px (rešava Faza 4).
+
+## Odluke preko noći (2026-11-27/28, korisnik spava; proveri ujutru)
+
+- Faza 4 nije imala korake u planu, pa je dizajn prenosa zapisan pre početka: regioni alati / glavni / bočne kartice /
+  dole, paneli premeštaju postojeće elemente (isti id-jevi), a ne prepisuju logiku.
+- Rezultat simulacije ostaje kartica preko stola (ne bočna kartica).
+- Editor postoji samo u Taktikama; × ga zatvara bez pitanja, a nesačuvan tekst ostaje kao nacrt.
+- Taktika i Strana se vide i u Vožnji i u Snimcima (isti elementi, premeštaju se), jer promena strane u Snimcima
+  ponovo simulira prikazani snimak.
+- U Vožnji se dok sesija radi krije brzina puštanja snimka (`#pace`), da ne postoje dve brzine.
+- ESP kartica se vidi i u Vožnji SIM bez sesije (snimljen ekran učitanog snimka).
+- Ime taktike koja stvarno radi (robot ili Live) je na traci, pored izvora („virtuelni · primer“).
+- „Uporedi sa…“ učitava referencu tako da „Sačuvaj snimak“ i dalje čuva tvoju simulaciju; referenca se van Snimaka
+  vidi kao oznaka „referenca: X ✕“ na stolu.
+- Korak sada i Dnevnik u Snimcima počinju sklopljeni (mesta za listu); Grafici sklopljeni svuda osim dok se poredi.
+- Nečitljiv snimak vraća grešku 422 sa porukom umesto prazne greške servera.
+- Alt+1..4 menja prostor; na nekim browserima Alt+broj menja tab browsera.
+- Test dela → Lidar računa međukorake na laptopu (ESP nema kod za grupe), oznaka „izračunao laptop“; za ROBOT dugme
+  „Upali lidar“ šalje postojeću komandu `LIDAR ON` (robot je već podržava i sam gasi lidar kad se naoruža).
+
+## Sitnice iz Faze 4 (za završni pregled)
+
+- Toggle Grafika resetuje 3D kameru; grafik ugla skače na ±180°; poruke nemaju istoriju (puna poruka u tooltipu).
+- „samo greške“ krije [sim] linije o sudaru; prazan filtriran dnevnik nema natpis „nema grešaka“.
+- Postavka stola je tesna na 768 px kad su ESP, Korak sada i Koraci otvoreni.
+- Snimci povučeni sa imenom van `[A-Za-z0-9_.-]` se vide u listi ali ne učitavaju (staro); datum posle `git pull` je
+  vreme povlačenja.
+- Numerička tastatura Alt+1..4 menja prostor (Windows Alt+kodovi); app.js je i dalje 1355 redova (logika ostala).
+- Neki tooltip-ovi i tekst preko stola su još na engleskom.
 
 ## Nastavak na drugom računaru
 
