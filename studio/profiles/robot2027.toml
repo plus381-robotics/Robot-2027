@@ -1,0 +1,96 @@
+# Profil robota za simulator. Sve dužine u mm, brzine u m/s, uglovi u stepenima, vreme u s.
+# Oznaka (P) = pretpostavka, treba proveriti na robotu ili iz CAD-a.
+
+name = "Robot 2027"
+
+[body]
+width = 300            # popreko, duž osovine pogonskih točkova (baza 300 x 165)
+length = 165           # napred-nazad
+height = 350           # (P) najveća dozvoljena visina
+axle_offset = 0        # (P) osovina točkova u odnosu na sredinu dužine (+ = napred)
+
+[model]
+# 3D model za prikaz (GLB u studio/web/, napred = +x, pod = z 0). Pravi se iz CAD-a:
+#   python studio/tools/cad_to_glb.py robot.step --out studio/web/models/robot.glb
+# Sada: samo pogonska ploča (Fusion, novembar 2026); ostatak robota je providna kutija iz [body].
+file = "models/pogon2027.glb"
+
+[drive]
+# Točkovi: unutrašnje ivice 126 mm, spoljne 206 mm, širina 40 mm -> sredine točkova 166 mm.
+# Razmak se menja (126..206 po ivicama), pa se menja samo ovaj broj.
+wheel_track = 166
+wheel_diameter = 65    # (P) "65 po obimu": uzeto kao prečnik
+wheel_width = 40
+wheel_v_max = 1.2      # sistem je projektovan za ~1.2 m/s (MOTOR_V_MAX u regulaciji)
+wheel_a_max = 4.0      # (P) najveće ubrzanje točka [m/s^2] (motor i trenje)
+motor_tau = 0.03       # (P) kašnjenje brzine točka za referencom [s] (PID + motor)
+
+[odometry]
+encoder_track = 286    # razmak odometrijskih (pasivnih) točkova
+# Greške odometrije (1.0 = tačno). Npr. left_scale = 1.002 -> levi enkoder broji 0.2 % više.
+left_scale = 1.0
+right_scale = 1.0
+track_scale = 1.0
+
+[control]
+# Regulacija: Python prepis BlackPill control.c / signal.c / comm_port.c (vidi eurosim/control.py).
+# Vrednosti su iz BlackPill koda; menjaju se ovde kad nova regulacija promeni parametre.
+V_MIN = 0.15
+V_MAX = 1.2            # BlackPill: 1.5, ali sistem ide do 1.2
+W_MIN = 0.628
+W_MAX = 12.57
+J_MAX = 36.0
+J_MAX_STOP = 16.0
+J_ROT_MAX = 2400.0
+J_ROT_MAX_STOP = 300.0
+STACKED_TIME = 0.06
+V_MIN_STACKED = 0.01
+P_W = 18.0
+D_TOL = 0.02
+D_PROJ_TOL = 0.005
+D_LONG_TOL = 0.12
+D_SHORT_TOL = 0.03
+PHI_TOL = 0.0157
+V_SLOWED_MAX = 0.75
+# comm_port.c
+V_DEFAULT = 1.0        # kad je max_speed = 0
+W_GOTO = 6.0
+W_ROTATE = 3.14
+ROT_TIMEOUT_MS = 5000
+D_ARRIVED = 0.02
+
+[link]
+protocol_version = 5   # posle flešovanja novog comm.c (v5); stari firmver: BlackPill 2, Nucleo 1
+heartbeat_ms = 500
+nrst = [15, 16]        # ESP pinovi za STM32 NRST i BOOT0 (S3 plan): ESP može da resetuje STM32; [] = nema
+status_period_ms = 50
+
+[esp]
+loop_extra_ms = 5      # (P) vreme obrade jednog kruga ESP petlje povrh pauze od 5 ms (meri se: VEZA, STAT)
+
+[actuators]
+# Aktuatori (AX servo, pumpe) ne javljaju grešku: posle ACK stiže DONE posle zadatog vremena.
+default_ms = 300       # (P)
+# po imenu iz ESP32/config.py ACTUATORS, npr.:
+# [actuators.ms]
+# lift = 600
+
+[ir]
+# IR senzori (protokol v5): u svakom od 4 ugla dva, donji (D) i gornji (U); napred F, nazad B, levo L, desno R:
+# FLD FLU FRD FRU BLD BLU BRD BRU. Gornji su iznad kutija (kamen 110 mm x 3 = 330 mm): vide protivnika (350 mm)
+# i preko kutija koje robot nosi; donji vide i kutije, kamenolome i PAMI. Taktika: ir_off("D"), ir_on(),
+# ir_sees("FU").
+range = 250            # (P) [mm] od ivice robota
+low_z = 40             # visina donjih senzora (nije bitna, (P))
+high_z = 340           # (P) visina gornjih: iznad kutija
+see_walls = false
+see_elements = true    # (P) vide i kamenje u kamenolomima (330 mm visoko); false = samo protivnika
+
+[lidar]
+# Lidar (RPLIDAR A2, ESP32 lib/lidar.py): u simulatoru je lažni lidar (ESP32/sim/fakelidar.py) koji vidi
+# ivice stola i prepreke iz simulacije. Radi kad se na ESP-u otvori Meni -> Lidar test (Live).
+x = 0                  # (P) [mm] položaj lidara u odnosu na sredinu robota (+ = napred)
+y = 0                  # (P) [mm] (+ = levo)
+z = 300                # (P) visina ravni lidara: vidi prepreke više od ovoga (kamenolom 330, protivnik 350)
+see_walls = true       # pravi lidar vidi i sve oko stola (ivica je 70 mm); true = vidi ivicu stola kao zid
+max_range = 12000      # [mm] A2M8: 0.15 .. 12 m

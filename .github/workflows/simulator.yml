@@ -4,10 +4,10 @@ name: Simulator
 
 on:
   push:
-    paths: ["simulator/**", "ESP32/lib/**", "ESP32/sim/**", "ESP32/tactics/**", "ESP32/config.py",
+    paths: ["studio/**", "ESP32/lib/**", "ESP32/sim/**", "ESP32/tactics/**", "ESP32/config.py",
             "tools/espnet.py", ".github/workflows/simulator.yml"]
   pull_request:
-    paths: ["simulator/**", "ESP32/lib/**", "ESP32/sim/**", "ESP32/tactics/**", "ESP32/config.py",
+    paths: ["studio/**", "ESP32/lib/**", "ESP32/sim/**", "ESP32/tactics/**", "ESP32/config.py",
             "tools/espnet.py", ".github/workflows/simulator.yml"]
   workflow_dispatch:
 
@@ -19,11 +19,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pytest -r simulator/requirements.txt
+      - run: pip install pytest -r studio/requirements.txt
       - name: testovi simulatora
-        run: python -m pytest -q simulator/tests
+        run: python -m pytest -q studio/tests
       - name: taktike iz ESP32/tactics se izvršavaju
         run: |
-          python simulator/sim.py run primer --side zuta
-          python simulator/sim.py run primer --side plava --test
-          python simulator/sim.py run kamenolomi --side plava
+          python studio/sim.py run primer --side zuta
+          python studio/sim.py run primer --side plava --test
+          python studio/sim.py run kamenolomi --side plava

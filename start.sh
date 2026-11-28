@@ -13,4 +13,4 @@ if [ -z "$UV" ]; then
   curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$PWD/.tools" UV_NO_MODIFY_PATH=1 sh || exit 1
   UV=.tools/uv
 fi
-exec "$UV" run --project simulator python simulator/sim.py serve "$@"
+exec "$UV" run --project studio python studio/sim.py serve "$@"

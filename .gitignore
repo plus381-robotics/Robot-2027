@@ -41,4 +41,5 @@ ESP32/webrepl_cfg.py
 
 # ---- Eurosim: uv (start.sh/start.bat) ----
 /.tools/
+/studio/.venv/
 /simulator/.venv/

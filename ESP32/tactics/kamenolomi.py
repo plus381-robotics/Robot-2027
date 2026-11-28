@@ -1,5 +1,5 @@
 # Od kamenoloma do kamenoloma na našoj (žutoj) polovini, pa kući. Kamenolom = gomila od 3 kamena
-# (simulator/eurosim/field.py, QUARRIES). Piše se za žutu stranu; na plavoj se koordinate same ogledaju.
+# (studio/eurosim/field.py, QUARRIES). Piše se za žutu stranu; na plavoj se koordinate same ogledaju.
 #
 # IR: donji senzori (D) vide kamenolom, pa se za prilaz gase donji prednji (ir_off("FD")); gornji (U, iznad kutija)
 # i dalje vide protivnika. Posle uzimanja: nazad bez zadnjih senzora (iza je naš put, prazan).

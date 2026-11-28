@@ -115,9 +115,9 @@ Grana: `redizajn-ui` (lokalna). Maketa: varijanta A (`~/makete-ui/varijanta-a.ht
 
 ```bash
 git fetch && git switch redizajn-ui
-python3 -m venv simulator/.venv && simulator/.venv/bin/pip install -r simulator/requirements.txt pytest
-simulator/.venv/bin/python -m pytest -q simulator/tests      # očekivano 130 passed
-simulator/.venv/bin/python simulator/sim.py serve --port 8271
+python3 -m venv studio/.venv && studio/.venv/bin/pip install -r studio/requirements.txt pytest
+studio/.venv/bin/python -m pytest -q studio/tests      # očekivano 130 passed
+studio/.venv/bin/python studio/sim.py serve --port 8271
 ```
 
 Pa u Claude Code: `/superpowers:subagent-driven-development` sa planom `docs/plan-implementacija-redizajna.md`,

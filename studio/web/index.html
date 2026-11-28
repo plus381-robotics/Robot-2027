@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eurosim</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="vendor/uPlot.min.css">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{"imports": {"three": "./vendor/three.module.min.js"}}</script>
+<script src="vendor/uPlot.iife.min.js"></script>
+</head>
+<body>
+<!-- Okvir varijante A (shell/layout.js): bočna traka levo, statusna traka gore, a u #content regioni radnog prostora
+     (#ws-tool, #ws-body = #ws-main + #ws-side, #ws-bottom). Delovi čekaju u #parts dok ih paneli iz web/panels/ ne
+     premeste u svoje korene (id-jevi ostaju, app.js ih nalazi po id-ju); prazan #parts se zatim briše. -->
+<nav id="rail"></nav>
+<header id="strip"></header>
+<div id="content">
+<div id="repoBanner" hidden>
+  <span id="repoBannerText"></span>
+  <button id="rbClone" title="Preuzmi timski repo sa GitHub-a u izabrani folder (treba Git)">Kloniraj repo…</button>
+  <button id="rbOpen" title="Koristi folder Robot-2027 koji već postoji na ovom računaru">Otvori folder repoa…</button>
+  <button id="rbLocal" title="Radi bez repoa: fajlovi se čuvaju samo na ovom računaru">Nastavi bez repoa</button>
+</div>
+</div>
+
+<div id="parts" hidden>
+  <!-- Poruka (Zadatak 4.6, panels/poruka.js): desni kraj reda komandi u svakom prostoru; dugme uz poruku (#msgAct),
+       npr. „Otvori u Snimcima“. Repo i Profil su stavke bočne trake (shell/rail.js), ne dugmad ovde. -->
+  <span id="msg" class="msg"></span>
+  <button id="msgAct" hidden></button>
+
+  <!-- Red komandi Vožnja (Zadatak 4.4): panels/voznja-alati.js premešta ove delove; šta se vidi računa core/voznja.js
+       iz stanja sesije i njenih mogućnosti (hello). STOP je na traci (i Esc). -->
+  <button id="izvoriBtn" aria-haspopup="dialog" title="Izvori: šta je simulirano, a šta pravo (a sve sim, b hibrid sa pravim lidarom ili snimkom, d pravi robot); veza sa robotom">Izvori ▾</button>
+  <button id="sessStart" class="primary">▶ Pokreni sesiju</button>
+  <button id="armBtn" title="Naoružaj meč izabranom taktikom i stranom (kao ESP meni); zatim Povuci činč">Naoruži</button>
+  <button id="cordBtn" title="Povuci startni činč: meč počinje, 100 s">Povuci činč</button>
+  <button id="testBtn" title="Pokreni taktiku odmah, bez meča (kao tools/tactic.py)">Test</button>
+  <label id="paceWrap" class="ti-label" title="Brzina simulacije uživo (×0.25 sporije … ×5 brže)"><select id="pace" aria-label="brzina simulacije">
+    <option value="0.25">×0.25</option><option value="0.5">×0.5</option><option value="1" selected>×1</option>
+    <option value="2">×2</option><option value="5">×5</option>
+  </select></label>
+  <button id="pauseBtn" title="Pauziraj simulaciju">⏸ Pauza</button>
+  <button id="rPush" title="Pošalji taktiku robotu (tekst iz editora ako je otvoren, inače fajl iz ESP32/tactics)">Pošalji</button>
+  <button id="rRun" title="Pošalji i odmah pokreni taktiku (test, bez meča). ROBOT SE POMERA.">Pošalji i pokreni</button>
+  <button id="followBtn" class="on" title="Vreme prati sesiju uživo (isključeno: možeš da vratiš snimak unazad)">Prati</button>
+  <button id="endBtn">Završi</button>
+  <span id="edNote" class="small ed-note" title="Editor u Taktikama ima nesačuvan tekst: simulacija uživo i Pošalji koriste taj tekst, ne fajl iz ESP32/tactics">koristi se tekst iz editora (nesačuvan)</span>
+
+  <!-- Red komandi Snimci (Zadatak 4.5): panels/snimci-alati.js premešta ove delove; lista snimaka je kartica Snimci
+       (panels/snimci.js). Referenca se crta preko snimka na stolu (i Koraci / grafici je prate po vremenu). -->
+  <button id="save" disabled title="Sačuvaj snimak koji gledaš u studio/runs/ (ide u git, sa „Repo“)">Sačuvaj snimak…</button>
+  <button id="cmpPin" title="Snimak koji gledaš postaje referenca (npr. simulacija); zatim pokreni ili učitaj drugi i uporedi">📌 Referenca</button>
+  <select id="cmpRun" title="Uporedi sa sačuvanim snimkom (postaje referenca)"><option value="">Uporedi sa…</option></select>
+  <span id="cmpName" class="dim small"></span>
+  <button id="cmpClear" hidden title="Ukloni referencu">✕</button>
+
+  <!-- Red komandi Taktika (Zadatak 4.3): panels/taktike-alati.js premešta ove delove (#side i #mode ostaju izvor
+       istine, skriveni ispod segmentiranih dugmadi); #tactic i #side su zajedničke stavke (panels/stavke.js). -->
+  <select id="tactic" title="Koja taktika (ESP32/tactics); editor prikazuje ovu"></select>
+  <select id="side"><option value="zuta">Žuta</option><option value="plava">Plava</option></select>
+  <select id="mode"><option value="mec">meč</option><option value="test">test</option></select>
+  <button id="run" class="primary" title="Pokreni celu simulaciju brzo, pa je pusti. Sa otvorenim editorom: tekst iz editora, sačuvan ili ne (Ctrl+Enter)">▶ Pokreni</button>
+  <button id="edOpen" hidden title="Otvori editor izabrane taktike">✎ Editor</button>
+  <input type="checkbox" id="autoSim" checked>
+
+  <section id="editorPane" hidden>
+    <div class="ed-bar">
+      <button id="edNew" title="Nova taktika iz šablona">Novo</button>
+      <select id="edFileMenu" title="Sačuvaj kao, preimenuj, obriši"><option value="">Fajl ▾</option><option value="saveas">Sačuvaj kao… (Ctrl+Shift+S)</option><option value="rename">Preimenuj…</option><option value="delete">Obriši</option></select>
+      <span id="edState" class="dim small"></span>
+      <span class="sep"></span>
+      <button id="edSave" title="Sačuvaj u ESP32/tactics (Ctrl+S)">Sačuvaj</button>
+      <button id="edClose" title="Zatvori editor (sto dobija celu širinu; nesačuvan tekst ostaje kao nacrt i vraća se kad ga ponovo otvoriš)">×</button>
+    </div>
+    <div id="edHost"></div>
+    <div class="ed-tabs">
+      <button data-tab="edProblems" class="on">Problemi <span id="edCount" class="dim"></span></button>
+      <button data-tab="edCommands" title="Sve Gambit Micro komande objašnjene, sa primerima („Ubaci u kod“ stavlja primer u kod)">Komande</button>
+      <span id="edDraft" class="dim small ed-draft" title="Nacrt putanje, crta se na stolu dok kucaš (ljubičasto isprekidano). Klik na tačku nacrta skače na njen red; Alt+klik na sto ubacuje tačku u kod."></span>
+    </div>
+    <div id="edProblems" class="ed-panel mono"></div>
+    <div id="edCommands" class="ed-panel" hidden>
+      <input id="apiFilter" placeholder="traži, npr. drive, turn, time…" title="Gambit Micro komande: traži po imenu ili opisu">
+      <div id="apiList"></div>
+    </div>
+  </section>
+  <section id="viewwrap">
+    <div id="view"></div>
+    <div id="legend" title="Šta je nacrtano na stolu">
+      <span><i class="lg-dot"></i>tačka koraka (broj = korak; prsten: <b class="ok">OK</b> <b class="fail">neuspeh</b> <b class="run">sada</b>)</span>
+      <span><i class="lg-path"></i>putanja, jedna boja po koraku</span>
+      <span><i class="lg-odom"></i>odometrija</span>
+      <span><i class="lg-draft"></i>nacrt iz editora</span>
+      <span><i class="lg-ir"></i>IR (crveno = vidi nešto)</span>
+    </div>
+    <div id="refTag" class="overlay" hidden><i class="lg-ref"></i><button id="refTagName" type="button"></button><button id="refTagClear" type="button" title="Ukloni referencu">✕</button></div>
+    <div id="viewtools">
+      <button id="cam3d" class="on" title="Kamera u prostoru (prevuci = okreni)">3D</button><button id="cam2d" title="Pogled odozgo">Odozgo</button>
+      <button id="viewMenuBtn" title="Šta se crta na stolu i kako izgleda">Prikaz ▾</button>
+      <!-- Prikaz ▾ (Zadatak 4.6): dve grupe. „elementi igre“ menja simulaciju, pa je u Postavci stola (4.4). -->
+      <div id="viewMenu" class="menu" hidden>
+        <div class="vm-g" role="group" aria-labelledby="vmWhat">
+          <div class="vm-h" id="vmWhat">Šta crtam</div>
+          <label><input type="checkbox" id="showOdom" checked> odometrija (gde robot misli da je)</label>
+          <label><input type="checkbox" id="showTargets" checked> tačke koraka (kuda koji korak vodi robota)</label>
+          <label>nazivi koraka <select id="labelMode" title="Naziv pored tačaka koraka"><option value="none">bez</option><option value="current" selected>trenutni korak</option><option value="all">svi</option></select></label>
+          <label title="Zraci IR senzora: sivo = ništa u dometu, crveno = vidi nešto (zaustavlja robota)"><input type="checkbox" id="showIr" checked> IR zraci</label>
+          <label title="Poslednji ceo krug lidara kako ga je ESP izmerio (plave tačke na visini lidara), najbliža tačka = žuti prsten. Vidi se dok lidar radi (npr. ESP meni, Lidar test)"><input type="checkbox" id="showLidar" checked> lidar</label>
+          <label title="Nacrt putanje iz teksta u editoru (ljubičasto isprekidano)"><input type="checkbox" id="showDraft" checked> nacrt iz editora</label>
+          <label><input type="checkbox" id="showLegend" checked> legenda</label>
+        </div>
+        <div class="vm-g" role="group" aria-labelledby="vmLook">
+          <div class="vm-h" id="vmLook">Kako izgleda</div>
+          <label title="Izgled stola: crtež iz pravila 2027 ili obična mreža"><input type="checkbox" id="rulesLook" checked> crtež stola po pravilima</label>
+          <label>veličina oznaka <select id="markSize" title="Veličina tačaka koraka i natpisa ciljeva"><option value="0.7">male</option><option value="1" selected>srednje</option><option value="1.5">velike</option></select></label>
+          <label><input type="checkbox" id="follow"> Kamera prati robota</label>
+        </div>
+      </div>
+    </div>
+    <div id="cursor" class="mono"></div>
+    <div id="result"></div>
+  </section>
+
+  <!-- Postavka stola (Zadatak 4.4, panels/sto.js): protivnici, PAMI, scenariji, kamenolomi; uređivači ispod. -->
+  <div id="stoTools">
+    <div class="row">
+      <button id="addOpp" title="Dodaj protivnika (prevuci ga na stolu)">+ Protivnik</button>
+      <button id="addPami" title="Dodaj PAMI (mali robot protivnika): čeka, kreće u poslednjih 15 s meča">+ PAMI</button>
+      <label title="Elementi igre 2027 (10 kamenoloma × 3 kamena): prepreke za robota i IR"><input type="checkbox" id="showElements" checked> elementi igre</label>
+    </div>
+    <div class="row">
+      <select id="scenLoad" title="Učitaj sačuvan sto: kamenolomi i protivnici (studio/scenarios)"><option value="">učitaj scenario…</option></select>
+      <button id="scenSave" title="Sačuvaj sto (izmenjene kamenolome) i protivnike kao scenario">Sačuvaj scenario</button>
+      <button id="elReset" title="Kamenolomi kao u pravilima 2027">Resetuj sto</button>
+    </div>
+  </div>
+  <div id="elEdit" class="sto-ed" hidden>
+    <div class="ov-title">Kamenolom <span id="elName" class="dim"></span> <button id="elClose" title="Zatvori">✕</button></div>
+    <div class="row">kamenovi <button id="elLess" title="Skini gornji kamen">−</button> <b id="elStones"></b>
+      <button id="elMore" title="Stavi kamen na vrh">+</button>
+      <button id="elRot" title="Okreni za 90°">⟳ 90°</button>
+      <button id="elDel" class="danger" title="Ukloni ceo kamenolom">ukloni</button></div>
+    <div class="dim small"><span id="elPos"></span> · prevuci na stolu da ga pomeriš · robot gura kamenolome</div>
+  </div>
+  <div id="oppEdit" class="sto-ed" hidden>
+    <div class="ov-title">Protivnik <span id="oppName" class="dim"></span> <button id="oppClose" title="Zatvori (protivnik ostaje na stolu)">✕</button></div>
+    <div class="ov-grid">
+      <label>x <input type="number" id="oppX" step="10"></label><label>y <input type="number" id="oppY" step="10"></label>
+      <label>w <input type="number" id="oppW" step="10" min="20"></label><label>h <input type="number" id="oppH" step="10" min="20"></label>
+      <label>∠ <input type="number" id="oppTh" step="5"></label><label>z <input type="number" id="oppZ" step="10" min="10"></label>
+      <label class="wide"><input type="checkbox" id="oppRound"> okrugao (prečnik = w)</label>
+      <label class="wide">taktika <select id="oppTac" title="Šta protivnik radi (studio/opponents/*.py); bez nje stoji"></select></label>
+      <label class="wide">seme <input type="number" id="oppSeed" min="1" step="1" title="Za slučajne taktike: isto seme = isti meč"></label>
+    </div>
+    <div class="dim small">prevuci na stolu da ga pomeriš · simulacija se ponavlja kad pustiš</div>
+    <div class="row"><button id="oppDel" class="danger" title="Ukloni ovog protivnika sa stola">ukloni</button></div>
+  </div>
+
+  <!-- ESP (Zadatak 4.4, panels/esp.js): ekran robota i tasteri; njegov STOP je taster robota. -->
+  <div id="espPanel">
+    <div class="ov-title"><span class="esp-buzz" title="zujalica">♪</span> <span class="esp-hint dim small"></span></div>
+    <div class="esp-body">
+      <div class="oled" title="Ekran robota; točkić miša na ekranu = enkoder (u sesiji)"><canvas width="128" height="64"></canvas></div>
+      <div class="esp-btns">
+        <button data-rot="-1" title="Enkoder: okreni levo">⟲</button>
+        <button data-btn="enc" title="Enkoder: klik">●</button>
+        <button data-rot="1" title="Enkoder: okreni desno">⟳</button>
+        <button data-btn="back" title="BACK (drži = meni)">BACK</button>
+        <button data-btn="ok" title="OK (drži = potvrdi)">OK</button>
+        <button data-btn="stop" class="danger" title="STOP taster robota (u simuliranom ESP-u)">STOP</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bočne kartice (Zadatak 4.2): Korak sada (#stepnow), Koraci (#steps), Dnevnik (#logTools + #log),
+       Stanje i IR (#stgrid + #irPanel); svaki deo premešta svoj panel iz web/panels/. -->
+  <div id="stepnow">
+    <div class="stepline"><span id="stepname">—</span><span id="stepcount" class="dim"></span></div>
+    <div class="bar"><div id="stepbar"></div></div>
+    <div class="dim small" id="stepnext"></div>
+  </div>
+  <table id="steps" class="mono"><thead><tr><th>#</th><th>korak</th><th>ishod</th><th>vreme</th></tr></thead><tbody></tbody></table>
+  <div id="logTools" class="small">
+    <label title="Prikaži i poruke između ESP32 i STM32"><input type="checkbox" id="showProto"> ESP↔STM32 poruke</label>
+    <label title="Prikaži samo redove grešaka (crveni)"><input type="checkbox" id="logErrOnly"> samo greške</label>
+  </div>
+  <div id="log" class="mono"></div>
+  <div class="grid mono" id="stgrid"></div>
+  <div id="irPanel" title="IR sensors: robot seen from above (front up), in each corner an upper (U, over the boxes) and a lower (D) sensor. Green = on, nothing seen · red = sees something and stops the robot · grey dashed = switched off (ir_off) · in Live: click a sensor to switch it">
+    <div id="irBox"></div><div id="irText" class="small"></div>
+  </div>
+
+<footer id="timeline">
+  <div class="controls">
+    <button id="prevStep" title="Prethodni korak (Shift+←)">⏮</button>
+    <button id="prevFrame" title="Nazad 1 frejm (←)">◀</button>
+    <button id="play" title="Pusti / pauza (razmak)">▶</button>
+    <button id="nextFrame" title="Napred 1 frejm (→)">▶|</button>
+    <button id="nextStep" title="Sledeći korak (Shift+→)">⏭</button>
+    <select id="speed" title="Brzina puštanja">
+      <option value="0.25">×0.25</option><option value="0.5">×0.5</option><option value="1" selected>×1</option>
+      <option value="2">×2</option><option value="5">×5</option><option value="10">×10</option><option value="25">×25</option>
+    </select>
+    <span id="time" class="mono">0.00 / 0.00 s</span>
+    <span id="matchtime" class="mono dim"></span>
+  </div>
+  <div id="band" title="Koraci taktike: klik na korak skače na njega"><div id="bandSteps"></div><div id="bandFlags"></div>
+    <button id="bandCord" hidden title="Povuci startni činč: meč počinje sada (100 s)">⏵ POVUCI ČINČ · robot je naoružan i čeka</button></div>
+  <div id="scrub"><input type="range" id="slider" min="0" max="0" value="0" step="1"></div>
+  <div id="bandAxis" class="mono dim"></div>
+  <div id="charts"></div>
+</footer>
+</div>
+
+<!-- Dijalozi (position: fixed) na nivou strane: vide se u svakom radnom prostoru. -->
+<div id="repoDialog" class="overlay pop" hidden>
+  <div class="ov-title">Timski repo <span id="repoRoot" class="dim small"></span><button id="repoClose" title="Zatvori">✕</button></div>
+  <div id="repoBody" class="small"></div>
+  <div class="row"><button id="repoFetch" title="Pogledaj šta je novo na GitHub-u (git fetch)">Proveri novosti</button>
+    <button id="repoPull" title="Preuzmi najnovije taktike i profil robota (git pull)">⭳ Preuzmi najnovije</button></div>
+  <div class="row"><input id="repoMsg" placeholder="šta si promenio? (npr. x100: brži prilaz)">
+    <button id="repoSave" class="primary" title="Commit izmena taktika i profila i push na GitHub">⭱ Sačuvaj na GitHub</button></div>
+  <div class="dim small">Šalje samo ESP32/tactics i studio/profiles. Treba Git (GitHub Desktop ili Git for Windows).</div>
+</div>
+
+<!-- Izvori (Zadatak 5.1, panels/izvori.js; logika core/izvori.js): unapred zadate kombinacije, izvor po delu robota
+     (sivo sa razlogom), veza sa robotom (host, lozinka, Poveži, Virtuelni robot). Otvara se iz bočne trake (Izvori) i
+     iz reda komandi Vožnja (Izvori ▾, ▶ Pokreni sesiju za ROBOT); dok sesija radi samo se čita. -->
+<div id="izvori" class="izv-pop" role="dialog" aria-label="Izvori" hidden>
+  <div class="izv-h">Izvori <span id="izvNote" class="izv-note"></span><button id="izvClose" type="button" title="Zatvori (Esc)">✕</button></div>
+  <div id="izvPresets" class="seg izv-presets" role="group" aria-label="Unapred zadate kombinacije"></div>
+  <table id="izvParts" class="izv-parts"></table>
+  <div class="izv-conn">
+    <div class="izv-sub">Veza sa robotom <span id="izvConnUse" class="dim small"></span></div>
+    <div class="ov-grid">
+      <label class="wide">host <input id="rHost" value="eurokik.local" placeholder="eurokik.local ili IP sa ekrana VEZA"></label>
+      <label class="wide">lozinka <input id="rPass" type="password" placeholder="prazno = iz ESP32/webrepl_cfg.py"></label>
+    </div>
+    <div class="row" id="izvConnBtns"><button id="rConnect" class="primary" title="Poveži se sa pravim robotom na ovom hostu (izvori: d, sve pravo)">Poveži</button>
+      <button id="rVirtual" title="Pokreni virtuelnog robota na ovom računaru (pravi ESP kod + simuliran STM32) i poveži se sa njim (izvori: d)">Virtuelni robot</button></div>
+    <div class="dim small">ESP server za slanje (TCP 8267) i telemetrija (UDP 8268), kao tools/tactic.py i tools/watch.py.
+      Laptop mora da bude na mreži robota.</div>
+  </div>
+</div>
+<div id="profDialog" class="overlay pop" hidden>
+  <div class="ov-title">Profil robota <select id="profFile"></select> <span id="profPath" class="dim small"></span>
+    <button id="profClose" title="Zatvori">✕</button></div>
+  <div id="profBody"></div>
+  <div class="row"><button id="profSave" class="primary">Sačuvaj i koristi</button>
+    <span class="dim small">(P) = pretpostavka, treba izmeriti. Upisuje se u .toml fajl (komentari ostaju); koristi ga sledeća simulacija.</span></div>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

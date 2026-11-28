@@ -1,6 +1,6 @@
 # Uočeni problemi (ESP32 i veza sa STM32)
 
-Spisak problema na koje se naišlo tokom rada na simulatoru (`simulator/`). Za svaki: šta je problem,
+Spisak problema na koje se naišlo tokom rada na simulatoru (`studio/`). Za svaki: šta je problem,
 zašto je bitan, kako ga rešiti i kako proveriti. Osim tačke 1, ništa od ovoga još **nije ispravljeno**; izmene u
 `ESP32/`, `protocol/` i STM32 kodu idu tek posle odobrenja.
 
@@ -35,7 +35,7 @@ x = 250 zapravo startuje u žutoj zoni, a kad se na robotu izabere "plava", robo
 Druga mogućnost: ostaviti `REF_SIDE = "plava"` i prepisati sve taktike na x ~ 2750. Lošije, jer bi se menjale
 sve koordinate, a ne samo ime.
 
-**Provera.** Simulator: `python simulator/sim.py run primer --side zuta` treba da startuje u žutoj zoni
+**Provera.** Simulator: `python studio/sim.py run primer --side zuta` treba da startuje u žutoj zoni
 (x 0..500). Host testovi posle zamene imena.
 
 ---
@@ -150,8 +150,8 @@ simulatoru (faza F2) će javljati grešku ako START ne može da se pročita.
 
 ## 9. [ALAT] Host testovi i testovi simulatora ne mogu u istom pytest pozivu — niska
 
-**Problem.** `ESP32/tests/host/conftest.py` i `simulator/tests/conftest.py` imaju isto ime modula, pa
-`python -m pytest ESP32/tests/host simulator/tests` pada pri učitavanju. Odvojeno oba prolaze (CI ih
+**Problem.** `ESP32/tests/host/conftest.py` i `studio/tests/conftest.py` imaju isto ime modula, pa
+`python -m pytest ESP32/tests/host studio/tests` pada pri učitavanju. Odvojeno oba prolaze (CI ih
 pokreće odvojeno). Host test `test_esp_push_salje_samo_izmenjeno` traži `mpy-cross`; bez njega pada
 sa `ModuleNotFoundError` (nije greška u kodu).
 

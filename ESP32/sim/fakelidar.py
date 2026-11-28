@@ -4,7 +4,7 @@
 # ugao u smeru kazaljke kao pravi lidar. Bafer je ograničen kao UART rxbuf (najstariji bajtovi se gube).
 # Kao UART: any(), read(n), write(b). Prijava: machine.UART.devices[config.LIDAR_UART] = FakeRplidar(...).
 # ranges=None: lidar sam ne meri, nego šalje krugove koji mu se daju (push_scan: pravi lidar sa robota preko
-# WiFi-ja ili snimak, simulator/eurosim/lidarsrc.py) - ESP kod ih čita istim drajverom kao pravi lidar.
+# WiFi-ja ili snimak, studio/eurosim/lidarsrc.py) - ESP kod ih čita istim drajverom kao pravi lidar.
 import math
 
 RATE, HZ = 2000, 10

@@ -13,5 +13,5 @@ if not defined UV (
   powershell -NoProfile -ExecutionPolicy ByPass -Command "$env:UV_INSTALL_DIR=%~dp0.tools; $env:UV_NO_MODIFY_PATH=1; irm https://astral.sh/uv/install.ps1 | iex"
   set "UV=.tools\uv.exe"
 )
-"%UV%" run --project simulator python simulator\sim.py serve %*
+"%UV%" run --project studio python studio\sim.py serve %*
 if errorlevel 1 pause
