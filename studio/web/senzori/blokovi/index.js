@@ -3,7 +3,8 @@
 //                             'right' desna kolona (brzine, PID, napajanje) · 'bottom' donji red
 //   SLOTS                     dozvoljena mesta
 //   makeHas(st)               has(polje) za blockSource: '@lidar' = krug sesije (st.lidarScan) ili krugovi u snimku
-//                             st.sens.run; ostalo hasData(st.sens.run, polje); bez snimka false
+//                             st.sens.run; '@mec' = stanje meča iz telemetrije ESP-a (st.robotMec, i bez Nucleo frame-ova)
+//                             ili kolona `mec` snimka; ostalo hasData(st.sens.run, polje); bez snimka false
 //   evalBlocks(st, blocks?, env?)  [{b, s: {src, reason, note}, d, v: {status, text, vals, foot?, error?}}] za svaki
 //                             blok (view koji baci izuzetak daje status 'none' sa tekstom greške, ostali blokovi rade).
 //                             env = {ctx, redraw} od panela (panels/senzori.js); bez njega (testovi) d.ctx = d.redraw = null
@@ -43,6 +44,7 @@ export function makeHas(st) {
   const run = (st && st.sens && st.sens.run) || null;
   return k => {
     if (k === '@lidar') return !!(st && st.lidarScan) || !!(run && run.lidars && run.lidars.length);
+    if (k === '@mec') return !!(st && st.session && st.session.kind === 'robot' && st.robotMec != null) || (!!run && !!run.cols && hasData(run, 'mec'));
     return !!run && !!run.cols && hasData(run, k);
   };
 }

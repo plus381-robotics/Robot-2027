@@ -38,7 +38,7 @@ test('BLOCKS: polja za oznaku izvora (blockSource)', () => {
   assert.deepEqual(f('aktuatori'), { part: 'mehanizmi', fields: ['act'], simFields: undefined, notes: undefined });
   assert.deepEqual(f('enkoderi'), { part: 'pogon', fields: ['ox', 'oy', 'oth'], simFields: undefined, notes: undefined });
   assert.deepEqual(f('ulazi'), { part: null, fields: ['btn'], simFields: ['mec'], notes: undefined });
-  assert.deepEqual(f('mec'), { part: null, fields: ['mec'], simFields: undefined, notes: undefined });
+  assert.deepEqual(f('mec'), { part: null, fields: ['@mec'], simFields: undefined, notes: undefined });
   assert.deepEqual(f('veza'), { part: null, fields: [], simFields: undefined, notes: undefined });
 });
 
@@ -301,4 +301,163 @@ test('drawLines: ravan niz ne deli nulom (sve koordinate konačne), skala zadata
   const d = stubCtx();
   drawLines(d, 0, 0, 100, 40, [[[1, 2], '#fff', true]]);
   assert.ok(d.calls.some(c => c[0] === 'setLineDash' && c[1].length === 2));
+});
+
+// ---------------- Zadatak 10: napajanje, aktuatori, činč i tasteri, meč, veza ----------------
+
+function fakeG() {                                  // 2D kontekst koji beleži brojeve (sve moraju biti konačni)
+  const nums = [];
+  return new Proxy({}, {
+    get(t, k) {
+      if (k === 'measureText') return s => ({ width: String(s).length * 7 });
+      if (k === 'calls') return nums;
+      return (...a) => { for (const x of a) if (typeof x === 'number') nums.push(x); };
+    },
+    set() { return true; },
+  });
+}
+const finiteAll = g => g.calls.every(Number.isFinite);
+
+test('napajanje: danas bez izvora (robot i SIM), razlozi iz izvor.js', () => {
+  const run = simRun();
+  for (const [session, re] of [[{ kind: 'sim', lidar: 'sim' }, /nema simulacije/], [{ kind: 'robot', lidar: 'sim' }, /INA3221 nije podešen/]]) {
+    const list = evalBlocks({ session, sens: { run, t: 100 }, lidarScan: null, profile: null });
+    const x = list.find(y => y.b.id === 'napajanje');
+    assert.equal(x.s.src, null);
+    assert.equal(x.v.status, 'none');
+    assert.match(x.s.reason, re);
+  }
+});
+
+const powerRun = () => buildRun({ meta: {}, result: {}, events: [], cols: { t: [0, 100, 200, 300],
+  bat: [12.4, 12.3, 12.2, 11.0], v5: [5.02, 5.0, 5.01, 5.0], i5: [0.5, 0.6, 0.7, 0.8], ibat: [1, 1.1, 1.2, 1.3],
+  vstop: [12.3, 12.2, 12.1, 0.1], istop: [0.2, 0.3, 0.2, 0.0] } });
+const powD = (t, extra = {}) => ({ st: {}, run: powerRun(), t, src: 'pravo', profile: null, ...extra });
+
+test('napajanje: sa kolonama bat, i5, ibat, istop, v5, vstop: vrednosti, ≈ %, prag, total stop', () => {
+  const nap = byId('napajanje');
+  const v = nap.view(powD(100));
+  assert.equal(v.status, 'ok');
+  assert.match(v.vals[0][1], /^12,30\sV · ≈ 75 %$/);
+  assert.match(v.vals[1][1], /0,60\sA/);
+  assert.equal(v.vals[2][1], 'otpušten');
+  const low = nap.view(powD(300));
+  assert.equal(low.status, 'warn');                                // 11,0 V < 11,6 V
+  assert.equal(low.vals[2][1], 'pritisnut');                       // vstop 0,1 V
+  assert.equal(nap.view(powD(300, { profile: { power: { bat_min: 10.8 } } })).status, 'ok');   // prag iz Profila
+  const empty = nap.view({ ...powD(100), run: simRun() });          // izvor postoji, polja još nema
+  assert.equal(empty.status, 'ok'); assert.equal(empty.vals[0][1], '—');
+});
+
+test('napajanje: crta (mali i veliki prikaz) samo kad bat postoji, svi brojevi konačni', () => {
+  const nap = byId('napajanje');
+  for (const big of [false, true]) {
+    const g = fakeG();
+    nap.draw(g, big ? 700 : 300, big ? 400 : 200, powD(200), big);
+    assert.ok(g.calls.length > 20, 'crta');
+    assert.ok(finiteAll(g));
+  }
+  const g = fakeG();
+  nap.draw(g, 300, 200, { ...powD(200), run: simRun() }, false);
+  assert.equal(g.calls.length, 0);                                 // bez bat ništa se ne crta
+});
+
+test('aktuatori: SIM act {"1": 512} -> hvataljka sa uglom ≈ 150°, sirova vrednost u detalju', () => {
+  const run = buildRun({ meta: {}, result: {}, events: [], cols: { t: [0, 100, 600, 1000], mec: ['NEMA', 'NEMA', 'NEMA', 'NEMA'],
+    act: [null, { 1: 512 }, { 1: 512 }, { 1: 512 }] } });
+  const actuators = { hvataljka: 1, lift: 2, ruka_l: 3, ruka_r: 4 };
+  const st = { session: { kind: 'sim', lidar: 'sim' }, sens: { run, t: 1000 }, lidarScan: null, profile: null, actuators };
+  const x = evalBlocks(st).find(y => y.b.id === 'aktuatori');
+  assert.equal(x.s.src, 'sim');
+  assert.deepEqual(x.v.vals[0], ['hvataljka', '150°']);            // 512 · 300 / 1023 = 150,15
+  assert.deepEqual(x.v.vals[1], ['lift', '—']);
+  const d = { ...x.d, t: 1000 };
+  assert.match(byId('aktuatori').html(d, true), /512/);
+  const g = fakeG();
+  byId('aktuatori').draw(g, 400, 160, d, false);
+  assert.ok(g.calls.length > 10 && finiteAll(g));
+});
+
+test('aktuatori: ↻ samo dok se vrednost promenila u poslednjih 300 ms; bez imena u store je „#id“', () => {
+  const run = buildRun({ meta: {}, result: {}, events: [], cols: { t: [0, 100, 200, 600],
+    act: [{ 2: 0 }, { 2: 0 }, { 2: 300 }, { 2: 300 }] } });
+  const d = t => ({ st: {}, run, t, src: 'sim', profile: null });
+  assert.deepEqual(byId('aktuatori').view(d(250)).vals[0], ['#2', '88° ↻']);   // 300 · 300 / 1023 = 87,9
+  assert.deepEqual(byId('aktuatori').view(d(600)).vals[0], ['#2', '88°']);     // miruje 400 ms
+});
+
+test('aktuatori: tip pumpa iz Profila (isPump), toDeg ograničen na 0–300', async () => {
+  const { isPump, toDeg } = await import('../../web/senzori/blokovi/aktuatori.js');
+  assert.equal(isPump({ profile: null }, 'lift'), false);
+  assert.equal(isPump({ profile: { actuators: { pumpa1: { type: 'pumpa' } } } }, 'pumpa1'), true);
+  assert.equal(toDeg(1023), 300); assert.equal(toDeg(0), 0); assert.equal(toDeg(5000), 300);
+});
+
+const matchRun = cols => buildRun({ meta: { side: 'plava', tactic: 'kamenolomi' }, result: {}, events: [],
+  cols: { t: [0, 100], ...cols } });
+
+test('meč: stanje iz mec/match frame-a, taktika, strana i vreme', () => {
+  const mec = byId('mec'), mk = run => ({ st: { session: { kind: 'sim' } }, run, t: 100, src: 'sim' });
+  let v = mec.view(mk(matchRun({ mec: ['NEMA', 'NEMA'] })));
+  assert.deepEqual(v.vals, [['stanje', 'SPREMAN'], ['taktika', 'kamenolomi'], ['strana', 'Plava'], ['vreme', '—']]);
+  v = mec.view(mk(matchRun({ mec: ['NAORUZAN', 'NAORUZAN'] })));
+  assert.equal(v.vals[0][1], 'NAORUŽAN');
+  v = mec.view(mk(matchRun({ mec: ['MEC', 'MEC'], match: [0, 12300], tac: ['primer', 'primer'] })));
+  assert.deepEqual(v.vals, [['stanje', 'MEČ 87.7 s'], ['taktika', 'primer'], ['strana', 'Plava'], ['vreme', '12,3 s']]);
+  v = mec.view(mk(matchRun({ mec: ['KRAJ', 'KRAJ'] })));
+  assert.equal(v.vals[0][1], 'KRAJ');
+  assert.match(mec.html(mk(matchRun({ mec: ['MEC', 'MEC'], match: [0, 5000] })), true), /MEČ 95\.0 s/);
+});
+
+test('meč: ROBOT bez frame-ova koristi robotMec i running; izvor „pravo“ i bez Nucleo-a', () => {
+  const st = { session: { kind: 'robot', lidar: 'sim' }, sens: { run: null, t: 0 }, lidarScan: null, profile: null,
+    robotMec: 'NAORUZAN', running: 'primer' };
+  const x = evalBlocks(st).find(y => y.b.id === 'mec');
+  assert.equal(x.s.src, 'pravo');
+  assert.deepEqual(x.v.vals.slice(0, 2), [['stanje', 'NAORUŽAN'], ['taktika', 'primer']]);
+  const off = evalBlocks({ ...st, robotMec: null }).find(y => y.b.id === 'mec');
+  assert.equal(off.s.src, null);                                   // još nema telemetrije
+  assert.equal(makeHas({ session: { kind: 'sim' }, robotMec: 'MEC', sens: null })('@mec'), false);   // samo na ROBOTU
+});
+
+test('činč i tasteri: SIM činč iz stanja meča, ostalo „—“; ROBOT bez izvora', () => {
+  const ul = byId('ulazi'), sim = (mecs, match) => {
+    const run = matchRun({ mec: mecs, ...(match ? { match } : {}) });
+    return evalBlocks({ session: { kind: 'sim', lidar: 'sim' }, sens: { run, t: 100 }, lidarScan: null, profile: null })
+      .find(y => y.b.id === 'ulazi');
+  };
+  let x = sim(['NAORUZAN', 'NAORUZAN']);
+  assert.equal(x.s.src, 'sim');
+  assert.deepEqual(x.v.vals, [['činč', 'umetnut'], ['STOP', '—'], ['OK', '—'], ['NAZAD', '—'], ['enkoder', '—']]);
+  x = sim(['MEC', 'MEC'], [0, 500]);
+  assert.equal(x.v.vals[0][1], 'izvučen');
+  x = sim(['NEMA', 'NEMA']);
+  assert.equal(x.v.vals[0][1], '—');
+  const g = fakeG();
+  ul.draw(g, 400, 100, x.d, false);
+  assert.ok(g.calls.length > 5 && finiteAll(g));
+  const robot = evalBlocks({ session: { kind: 'robot', lidar: 'sim' }, sens: { run: simRun(), t: 100 }, lidarScan: null,
+    profile: null, robotMec: 'NAORUZAN' }).find(y => y.b.id === 'ulazi');
+  assert.equal(robot.s.src, null);
+  assert.match(robot.s.reason, /ESP ih još ne šalje/);
+});
+
+test('veza: redovi iz linkView, telemetrija, Nucleo ↔ ESP, RSSI/RAM/krug bez podataka', () => {
+  const veza = byId('veza');
+  const frames = buildRun({ meta: {}, result: {}, events: [], cols: { t: [0, 100, 200, 300, 400], v: [0, 0, 0, 0, 0] } });
+  const ok_ = { session: { kind: 'robot', lidar: 'sim' }, telemetry: true, linkAge: 100 };
+  let d = { st: ok_, run: frames, t: 400, src: 'pravo' };
+  assert.equal(veza.view(d).status, 'ok');
+  const html = veza.html(d, true);
+  assert.match(html, /povezan/); assert.match(html, /5 Hz/); assert.match(html, /javlja/);
+  assert.match(html, /ESP ih još ne šalje/);
+  d = { st: ok_, run: null, t: 0, src: 'pravo' };                  // ROBOT bez frame-ova: Nucleo „ne javlja“
+  const v = veza.view(d);
+  assert.equal(v.status, 'warn');
+  assert.match(veza.html(d, true), /ne javlja/);
+  assert.match(v.foot, /ESP ih još ne šalje/);
+  assert.equal(veza.view({ ...d, st: { ...ok_, linkAge: 9000 } }).status, 'warn');   // veza izgubljena
+  d = { st: { session: { kind: 'sim', lidar: 'sim' }, speed: 1 }, run: frames, t: 400, src: 'sim' };
+  assert.match(veza.html(d, false), /simulirano/);
+  assert.equal(veza.view(d).status, 'ok');
 });

@@ -35,7 +35,8 @@ const $ = id => document.getElementById(id);
 // lidarReply = poslednji odgovor na komandu ["lidar", ...] (ROBOT: Upali lidar, Snimi krugove); robotMec, robotLidar,
 // robotLidarSeen = stanje meča i lidara iz poslednjeg paketa telemetrije (ROBOT; i bez STM32-a).
 // Senzori (panels/senzori.js): sensOpen = id otvorenog detalja (null = pregled svih blokova; 'lidar' = paneli lidara),
-// sens = {run, t, replay, name} šta Senzori prikazuju (bridgeSens), profile = info.profile (/api/info: body, drive,
+// sens = {run, t, replay, name} šta Senzori prikazuju (bridgeSens), actuators = info.actuators ({ime: id} iz ESP32/config.py
+// ACTUATORS), profile = info.profile (/api/info: body, drive,
 // odometry, ir, lidar, ir_sensors), lidarSrc = izvor detalja lidara 'sesija' | 'snimak' (piše panels/lidar.js),
 // sensZero = vreme (ms) „Nuliraj“ enkodera u Senzorima (null = od početka snimka; briše ga nova sesija i drugi snimak).
 const store = createStore({ ws: 'taktike', drive: 'sim', session: null, caps: null, paused: false, speed: null, telemetry: null,
@@ -43,7 +44,7 @@ const store = createStore({ ws: 'taktike', drive: 'sim', session: null, caps: nu
   runs: null, runName: null, refName: null, refLabel: null, repo: null,
   sources: loadSources(), lidarFiles: [], helloSource: null, lidarScan: null, lidarReply: null,
   robotMec: null, robotLidar: null, robotLidarSeen: false,
-  sensOpen: null, sens: null, sensZero: null, profile: null, lidarSrc: null });
+  sensOpen: null, sens: null, sensZero: null, profile: null, actuators: null, lidarSrc: null });
 const STRANA = { zuta: 'Žuta', plava: 'Plava' };        // i kartica rezultata (#result) i naslovi taktika u Koracima
 const REASON = { BLOCKED: 'blokiran', TIMEOUT: 'isteklo vreme', PREEMPTED: 'prekinut novom komandom', MATCH_OVER: 'kraj meča',
   STOPPED: 'zaustavljen', INVALID: 'odbijen', NOREPLY: 'nema odgovora', SUPERSEDED: 'zamenjen', STOP: 'STOP' };
@@ -1162,7 +1163,7 @@ function setRef(r, name, saved = null) {       // saved: ime sačuvanog snimka (
 
 async function main() {
   info = await api('/api/info');
-  store.set({ profile: info.profile || null });  // Senzori: skica robota, imena IR senzora, razmak enkodera
+  store.set({ profile: info.profile || null, actuators: info.actuators || null });  // Senzori: skica robota, imena IR senzora, razmak enkodera
   fillLidarSources();
   REF_SIDE = info.ref_side || REF_SIDE;
   $('tactic').innerHTML = info.tactics.map(t => `<option>${t}</option>`).join('');
@@ -1171,7 +1172,7 @@ async function main() {
     for (const k of ['tactic', 'side', 'mode']) if (sel[k]) $(k).value = sel[k];
   } catch (e) { /* ignore */ }
   refreshRuns();                                  // Snimci i „Uporedi sa…“ (detaljna lista)
-  const setInfo = i => { info = i; store.set({ profile: i.profile || null }); };   // posle git pull ili izmene Profila
+  const setInfo = i => { info = i; store.set({ profile: i.profile || null, actuators: i.actuators || null }); };   // posle git pull ili izmene Profila
   repo = mountRepo({ store, msg, getInfo: () => info, setInfo, onPulled: fillTacticSelects });   // traka, dijalog, značka
   profile = mountProfile({ msg, setInfo });
   view = new FieldView($('view'), info);

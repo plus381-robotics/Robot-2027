@@ -83,15 +83,20 @@ def tac_api():
             "ref_side": consts.get("REF_SIDE", "zuta"), "field_x": consts.get("FIELD_X", 3000)}
 
 
-def _actuators():
+def actuator_ids():
+    """{ime: id} iz ESP32/config.py ACTUATORS (npr. {"hvataljka": 1, "lift": 2}); prazno ako se ne može pročitati."""
     try:
         tree = ast.parse((paths.ESP / "config.py").read_text(encoding="utf-8"))
         for n in tree.body:
             if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", None) == "ACTUATORS":
-                return sorted(ast.literal_eval(n.value))
+                return {str(k): int(v) for k, v in ast.literal_eval(n.value).items()}
     except Exception:
         pass
-    return []
+    return {}
+
+
+def _actuators():
+    return sorted(actuator_ids())
 
 
 # ---------------- provera ----------------

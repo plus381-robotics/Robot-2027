@@ -63,6 +63,11 @@ def test_info(base):
     assert d["migrated"] == {"moved": [], "skipped": []}      # prenos radi samo pri serve() u repo režimu
 
 
+def test_info_actuators(base):
+    d = get(base + "/api/info")
+    assert d["actuators"] == {"hvataljka": 1, "lift": 2, "ruka_l": 3, "ruka_r": 4}
+
+
 def test_index_i_staticki_fajlovi(base):
     with urllib.request.urlopen(base + "/", timeout=5) as r:
         assert b"<title>Gambit Studio</title>" in r.read()

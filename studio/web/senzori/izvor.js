@@ -7,7 +7,7 @@
 // st = {session, sens, lidarScan}: session = null | {kind: 'sim'|'robot', host, virtual, lidar: 'sim'|'robot'|'file'},
 //   sens = null | {run, t, replay, name} (t je u ms, kao run.cols.t; u tekstu se piše u sekundama), lidarScan = poslednji krug lidara ili null.
 // block = {id, part: 'pogon'|'lidar'|'ir'|'mehanizmi'|null, fields, simFields?, notes?: {robot?: {[polje]: tekst}}}:
-//   fields = polja koja blok traži (`'@lidar'` = stigao je krug lidara; [] = blok ne zavisi od polja, npr. veza);
+//   fields = polja koja blok traži (`'@lidar'` = stigao je krug lidara; `'@mec'` = stanje meča (telemetrija ESP-a ili kolona mec); [] = blok ne zavisi od polja, npr. veza);
 //   simFields (nije obavezno) zamenjuje fields u simulaciji, hibridu i puštanju snimka simulacije.
 // has(polje) -> bool: da li polje stvarno stiže (pozivalac odlučuje; za '@lidar' pita se da li snimak ima krugove lidara).
 
