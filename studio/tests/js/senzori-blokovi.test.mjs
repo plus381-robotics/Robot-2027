@@ -272,6 +272,12 @@ test('enkoderi: Nuliraj postavlja sensZero na d.t, t0 = sensZero', () => {
   assert.equal(byId('enkoderi').actions(encD(run))[0].disabled, true);   // bez ctx-a
 });
 
+test('enkoderi: izvor postoji, a vrednosti još nema -> lampica bez podataka (ne zelena)', () => {
+  const v = byId('enkoderi').view(encD(simRun(), { t: 100 }));      // snimak bez ox/oy/oth
+  assert.equal(v.status, 'none'); assert.deepEqual(v.vals, []);
+  assert.equal(byId('enkoderi').view(encD(odoRun([[0, 0, 0, 0]]), { run: null })).status, 'none');
+});
+
 test('brzine: ROBOT bez ω nosi napomenu; PID na robotu bez izvora (status none, razlog)', () => {
   const robotRun = buildRun({ meta: {}, result: {}, events: [], cols: { t: [0, 100], v: [0.1, 0.2] } });
   const st = { session: { kind: 'robot', lidar: 'sim' }, sens: { run: robotRun, t: 100 }, lidarScan: null, profile: null };
@@ -345,8 +351,8 @@ test('napajanje: sa kolonama bat, i5, ibat, istop, v5, vstop: vrednosti, ≈ %, 
   assert.equal(low.status, 'warn');                                // 11,0 V < 11,6 V
   assert.equal(low.vals[2][1], 'pritisnut');                       // vstop 0,1 V
   assert.equal(nap.view(powD(300, { profile: { power: { bat_min: 10.8 } } })).status, 'ok');   // prag iz Profila
-  const empty = nap.view({ ...powD(100), run: simRun() });          // izvor postoji, polja još nema
-  assert.equal(empty.status, 'ok'); assert.equal(empty.vals[0][1], '—');
+  const empty = nap.view({ ...powD(100), run: simRun() });          // izvor postoji, polja još nema: ne zelena lampica
+  assert.equal(empty.status, 'none'); assert.equal(empty.vals[0][1], '—');
 });
 
 test('napajanje: crta (mali i veliki prikaz) samo kad bat postoji, svi brojevi konačni', () => {
@@ -362,34 +368,68 @@ test('napajanje: crta (mali i veliki prikaz) samo kad bat postoji, svi brojevi k
   assert.equal(g.calls.length, 0);                                 // bez bat ništa se ne crta
 });
 
-test('aktuatori: SIM act {"1": 512} -> hvataljka sa uglom ≈ 150°, sirova vrednost u detalju', () => {
-  const run = buildRun({ meta: {}, result: {}, events: [], cols: { t: [0, 100, 600, 1000], mec: ['NEMA', 'NEMA', 'NEMA', 'NEMA'],
-    act: [null, { 1: 512 }, { 1: 512 }, { 1: 512 }] } });
-  const actuators = { hvataljka: 1, lift: 2, ruka_l: 3, ruka_r: 4 };
-  const st = { session: { kind: 'sim', lidar: 'sim' }, sens: { run, t: 1000 }, lidarScan: null, profile: null, actuators };
-  const x = evalBlocks(st).find(y => y.b.id === 'aktuatori');
+const actRun = () => buildRun({ meta: {}, result: {}, events: [], cols: { t: [0, 100, 600, 1000], mec: ['NEMA', 'NEMA', 'NEMA', 'NEMA'],
+  act: [null, { 1: 512, 3: 1 }, { 1: 512, 3: 1 }, { 1: 512, 3: 1 }] } });
+const ACTS = { hvataljka: 1, lift: 2, ruka_l: 3, ruka_r: 4 };
+const actX = profile => evalBlocks({ session: { kind: 'sim', lidar: 'sim' }, sens: { run: actRun(), t: 1000 }, lidarScan: null,
+  profile, actuators: ACTS }).find(y => y.b.id === 'aktuatori');
+
+test('aktuatori: bez tipa u Profilu samo ime i sirova vrednost (bez uglova i trake)', () => {
+  const x = actX(null);
   assert.equal(x.s.src, 'sim');
-  assert.deepEqual(x.v.vals[0], ['hvataljka', '150°']);            // 512 · 300 / 1023 = 150,15
-  assert.deepEqual(x.v.vals[1], ['lift', '—']);
+  assert.deepEqual(x.v.vals.slice(0, 3), [['hvataljka', '512'], ['lift', '—'], ['ruka_l', '1']]);
+  assert.ok(x.v.vals.every(([, v]) => !v.includes('°')));
   const d = { ...x.d, t: 1000 };
-  assert.match(byId('aktuatori').html(d, true), /512/);
-  const g = fakeG();
-  byId('aktuatori').draw(g, 400, 160, d, false);
-  assert.ok(g.calls.length > 10 && finiteAll(g));
+  const html = byId('aktuatori').html(d, true);
+  assert.match(html, /512/); assert.doesNotMatch(html, /°<\/td>/);
+  const g = fakeG(), texts = [];
+  const gg = new Proxy(g, { get: (t, k) => (k === 'fillText' ? (s, ...a) => { texts.push(String(s)); t.fillText(s, ...a); } : t[k]) });
+  byId('aktuatori').draw(gg, 400, 160, d, false);
+  assert.ok(finiteAll(g));
+  assert.ok(texts.includes('512') && !texts.some(t => t.includes('°')), texts.join(' | '));
+  const rects = [];                                                // bez tipa nema trake (fillRect/strokeRect)
+  const gr = new Proxy(fakeG(), { get: (t, k) => (k === 'fillRect' || k === 'strokeRect' ? (...a) => rects.push(a) : t[k]) });
+  byId('aktuatori').draw(gr, 400, 160, d, false);
+  assert.equal(rects.length, 0);
 });
 
-test('aktuatori: ↻ samo dok se vrednost promenila u poslednjih 300 ms; bez imena u store je „#id“', () => {
+test('aktuatori: tip servo iz Profila ([actuators.type]) -> ugao 0–300° i traka; pumpa -> lampica', () => {
+  const profile = { actuators: { default_ms: 300, type: { hvataljka: 'servo', ruka_l: 'pumpa' } } };
+  const x = actX(profile);
+  assert.deepEqual(x.v.vals.slice(0, 3), [['hvataljka', '150°'], ['lift', '—'], ['ruka_l', 'radi']]);   // 512 · 300 / 1023 = 150,15
+  const d = { ...x.d, t: 1000 };
+  const html = byId('aktuatori').html(d, true);
+  assert.match(html, /150°/); assert.match(html, /servo/); assert.match(html, /pumpa/);
+  const texts = [], rects = [], arcs = [];
+  const g = new Proxy(fakeG(), { get: (t, k) => (k === 'fillText' ? (s, ...a) => { texts.push(String(s)); t.fillText(s, ...a); }
+    : k === 'fillRect' ? (...a) => { rects.push(a); t.fillRect(...a); } : k === 'arc' ? (...a) => { arcs.push(a); t.arc(...a); } : t[k]) });
+  byId('aktuatori').draw(g, 400, 160, d, false);
+  assert.ok(finiteAll(g));
+  assert.ok(texts.includes('150°') && rects.length > 0, texts.join(' | '));
+  assert.ok(texts.includes('radi') && arcs.length === 1);         // pumpa ruka_l: lampica (upaljena, vrednost 1)
+  assert.ok(texts.includes('—'));                                  // lift: bez tipa i bez vrednosti
+  const off = actX({ actuators: { type: { ruka_l: 'pumpa' } } });
+  const run0 = buildRun({ meta: {}, result: {}, events: [], cols: { t: [0], act: [{ 3: 0 }] } });
+  assert.deepEqual(byId('aktuatori').view({ ...off.d, run: run0, t: 0 }).vals[2], ['ruka_l', 'ugašena']);
+});
+
+test('aktuatori: ↻ samo za servo dok se vrednost promenila u poslednjih 300 ms; bez imena u store je „#id“', () => {
   const run = buildRun({ meta: {}, result: {}, events: [], cols: { t: [0, 100, 200, 600],
     act: [{ 2: 0 }, { 2: 0 }, { 2: 300 }, { 2: 300 }] } });
-  const d = t => ({ st: {}, run, t, src: 'sim', profile: null });
-  assert.deepEqual(byId('aktuatori').view(d(250)).vals[0], ['#2', '88° ↻']);   // 300 · 300 / 1023 = 87,9
-  assert.deepEqual(byId('aktuatori').view(d(600)).vals[0], ['#2', '88°']);     // miruje 400 ms
+  const d = (t, st = { actuators: { lift: 2 } }) => ({ st, run, t, src: 'sim', profile: { actuators: { type: { lift: 'servo' } } } });
+  assert.deepEqual(byId('aktuatori').view(d(250)).vals[0], ['lift', '88° ↻']);  // 300 · 300 / 1023 = 87,9
+  assert.deepEqual(byId('aktuatori').view(d(600)).vals[0], ['lift', '88°']);    // miruje 400 ms
+  assert.deepEqual(byId('aktuatori').view(d(250, {})).vals[0], ['#2', '300']);  // bez imena: „#id“, bez tipa, sirova vrednost
 });
 
-test('aktuatori: tip pumpa iz Profila (isPump), toDeg ograničen na 0–300', async () => {
-  const { isPump, toDeg } = await import('../../web/senzori/blokovi/aktuatori.js');
-  assert.equal(isPump({ profile: null }, 'lift'), false);
-  assert.equal(isPump({ profile: { actuators: { pumpa1: { type: 'pumpa' } } } }, 'pumpa1'), true);
+test('aktuatori: actType iz Profila ([actuators.type], samo servo / pumpa), isPump, toDeg ograničen na 0–300', async () => {
+  const { actType, isPump, toDeg } = await import('../../web/senzori/blokovi/aktuatori.js');
+  assert.equal(actType({ profile: null }, 'lift'), null);
+  assert.equal(actType({ profile: { actuators: { default_ms: 300, ms: { lift: 600 } } } }, 'lift'), null);
+  assert.equal(actType({ profile: { actuators: { type: { lift: 'servo' } } } }, 'lift'), 'servo');
+  assert.equal(actType({ profile: { actuators: { type: { lift: 'ventil' } } } }, 'lift'), null);   // nepoznat tip: ime i vrednost
+  assert.equal(isPump({ profile: { actuators: { type: { pumpa1: 'pumpa' } } } }, 'pumpa1'), true);
+  assert.equal(isPump({ profile: { actuators: { pumpa1: { type: 'pumpa' } } } }, 'pumpa1'), false);   // stari oblik se ne čita
   assert.equal(toDeg(1023), 300); assert.equal(toDeg(0), 0); assert.equal(toDeg(5000), 300);
 });
 
@@ -460,4 +500,44 @@ test('veza: redovi iz linkView, telemetrija, Nucleo ↔ ESP, RSSI/RAM/krug bez p
   d = { st: { session: { kind: 'sim', lidar: 'sim' }, speed: 1 }, run: frames, t: 400, src: 'sim' };
   assert.match(veza.html(d, false), /simulirano/);
   assert.equal(veza.view(d).status, 'ok');
+});
+
+test('veza: virtuelni robot ima simuliran Nucleo; snimak: ESP ↔ laptop „iz snimka“', async () => {
+  const { rows } = await import('../../web/senzori/blokovi/veza.js');
+  const frames = buildRun({ meta: {}, result: {}, events: [], cols: { t: [0, 100, 200, 300, 400], v: [0, 0, 0, 0, 0] } });
+  const virt = { session: { kind: 'robot', host: '127.0.0.1', virtual: true, lidar: 'sim' }, telemetry: true, linkAge: 100 };
+  assert.deepEqual(rows({ st: virt, run: frames, t: 400, src: 'sim' })[2], ['Nucleo ↔ ESP', 'idle', 'simulirano']);
+  assert.deepEqual(rows({ st: virt, run: null, t: 0, src: 'sim' })[2], ['Nucleo ↔ ESP', 'idle', 'simulirano']);
+  const rec = { st: { session: null, sens: { replay: true } }, run: frames, t: 400, src: 'snimak' };
+  const r = rows(rec);
+  assert.deepEqual(r[0], ['ESP ↔ laptop', 'idle', 'iz snimka']);
+  assert.deepEqual(r[2], ['Nucleo ↔ ESP', 'idle', 'iz snimka']);
+  assert.equal(r[1][2], '5 Hz');                                   // telemetrija iz frame-ova snimka
+  assert.equal(byId('veza').view(rec).text, 'iz snimka');
+});
+
+test('veza: telemetrija ROBOT-a iz brojača paketa (store.telemetryHz), i bez Nucleo frame-ova', async () => {
+  const { rows } = await import('../../web/senzori/blokovi/veza.js');
+  const rob = { session: { kind: 'robot', host: 'eurokik.local', lidar: 'sim' }, telemetry: true, linkAge: 100 };
+  assert.deepEqual(rows({ st: { ...rob, telemetryHz: 10 }, run: null, t: 0, src: 'pravo' })[1], ['telemetrija', 'ok', '10 Hz']);
+  assert.deepEqual(rows({ st: { ...rob, telemetryHz: 0 }, run: null, t: 0, src: 'pravo' })[1], ['telemetrija', 'warn', '0 Hz']);
+  assert.deepEqual(rows({ st: { ...rob, telemetryHz: null }, run: null, t: 0, src: 'pravo' })[1], ['telemetrija', 'idle', '—']);
+  assert.equal(byId('veza').view({ st: { ...rob, telemetryHz: 0 }, run: null, t: 0, src: 'pravo' }).status, 'warn');
+  const frames = buildRun({ meta: {}, result: {}, events: [], cols: { t: [0, 100, 200, 300, 400], v: [0, 0, 0, 0, 0] } });
+  assert.equal(rows({ st: { ...rob, telemetryHz: 9 }, run: frames, t: 400, src: 'pravo' })[1][2], '9 Hz');   // brojač ima prednost
+  assert.equal(rows({ st: { ...rob, telemetryHz: null }, run: frames, t: 400, src: 'pravo' })[1][2], '5 Hz');   // inače frame-ovi
+});
+
+test('packetRate: paketa u sekundi iz brojača paketa (prozor ~1 s), null dok nema dovoljno uzoraka', async () => {
+  const { packetRate } = await import('../../web/senzori/podaci.js');
+  let r = packetRate([], 1000, 0);
+  assert.equal(r.hz, null);
+  for (let i = 1; i <= 10; i++) r = packetRate(r.samples, 1000 + i * 100, i);     // 1 paket na 100 ms
+  assert.equal(r.hz, 10);
+  assert.ok(r.samples.length <= 11 && r.samples.every(([w]) => w >= 2000 - 1000));
+  for (let i = 11; i <= 25; i++) r = packetRate(r.samples, 1000 + i * 100, 10);   // paketi stali
+  assert.equal(r.hz, 0);
+  assert.equal(packetRate([[0, 0]], 300, 3).hz, null);                             // prozor kraći od 0,5 s: još se ne meri
+  assert.deepEqual(packetRate([[0, 5]], 100, undefined), { samples: [], hz: null }); // stari server bez brojača
+  assert.equal(packetRate([[0, 50]], 1000, 2).hz, null);                           // brojač krenuo ispočetka (nova veza)
 });

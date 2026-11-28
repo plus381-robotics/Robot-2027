@@ -3,8 +3,10 @@
 //   wsForKey(e)    Alt+1..4 -> radni prostor, redom kao u bočnoj traci (Taktike, Senzori, Vožnja, Snimci); inače null
 //   isHelpKey(e)   „?“ -> prozorčić Prečice (Pomoć u bočnoj traci)
 //   isTyping(el)   fokus je u polju za kucanje ili u editoru: „?“ se tada kuca, ne otvara spisak
-//   timeKey(e, ws) vreme snimka i ▶ Pokreni (app.js): 'play' | 'frame-' | 'frame+' | 'step-' | 'step+' | 'home' | 'end' |
-//                  'run' | null. Senzori nemaju vreme (tasteri ne rade ništa); Ctrl+Enter samo u Taktikama.
+//   timeKey(e, ws, replay) vreme snimka i ▶ Pokreni (app.js): 'play' | 'frame-' | 'frame+' | 'step-' | 'step+' | 'home' |
+//                  'end' | 'run' | null. Senzori nemaju vreme, osim razmaka dok je snimak pušten (replay = play.replay u
+//                  app.js; pauza ostaje na snimku, razmak opet pušta) i kad razmak nije već obradio neko drugi (npr. pločica
+//                  bloka: otvara detalj). Ctrl+Enter samo u Taktikama. Esc nije ovde (STOP, shell/layout.js).
 //   SHORTCUTS      [[tasteri, šta radi]] za prozorčić Prečice
 
 import { WORKSPACES } from './panels.js';
@@ -24,10 +26,13 @@ export function isTyping(el) {
   return tag === 'TEXTAREA' || tag === 'SELECT' || (tag === 'INPUT' && !['range', 'checkbox', 'button', 'radio'].includes(el.type));
 }
 
-export function timeKey(e, ws) {
+export function timeKey(e, ws, replay = false) {
   if (!e) return null;
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) return ws === 'taktike' ? 'run' : null;
-  if (ws === 'senzori') return null;
+  if (ws === 'senzori') {
+    const plain = !e.ctrlKey && !e.metaKey && !e.altKey && !e.defaultPrevented;
+    return replay && e.key === ' ' && plain ? 'play' : null;
+  }
   switch (e.key) {
     case ' ': return 'play';
     case 'ArrowLeft': return e.shiftKey ? 'step-' : 'frame-';
@@ -42,7 +47,7 @@ export const SHORTCUTS = [
   ['Esc', 'STOP dok radi sesija (iz svakog prostora, i iz editora)'],
   ['Ctrl+Enter', '▶ Pokreni: simulacija taktike (u Taktikama)'],
   ['Ctrl+S', 'Sačuvaj taktiku (u editoru; Ctrl+Shift+S: Sačuvaj kao…)'],
-  ['Razmak', 'vreme: pusti / pauza (tasteri za vreme ne rade u Senzorima)'],
+  ['Razmak', 'vreme: pusti / pauza (u Senzorima samo dok je snimak pušten; ostali tasteri za vreme tamo ne rade)'],
   ['← / →', 'vreme: frejm nazad / napred'],
   ['Shift+← / →', 'vreme: korak nazad / napred'],
   ['Home / End', 'vreme: početak / kraj snimka'],

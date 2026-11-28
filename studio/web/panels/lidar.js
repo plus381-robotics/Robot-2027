@@ -11,7 +11,7 @@
 //   lidar-info (kartica)       slojevi (sirovo / van stola / grupe), Hz, tačke, starost kruga, poza, najbliža grupa
 //                              (laptop) i najbliža tačka (ESP), „izračunao laptop“
 // Krugovi sesije stižu kroz store.lidarScan (app.js: događaj "lidar" sesije SIM ili ROBOT), odgovori na komandu lidar
-// kroz store.lidarReply. Međukoraci se traže samo dok je Senzori prikazan (jedan zahtev odjednom, poslednji krug).
+// kroz store.lidarReply. Međukoraci se traže samo dok je detalj lidara otvoren (jedan zahtev odjednom, poslednji krug).
 // Izvor panela (Sesija | Snimak) ide i u store.lidarSrc: zaglavlje Senzora tada piše oznaku SNIMAK.
 // Od Zadatka 7 ovo je detalj lidara u Senzorima (sensOpen = 'lidar'; klik na blok „Odozgo · lidar“).
 import { registerPanel } from '../core/panels.js';
@@ -38,7 +38,9 @@ const S = {
 };
 
 const SENS_LIDAR = st => st.sensOpen === 'lidar';       // Zadatak 7: panel Senzori preuzima prikaz kad nije otvoren detalj lidara
-const visible = () => !!S.ctx && S.ctx.store.get().ws === 'senzori';
+// Detalj lidara se vidi samo u Senzorima sa otvorenim detaljem: sakriven ne traži međukorake, ne crta i ne pušta snimak
+// krugova (tick). Kad se detalj otvori, `shown` (layout.js applyPanels) i slušalac ispod ponovo računaju i crtaju.
+const visible = () => !!S.ctx && S.ctx.store.get().ws === 'senzori' && SENS_LIDAR(S.ctx.store.get());
 const session = () => (S.ctx ? S.ctx.store.get().session : null);
 const setPrefs = p => { S.prefs = { ...S.prefs, ...p }; savePrefs(S.prefs); };
 
@@ -420,7 +422,7 @@ function start(ctx) {
     }
     if (st.lidarFiles !== prev.lidarFiles || st.running !== prev.running || st.robotMec !== prev.robotMec
       || st.robotLidar !== prev.robotLidar || st.robotLidarSeen !== prev.robotLidarSeen) renderTools();
-    if (st.ws !== prev.ws && st.ws === 'senzori') { compute(); draw(); renderInfo(); }
+    if ((st.ws !== prev.ws || st.sensOpen !== prev.sensOpen) && visible()) { compute(); draw(); renderInfo(); }
   });
   api('/api/info').then(i => { if (i.profile && i.profile.body) S.body = i.profile.body; draw(); }).catch(() => {});
   setInterval(tick, TICK_MS);

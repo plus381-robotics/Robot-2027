@@ -59,7 +59,18 @@ test('poruka o prenetim fajlovima: samo kad ima šta da se kaže', () => {
   assert.equal(migratedNotice({ moved: ['a'], skipped: [] }), 'Premešteno iz starog foldera simulator/: 1 fajl');
   assert.equal(migratedNotice({ moved: ['a', 'b'], skipped: [] }), 'Premešteno iz starog foldera simulator/: 2 fajla');
   assert.equal(migratedNotice({ moved: ['a', 'b', 'c', 'd', 'e'], skipped: ['b'] }),
-    'Premešteno iz starog foldera simulator/: 5 fajlova; 1 nije premešteno (ostalo u simulator/): b');
+    'Premešteno iz starog foldera simulator/: 5 fajlova; 1 fajl nije premešten (ostao u simulator/): b');
   assert.equal(migratedNotice({ moved: [], skipped: ['a', 'b'] }),
-    'Iz starog foldera simulator/ ništa nije premešteno; 2 nisu premeštena (ostala u simulator/): a, b');
+    'Iz starog foldera simulator/ ništa nije premešteno; 2 fajla nisu premeštena (ostala u simulator/): a, b');
+});
+
+test('poruka o prenetim fajlovima: slaganje broja „nije/nisu premešten(a/o)“', async () => {
+  const { notMoved } = await import('../../web/core/migrated.js');
+  assert.equal(notMoved(1), '1 fajl nije premešten (ostao u simulator/)');
+  for (const n of [2, 3, 4, 22, 34]) assert.equal(notMoved(n), `${n} fajla nisu premeštena (ostala u simulator/)`, n);
+  for (const n of [5, 11, 12, 14, 20, 25, 111]) assert.equal(notMoved(n), `${n} fajlova nije premešteno (ostalo u simulator/)`, n);
+  assert.equal(notMoved(21), '21 fajl nije premešten (ostao u simulator/)');
+  const many = Array.from({ length: 5 }, (_, i) => 'f' + i);
+  assert.equal(migratedNotice({ moved: ['a'], skipped: many }),
+    'Premešteno iz starog foldera simulator/: 1 fajl; 5 fajlova nije premešteno (ostalo u simulator/): f0, f1, f2, f3, f4');
 });

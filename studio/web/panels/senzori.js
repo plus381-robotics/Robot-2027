@@ -109,7 +109,8 @@ function renderTool(st, list) {
     setTitle(T.curBadge, file ? 'Detalj lidara pušta snimak krugova (studio/lidar/)' : x.s.src ? vm.text : x.s.reason || '');
   }
   T.showing.hidden = inLidar;
-  setCls(T.showing, 'sz-showing m-' + vm.mode);
+  const virt = vm.mode === 'robot' && st.session && st.session.virtual;      // virtuelni robot: boja simulacije, ne robota
+  setCls(T.showing, 'sz-showing m-' + (virt ? 'sim' : vm.mode));
   setText(T.showing, vm.text);
   setTitle(T.showing, vm.text);
   T.live.hidden = vm.mode !== 'snimak';
@@ -161,10 +162,8 @@ function tileHTML(x) {
 
 function sourceText(x, st) {
   const s = st.session, src = x.s.src;
-  if (src === 'pravo') {
-    if (s && s.kind !== 'robot') return 'Pravi lidar (hibrid: ostalo je simulirano)';
-    return s && s.virtual ? 'Virtuelni robot (telemetrija kao sa pravog robota)' : 'Pravi robot (telemetrija ESP-a)';
-  }
+  if (src === 'pravo') return s && s.kind !== 'robot' ? 'Pravi lidar (hibrid: ostalo je simulirano)' : 'Pravi robot (telemetrija ESP-a)';
+  if (src === 'sim' && s && s.kind === 'robot') return 'Virtuelni robot (pravi ESP kod nad simuliranim STM32-jem): ovo nije pravi robot';
   if (src === 'sim') return 'Simulacija (Vožnja SIM): ovo nije pravi robot';
   if (src === 'snimak') return 'Snimak' + (st.sens && st.sens.name ? ' ' + st.sens.name : '');
   return 'nema podataka';
@@ -172,7 +171,8 @@ function sourceText(x, st) {
 
 function detailHTML(x, st) {
   const b = x.b, need = x.s.src ? x.s.note : x.s.reason;
-  const fields = (x.s.src === 'sim' && b.simFields ? b.simFields : b.fields || []).map(f => FIELD_NAME[f] || f);
+  const simLike = x.s.src === 'sim' && !(st.session && st.session.kind === 'robot');    // virtuelni robot: polja kao robot
+  const fields = (simLike && b.simFields ? b.simFields : b.fields || []).map(f => FIELD_NAME[f] || f);
   return `<div class="sz-detail" data-id="${esc(b.id)}">
     <div class="sz-dh"><span class="sz-lamp none"></span><h3>${esc(b.name)}</h3>${badgeHTML(x.s.src)}
       <span class="sz-state dim"></span><span class="sz-grow"></span><span class="sz-acts"></span></div>

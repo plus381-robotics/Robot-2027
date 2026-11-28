@@ -1,6 +1,7 @@
 // Senzori: odakle blok dobija podatke i zašto ih nema. Bez DOM-a, da ga može da uveze i `node --test`.
 //   viewMode(st)                    {mode: 'robot'|'sim'|'hibrid'|'snimak'|'nista', text}  zaglavlje Senzora
 //   blockSource(block, st, has)     {src: 'pravo'|'sim'|'snimak'|null, reason, note}       oznaka bloka
+//                                   (virtuelni robot = ROBOT sesija sa session.virtual: oznaka SIM, razlozi kao za robota)
 //   REASONS                         razlozi "nepovezano" za pravog robota, po id-u bloka
 //   SIM_REASONS                     razlozi u simulaciji (i hibridu), po id-u bloka
 //
@@ -46,7 +47,9 @@ export function nextReplay(replay, ev) {
 
 export function viewMode(st) {
   const m = mode(st), s = st && st.session;
-  if (m === 'robot') return { mode: m, text: 'Prikazuje: ' + (s.virtual ? 'virtuelni robot' : 'pravi robot · ' + s.host) };
+  if (m === 'robot') {
+    return { mode: m, text: s.virtual ? 'Prikazuje: virtuelni robot (simulacija) · ovo nije pravi robot' : 'Prikazuje: pravi robot · ' + s.host };
+  }
   if (m === 'sim') return { mode: m, text: 'Prikazuje: simulacija (Vožnja SIM) · ovo nije pravi robot' };
   if (m === 'hibrid') {
     const lidar = s.lidar === 'file' ? 'iz snimka' : 'sa pravog robota';
@@ -73,16 +76,18 @@ export function blockSource(block, st, has) {
   const want = simLike && block.simFields ? block.simFields : fields;
 
   if (m === 'robot') {
-    if (!fields.length) return res('pravo');
+    // Virtuelni robot je simulacija (pravi ESP kod nad simuliranim STM32-jem): nikad PRAVO, da se ne pomeša sa pravim.
+    const src = st.session.virtual ? 'sim' : 'pravo';
+    if (!fields.length) return res(src);
     if (isLidar) {
-      return st.lidarScan || has('@lidar') ? res('pravo') : res(null, R_LIDAR);
+      return st.lidarScan || has('@lidar') ? res(src) : res(null, R_LIDAR);
     }
     const run = st.sens && st.sens.run;
     if (block.part === 'pogon' && !(run && run.cols && run.cols.t && run.cols.t.length)) return res(null, R_NUCLEO);
     if (!anyHas(want, has)) return res(null, REASONS[id] || R_ROBOT);
     const notes = block.notes && block.notes.robot;
     const miss = notes && fields.find(f => notes[f] && !has(f));
-    return res('pravo', null, miss ? notes[miss] : null);
+    return res(src, null, miss ? notes[miss] : null);
   }
   if (m === 'snimak') {
     if (!want.length) return res('snimak');

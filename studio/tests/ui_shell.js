@@ -236,11 +236,11 @@ const { chromium } = require('playwright');
     await p.waitForFunction(() => document.getElementById('stripLink').textContent === 'povezan', null, { timeout: 20000 });
     if ((await shownIds()).join() !== 'ti-taktika,ti-strana,rPush,rRun,followBtn,endBtn,edNote') fail.push('Vožnja ROBOT sesija: ' + await shownIds());
     if (!(await p.isVisible('#stripDisc')) || await p.isVisible('#stripConnect')) fail.push('traka ROBOT: treba „Prekini“, bez „Poveži robota“');
-    await p.click('#rail [data-ws=senzori]');                         // Senzori sa virtuelnim robotom: PRAVO, bez „Poveži robota“
+    await p.click('#rail [data-ws=senzori]');                         // Senzori sa virtuelnim robotom: SIM (nije pravi), bez „Poveži robota“
     await p.waitForFunction(() => /virtuelni robot/.test(document.querySelector('#ws-senzori-alati .sz-showing').textContent), null, { timeout: 3000 })
       .catch(() => fail.push('Senzori uz virtuelnog robota: zaglavlje ne kaže „virtuelni robot“'));
     if (await p.isVisible('#ws-senzori-alati .sz-connect')) fail.push('Senzori uz robota: „Poveži robota“ se i dalje vidi');
-    if (await p.textContent('#ws-senzori .sz-tile[data-id=veza] .sz-badge') !== 'PRAVO') fail.push('Senzori uz robota: Veza nije PRAVO');
+    if (await p.textContent('#ws-senzori .sz-tile[data-id=veza] .sz-badge') !== 'SIM') fail.push('Senzori uz virtuelnog robota: Veza nije SIM');
     await p.click('#rail [data-ws=voznja]');
     if (await p.isVisible('#vezaPop')) fail.push('#vezaPop ostao otvoren posle povezivanja');
     if (await p.textContent('#endBtn') !== 'Prekini vezu') fail.push('ROBOT: nema „Prekini vezu“');

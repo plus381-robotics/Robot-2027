@@ -50,6 +50,22 @@ test('veza (fields: []): izvor režima kad god ima sesije ili puštanja', () => 
   assert.equal(blockSource(V, { session: null, sens: { replay: true, name: 'x', t: 1 } }, () => false).src, 'snimak');
   assert.deepEqual(blockSource(V, { session: null, sens: null }, () => false), { src: null, reason: 'nije povezano', note: null });
 });
+test('virtuelni robot je SIM (nije pravi robot), razlozi kao za robota; pravi robot je PRAVO', () => {
+  const vSt = { ...robotSt, session: { kind: 'robot', host: '127.0.0.1', virtual: true } };
+  assert.deepEqual(blockSource(B, vSt, () => true), { src: 'sim', reason: null, note: null });
+  assert.deepEqual(blockSource(B, robotSt, () => true), { src: 'pravo', reason: null, note: null });
+  const r = blockSource(B, vSt, k => k === 'v');                       // napomena kao za robota
+  assert.equal(r.src, 'sim'); assert.equal(r.note, 'ω: ESP je još ne šalje laptopu');
+  const V = { id: 'veza', part: null, fields: [] };
+  assert.equal(blockSource(V, vSt, () => false).src, 'sim');
+  assert.equal(blockSource(V, robotSt, () => false).src, 'pravo');
+  const L = { id: 'lidar', part: 'lidar', fields: ['@lidar'] };
+  assert.equal(blockSource(L, { ...vSt, lidarScan: { pts: [] } }, () => true).src, 'sim');
+  assert.equal(blockSource(L, vSt, () => false).reason, 'lidar ugašen: Upali lidar');   // razlozi robota ostaju
+  const pid = { id: 'pid', part: 'pogon', fields: ['v_ref'] };
+  assert.equal(blockSource(pid, vSt, () => false).reason, 'Nucleo ga ne šalje (firmver)');
+  assert.equal(blockSource(B, { session: vSt.session, sens: { run: emptyRun } }, () => false).reason, 'Nucleo ne javlja (nema poze)');
+});
 test('hibrid: lidar pravo, ostalo sim; lidar iz snimka = snimak', () => {
   const L = { id: 'lidar', part: 'lidar', fields: ['@lidar'] };
   assert.equal(blockSource(L, { session: { kind: 'sim', lidar: 'robot' } }, () => true).src, 'pravo');
@@ -97,7 +113,8 @@ test('viewMode: tekstovi', () => {
     { mode: 'nista', text: 'Ništa nije povezano: Poveži robota ili pokreni simulaciju u Vožnji' });
   assert.deepEqual(viewMode({ session: { kind: 'robot', host: '10.0.0.5' } }),
     { mode: 'robot', text: 'Prikazuje: pravi robot · 10.0.0.5' });
-  assert.equal(viewMode({ session: { kind: 'robot', host: 'x', virtual: true } }).text, 'Prikazuje: virtuelni robot');
+  assert.deepEqual(viewMode({ session: { kind: 'robot', host: 'x', virtual: true } }),
+    { mode: 'robot', text: 'Prikazuje: virtuelni robot (simulacija) · ovo nije pravi robot' });
   assert.deepEqual(viewMode({ session: { kind: 'sim' } }),
     { mode: 'sim', text: 'Prikazuje: simulacija (Vožnja SIM) · ovo nije pravi robot' });
   assert.deepEqual(viewMode({ session: { kind: 'sim', lidar: 'robot' } }),

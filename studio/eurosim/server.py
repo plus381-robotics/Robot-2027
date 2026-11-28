@@ -39,6 +39,8 @@ async def info(request):
         "profile": {"name": prof.get("name"), "body": prof["body"], "drive": prof["drive"],
                     "odometry": prof["odometry"], "ir": prof.get("ir", {}), "model": prof.get("model", {}),
                     "lidar": prof.get("lidar", {}),
+                    "actuators": prof.get("actuators", {}),   # Senzori: [actuators.type] servo / pumpa (blok Aktuatori)
+                    "power": prof.get("power", {}),           # Senzori: power.bat_min, prag baterije (blok Napajanje)
                     "ir_sensors": _ir_layout(prof)},
         "actuators": tacmod.actuator_ids(),
         "sides": ["zuta", "plava"], "ref_side": tacmod.tac_api()["ref_side"], "runs": _runs(), "where": paths.describe(),
@@ -301,14 +303,27 @@ def make_app(prof=None):
     return app
 
 
+def migrated_report(m):
+    """Redovi za konzolu posle prenosa iz starog simulator/ (migrate.move_old_local): šta je preneto, a šta ostalo i zašto
+    (isto ime već postoji u studio/ ili greška pri premeštanju; bez razloga: „razlog nepoznat“, ne tvrdi se ništa)."""
+    out = []
+    if m.get("moved"):
+        out.append("preneto iz starog simulator/ u studio/: %d fajl(ova)" % len(m["moved"]))
+    if m.get("skipped"):
+        why = m.get("why") or {}
+        out.append("ostavljeno u simulator/ (nije premešteno): %s"
+                   % ", ".join("%s (%s)" % (f, why.get(f, "razlog nepoznat")) for f in m["skipped"]))
+    return out
+
+
 def serve(port=PORT, host="127.0.0.1", open_browser=True, prof=None):
     url = "http://%s:%d/" % ("localhost" if host in ("127.0.0.1", "0.0.0.0") else host, port)
     import socket
-    with socket.socket() as so:                       # port zauzet: verovatno već radi (stari) Eurosim
+    with socket.socket() as so:                       # port zauzet: verovatno već radi (stara) aplikacija
         try:
             so.bind((host, port))
         except OSError:
-            raise SystemExit("port %d je zauzet: verovatno već radi Eurosim (možda stara verzija).\n"
+            raise SystemExit("port %d je zauzet: verovatno već radi Gambit Studio (možda stara verzija).\n"
                              "Zatvori ga (Ctrl+C u njegovom prozoru) pa pokreni ponovo, ili: serve --port %d"
                              % (port, port + 1))
     print("simulator: %s  (Ctrl+C za kraj)" % url)
@@ -321,11 +336,8 @@ def serve(port=PORT, host="127.0.0.1", open_browser=True, prof=None):
     if paths.MODE == "repo":                          # jednom po pokretanju: stari simulator/lidar... -> studio/
         from . import migrate
         app[STATE]["migrated"] = migrate.move_old_local(paths.ROOT)
-        m = app[STATE]["migrated"]
-        if m["moved"]:
-            print("preneto iz starog simulator/ u studio/: %d fajl(ova)" % len(m["moved"]))
-        if m["skipped"]:
-            print("ostavljeno u simulator/ (isto ime već postoji u studio/): %s" % ", ".join(m["skipped"]))
+        for line in migrated_report(app[STATE]["migrated"]):
+            print(line)
     web.run_app(app, host=host, port=port, print=None)
 
 

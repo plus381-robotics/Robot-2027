@@ -1,10 +1,10 @@
 // Blok „Enkoderi“ (donji red): pasivni odometrijski točkovi. Put L i D u mm od „Nuliraj“ (store.sensZero; bez toga od
 // početka snimka) iz odometrijske poze ox, oy, oth i encoder_track iz Profila (podaci.js odoWheels), bez maksimuma.
 // Razlika L − D oko nule (±10 mm): zelena < 5 mm, narandžasta od 5 mm (status ok / warn). U detalju grafik puta sa
-// skalom koja se sama širi. „Nuliraj“ pamti d.t kao sensZero.
+// skalom koja se sama širi. „Nuliraj“ pamti d.t kao sensZero. Dok vrednosti nema (izvor postoji): status 'none'.
 import { odoSeries } from '../podaci.js';
 import { drawLines } from '../grafik.js';
-import { none, ok, num, unit } from './osnova.js';
+import { none, num, unit } from './osnova.js';
 import { wheelsAt } from './robot.js';
 
 const GREEN = '#3ecf8e', ORANGE = '#ffb547', BLUE = '#4aa3ff', DIM = '#97a3b3', TEXT = '#e6ebf1', BAR = '#20262e';
@@ -22,7 +22,7 @@ export default {
   view(d) {
     if (!d.src) return none();
     const w = wheelsAt(d, trackOf(d));
-    if (!w) return ok([], 'odometrija stiže');
+    if (!w) return { status: 'none', text: 'još nema vrednosti', vals: [] };   // ne zelena lampica bez merenja
     const warn = Math.abs(w.diff) >= LIMIT;
     return { status: warn ? 'warn' : 'ok', text: warn ? 'točkovi se razlikuju' : 'radi',
       vals: [['L', unit(num(w.L), 'mm')], ['D', unit(num(w.R), 'mm')], ['L − D', unit(num(w.diff, 1), 'mm')]] };

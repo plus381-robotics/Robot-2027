@@ -6,6 +6,8 @@
 //                                   skok poze (> 3000 mm/s ili > 720 °/s, postavljanje početne poze) se ne broji; track = razmak točkova [mm];
 //                                   null ako ox/oy/oth nemaju podataka
 //   odoSeries(run, t0, t1, track)   isto, kumulativno po frame-ovima: {t, L, R} (za grafik), ili null
+//   packetRate(samples, now, packets, windowMs = 1000)  {samples, hz}: paketa telemetrije u sekundi (ROBOT, app.js) iz
+//                                   brojača paketa servera; samples = [[ms sata, packets], ...] iz prošlog poziva
 
 import { hasData } from '../core/run.js';
 
@@ -63,4 +65,16 @@ export function odoWheels(run, t0, t1, track) {
   if (!s) return null;
   const n = s.L.length, L = n ? s.L[n - 1] : 0, R = n ? s.R[n - 1] : 0;
   return { L, R, diff: L - R };
+}
+
+// Telemetrija ROBOT-a: poruka data servera nosi `packets` = koliko je paketa ESP-a stiglo od povezivanja (robotlink); poruka
+// stiže ~10 puta u sekundi i kad paketi ne stižu, pa se broje paketi, ne poruke. Uzorci poslednjih windowMs (sat
+// laptopa, ms); hz = paketa u sekundi (ceo broj). null dok prozor nije bar pola sekunde i kad brojača nema (stari server);
+// brojač manji od ranijeg (nova veza) briše stare uzorke.
+export function packetRate(samples, now, packets, windowMs = 1000) {
+  if (typeof packets !== 'number' || !Number.isFinite(packets)) return { samples: [], hz: null };
+  const out = (samples || []).filter(([w, p]) => now - w <= windowMs && p <= packets);
+  out.push([now, packets]);
+  const [w0, p0] = out[0], dt = now - w0;
+  return { samples: out, hz: dt >= windowMs / 2 ? Math.round((packets - p0) * 1000 / dt) : null };
 }

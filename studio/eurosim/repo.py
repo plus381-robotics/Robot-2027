@@ -39,7 +39,7 @@ def check_folder(path):
     if not p.is_dir():
         return False, "folder does not exist: %s" % p
     if paths.old_layout(p):
-        return False, "this clone still has the old simulator/ folder: pull the latest (git pull), then open it again"
+        return False, "Ovo je stari raspored (folder simulator/): povuci najnovije (git pull) pa otvori ponovo"
     if not paths.is_repo(p):
         return False, "this is not the Robot-2027 repo (no ESP32/lib/tac.py and studio/ in %s)" % p
     try:

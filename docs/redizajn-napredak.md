@@ -50,6 +50,9 @@ Plan: `docs/plan-gambit-studio-senzori.md`. Lokalne grane, jedna na drugoj; niš
 - **gs-c-senzori-okvir**: prostor **Senzori** zamenio je Test dela (okvir, zaglavlje „Prikazuje: …“, izvori podataka).
 - **gs-d-senzori-blokovi**: 10 blokova (lidar odozgo, skica robota sa IR, brzine, regulacija, napajanje, aktuatori,
   enkoderi, činč i tasteri, meč i taktika, veza), detalj na klik, i **snimak u Senzorima** (SNIMAK, dugme Uživo).
+- **Završni pregled (gs-d)**: virtuelni robot je SIM (ne PRAVO); Poveži robota se vidi i tokom SIM sesije (klik kaže
+  „prvo Završi“); aktuatori bez tipa u Profilu pišu ime i sirovu vrednost (ugao samo za `[actuators.type]` servo,
+  lampica za pumpu); razmak pauzira pušten snimak i u Senzorima; Veza broji pakete telemetrije robota (i bez Nucleo-a).
 - **Šta robot šalje danas**: poza, brzina v, stanje meča, taktika, krugovi lidara (posle Upali lidar), stanje veze.
   **Kasnije (ESP/Nucleo)**: IR (`ir`, `irm`), ω, aktuatori (`act`), činč i tasteri, INA3221 napajanje, PID reference,
   enkoderi, RSSI, RAM i krug petlje. Blokovi za njih već postoje i pišu „nepovezano“ sa razlogom; kad polje stigne, počnu

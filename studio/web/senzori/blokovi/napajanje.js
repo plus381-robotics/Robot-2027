@@ -1,7 +1,7 @@
 // Blok „Napajanje (INA3221)“ (desna kolona): baterija krupno + ≈ % + traka sa pragom, tabela kanala V i A i lampica
 // „Total stop“. INA3221 meri tri kanala: 5 V (logika) · baterija (ulaz) · posle total stopa.
 // Očekivana (buduća) imena polja telemetrije, kolone snimka (danas ih NIJEDAN izvor ne šalje, pa je blok bez podataka
-// sa razlogom iz izvor.js; crta se tek kad kolona `bat` postoji):
+// sa razlogom iz izvor.js; crta se tek kad kolona `bat` postoji, a dok vrednosti nema lampica je prazna, status 'none'):
 //   bat     V   napon baterije na ulazu (kanal „baterija“)       ibat   A   struja baterije (ulaz)
 //   v5      V   napon 5 V logike                                  i5     A   struja 5 V
 //   vstop   V   napon posle total stopa (pada na ~0 kad je pritisnut)   istop  A   struja pogona posle total stopa
@@ -9,7 +9,7 @@
 // dok je baterija prisutna (> 5 V). Traka i % su linearni između 10,5 i 12,9 V (približno, kao na maketi).
 import { history } from '../podaci.js';
 import { drawLines } from '../grafik.js';
-import { none, ok, at, num, unit, DASH } from './osnova.js';
+import { none, at, num, unit, DASH } from './osnova.js';
 
 const LO = 10.5, HI = 12.9, BAT_MIN = 11.6, STOP_V = 1;
 const ORANGE = '#ffb547', DIM = '#97a3b3', TEXT = '#e6ebf1', BAR = '#20262e', RED = '#ff5c5c', GREEN = '#3ecf8e';
@@ -46,7 +46,7 @@ export default {
   view(d) {
     if (!d.src) return none();
     const r = readings(d);
-    if (r.bat == null) return ok([['baterija', DASH], ['total stop', DASH]], 'napajanje stiže');
+    if (r.bat == null) return { status: 'none', text: 'još nema merenja', vals: [['baterija', DASH], ['total stop', DASH]] };
     const low = r.bat < batMin(d), pressed = stopPressed(r.bat, r.vstop);
     return { status: low ? 'warn' : 'ok', text: low ? 'baterija ispod praga' : 'radi',
       vals: [['baterija', unit(num(r.bat, 2), 'V') + ' · ≈ ' + num(percent(r.bat)) + ' %'],

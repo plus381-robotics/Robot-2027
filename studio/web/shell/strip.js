@@ -64,22 +64,24 @@ export function matchView(m) {
 export const linkStateOf = age => (age > LOST_MS ? 'lost' : age > STALE_MS ? 'stale' : 'ok');
 
 // Veza: tekst i boja polja + koje dugme nudi (connect = „Poveži robota“, disconnect = „Prekini“).
-// Hibrid = SIM sesija sa lidar != 'sim': 'robot' -> „lidar: host“, boja po starosti poslednjeg skena
-// (st.lidarScan.wall, isti sat kao now); 'file' -> „lidar iz snimka“. Hibrid nema dugme (Završi je u Vožnji).
+// Obična SIM sesija: tekst simulacije i „Poveži robota“ (klik ide kroz shell/veza.js open: connectView daje razlog
+// „Sesija radi: prvo Završi u Vožnji“). Hibrid = SIM sesija sa lidar != 'sim': 'robot' -> „lidar: host“, boja po
+// starosti poslednjeg skena (st.lidarScan.wall, isti sat kao now); 'file' -> „lidar iz snimka“. Hibrid nema dugme
+// (Završi je u Vožnji).
 export function linkView(st, now = performance.now()) {
   const s = st.session;
   if (!s) return { cls: 'idle', text: 'nije povezano', connect: true, disconnect: false };
   if (s.kind !== 'robot') {
-    const no = { connect: false, disconnect: false };
+    const btn = { connect: !s.lidar || s.lidar === 'sim', disconnect: false };
     if (s.lidar === 'robot') {
       const scan = st.lidarScan;
       const fresh = scan && scan.wall != null && now - scan.wall <= STALE_MS;
-      return { cls: fresh ? 'ok' : 'warn', text: `lidar: ${s.host || 'robot'}`, ...no };
+      return { cls: fresh ? 'ok' : 'warn', text: `lidar: ${s.host || 'robot'}`, ...btn };
     }
     const hybridFile = s.lidar && s.lidar !== 'sim';
-    if (st.speed == null) return { cls: 'idle', text: 'pokretanje…', ...no };
-    if (hybridFile) return { cls: st.paused ? 'warn' : 'ok', text: 'lidar iz snimka', ...no };
-    return st.paused ? { cls: 'warn', text: 'simulacija na pauzi', ...no } : { cls: 'ok', text: `simulacija radi · ×${st.speed}`, ...no };
+    if (st.speed == null) return { cls: 'idle', text: 'pokretanje…', ...btn };
+    if (hybridFile) return { cls: st.paused ? 'warn' : 'ok', text: 'lidar iz snimka', ...btn };
+    return st.paused ? { cls: 'warn', text: 'simulacija na pauzi', ...btn } : { cls: 'ok', text: `simulacija radi · ×${st.speed}`, ...btn };
   }
   const rob = (cls, text) => ({ cls, text, connect: false, disconnect: true });
   if (st.telemetry == null) return rob('idle', 'povezivanje…');

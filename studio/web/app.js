@@ -23,6 +23,7 @@ import { loadSources, lidarSpec } from './core/izvori.js';
 import { SESSION_LOCK } from './core/snimci.js';      // dok sesija radi: Snimci zaključani, Sačuvaj i ▶ Pokreni sivi
 import { timeKey } from './core/keys.js';               // vreme (razmak, strelice) i Ctrl+Enter po prostoru
 import { nextReplay } from './senzori/izvor.js';
+import { packetRate } from './senzori/podaci.js';
 
 const $ = id => document.getElementById(id);
 // Most ka novom okviru (statusna traka, bočna traka): stari kod piše ovde ono što traka treba. Polja: shell/strip.js.
@@ -34,7 +35,8 @@ const $ = id => document.getElementById(id);
 // repo: null kad aplikacija nije u timskom repou (stavka Repo se ne vidi), inače značka za stavku Repo (web/repo.js).
 // Senzori → Lidar (panels/lidar.js): lidarScan = poslednji krug sesije (događaj "lidar" + wall: performance.now(), kind),
 // lidarReply = poslednji odgovor na komandu ["lidar", ...] (ROBOT: Upali lidar, Snimi krugove); robotMec, robotLidar,
-// robotLidarSeen = stanje meča i lidara iz poslednjeg paketa telemetrije (ROBOT; i bez STM32-a).
+// robotLidarSeen = stanje meča i lidara iz poslednjeg paketa telemetrije (ROBOT; i bez STM32-a); telemetryHz = paketa
+// telemetrije u sekundi (ROBOT, brojač paketa servera, senzori/podaci.js packetRate; null dok se ne izmeri).
 // Senzori (panels/senzori.js): sensOpen = id otvorenog detalja (null = pregled svih blokova; 'lidar' = paneli lidara),
 // sens = {run, t, replay, name} šta Senzori prikazuju (bridgeSens), actuators = info.actuators ({ime: id} iz ESP32/config.py
 // ACTUATORS), profile = info.profile (/api/info: body, drive,
@@ -44,7 +46,7 @@ const store = createStore({ ws: 'taktike', drive: 'sim', session: null, caps: nu
   linkAge: null, linkState: null, connAge: null, snap: null, notice: null, edUnsaved: false, running: null,
   runs: null, runName: null, refName: null, refLabel: null, repo: null,
   sources: loadSources(), lidarFiles: [], helloSource: null, lidarScan: null, lidarReply: null,
-  robotMec: null, robotLidar: null, robotLidarSeen: false,
+  robotMec: null, robotLidar: null, robotLidarSeen: false, telemetryHz: null,
   sensOpen: null, sens: null, sensZero: null, profile: null, actuators: null, lidarSrc: null });
 const STRANA = { zuta: 'Žuta', plava: 'Plava' };        // i kartica rezultata (#result) i naslovi taktika u Koracima
 const REASON = { BLOCKED: 'blokiran', TIMEOUT: 'isteklo vreme', PREEMPTED: 'prekinut novom komandom', MATCH_OVER: 'kraj meča',
@@ -384,7 +386,8 @@ function bridgeSession() {                      // sesija počela / završila: t
   store.set({ session: L ? { kind: L.kind === 'robot' ? 'robot' : 'sim', host: L.host || L.lidarHost || null, virtual: !!L.virtual,
     lidar: L.lidarSrc || 'sim', edText: !!L.edText } : null, caps: null,
     paused: false, speed: null, telemetry: null, linkAge: null, linkState: null, connAge: null, running: null,
-    runName: null, sensZero: null, helloSource: null, lidarScan: null, lidarReply: null, robotMec: null, robotLidar: null, robotLidarSeen: false });   // sesija nije sačuvan snimak (Snimci ga ne ističu)
+    runName: null, sensZero: null, helloSource: null, lidarScan: null, lidarReply: null, robotMec: null, robotLidar: null, robotLidarSeen: false,
+    telemetryHz: null });   // sesija nije sačuvan snimak (Snimci ga ne ističu)
   setReplay('session');                         // sesija i puštanje ne idu zajedno
   bridgeSens();                                 // Senzori: sesija bez frame-ova ne pokazuje stari učitan snimak
   $('speed').hidden = !!L;                     // brzina puštanja snimka; u sesiji važi brzina iz reda komandi Vožnja
@@ -1125,9 +1128,12 @@ function startRobot(host, password, label, virtual = false) {
   s.on('data', m => {
     if (!mine()) return;
     const f = liveData(m);
+    const rate = packetRate(live.pkts, performance.now(), m.packets);   // Senzori → Veza: paketa u sekundi (i bez STM32-a)
+    live.pkts = rate.samples;
     store.set({ telemetry: m.age != null, linkAge: m.age ?? null,      // age null = još nijedan paket (traka: Veza)
       running: m.running || null,                                      // taktika koja radi na robotu (traka: Izvor)
-      robotMec: m.esp_mec ?? null, robotLidar: m.lidar_state ?? null, robotLidarSeen: !!m.lidar_seen });   // Senzori → Lidar
+      robotMec: m.esp_mec ?? null, robotLidar: m.lidar_state ?? null, robotLidarSeen: !!m.lidar_seen,   // Senzori → Lidar
+      telemetryHz: rate.hz });
     if (f && live.follow) $('time').textContent = `${secs(f.t)} s · robot`;
   });
   s.on('state', m => {                            // server: veza ok / stale (> 1.5 s) / lost (> 5 s), šalje se na promenu
@@ -1405,7 +1411,7 @@ async function main() {
     if (tg.isContentEditable || (tg.closest && tg.closest('.cm-editor'))) return;
     if (tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' ||
         (tg.tagName === 'INPUT' && !['range', 'checkbox', 'button'].includes(tg.type))) return;
-    const k = timeKey(e, store.get().ws);           // Senzori: vreme ne radi; Ctrl+Enter samo u Taktikama
+    const k = timeKey(e, store.get().ws, play.replay);   // Senzori: samo razmak dok je snimak pušten; Ctrl+Enter samo u Taktikama
     if (k === 'play') { e.preventDefault(); setPlaying(!play.playing); }
     else if (k === 'frame-' || k === 'frame+') { e.preventDefault(); frameJump(k === 'frame-' ? -1 : 1); }
     else if (k === 'step-' || k === 'step+') { e.preventDefault(); stepJump(k === 'step-' ? -1 : 1); }

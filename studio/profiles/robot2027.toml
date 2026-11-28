@@ -74,6 +74,11 @@ default_ms = 300       # (P)
 # po imenu iz ESP32/config.py ACTUATORS, npr.:
 # [actuators.ms]
 # lift = 600
+# Tip aktuatora za Senzori (blok Aktuatori), po imenu iz ACTUATORS; bez tipa blok pokazuje ime i sirovu vrednost.
+# "servo" = AX servo (vrednost 0-1023 je ugao 0-300°, traka), "pumpa" = lampica radi / ugašena. Npr.:
+# [actuators.type]
+# lift = "servo"
+# pumpa_l = "pumpa"
 
 [ir]
 # IR senzori (protokol v5): u svakom od 4 ugla dva, donji (D) i gornji (U); napred F, nazad B, levo L, desno R:

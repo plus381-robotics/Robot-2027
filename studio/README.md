@@ -27,6 +27,17 @@ i `protocol/` samo preko PR-a.
 
 Exe i GitHub Release se više ne prave: iz repoa je uvek najnovija verzija.
 
+### Za tim (posle povlačenja ove verzije)
+
+Folder `simulator/` je postao `studio/` (aplikacija se sada zove Gambit Studio):
+1. **Pre povlačenja** sačuvaj izmene Profila (Repo → Sačuvaj na GitHub, ili commit), da se ne sudare sa novom putanjom.
+2. Povuci najnovije (`git pull`, GitHub Desktop ili Repo → Preuzmi najnovije), pa zatvori aplikaciju (Ctrl+C u njenom
+   prozoru) i ponovo pokreni `start.bat` / `./start.sh`. Prvo pokretanje traži internet jednom: pravi se novo okruženje
+   u `studio/.venv`.
+3. Aplikacija pri pokretanju sama premesti tvoje lokalne fajlove (snimci lidara, vožnje, scenariji…) iz starog
+   `simulator/` u `studio/` i javi poruku šta je premestila. Posle te poruke stari folder `simulator/` (sa `.venv`)
+   možeš da obrišeš; ako javi da nešto nije premešteno, prvo to pogledaj (ostalo je u `simulator/`).
+
 ## Web interfejs
 
     pip install -r studio/requirements.txt      # jednom (aiohttp)
@@ -109,11 +120,12 @@ pravi / snimak / lažiran). Ono što još ne radi je sivo, sa razlogom (c i „l
 traži pravi lidar i IR). Izbor se pamti (`eurosim.sources`), a dok sesija radi blok se samo čita i pokazuje šta
 sesija stvarno koristi. Lidar u hibridu:
 - **sim**: lažni lidar vidi sto iz simulacije (podrazumevano, a).
-- **pravi**: pravi lidar na robotu. Simulator pošalje robotu `LIDAR ON` (host i lozinka iz istog bloka Izvori, deo
-  „Veza sa robotom“), prima krugove iz telemetrije i daje ih simuliranom ESP-u kroz lažni RPLIDAR, pa ih ESP kod
-  čita istim drajverom kao na robotu. Pogon, odometrija, IR i protivnici ostaju simulirani. Brzina je ×1 i
-  nema pauze (pravi uređaj). Svaki krug se snima u `studio/lidar/<vreme>.jsonl.gz`; na kraju `LIDAR OFF`.
-  Traka pokazuje **HIBRID**.
+- **pravi**: pravi lidar na robotu. Simulator pošalje robotu `LIDAR ON` (host i lozinka iz polja prozorčića
+  **Poveži robota** na statusnoj traci: upiši ih tamo pre ▶ Pokreni sesiju, bez klika na Poveži), prima krugove iz
+  telemetrije i daje ih simuliranom ESP-u kroz lažni RPLIDAR, pa ih ESP kod čita istim drajverom kao na robotu. Pogon,
+  odometrija, IR i protivnici ostaju simulirani. Brzina je ×1 i nema pauze (pravi uređaj). Svaki krug se snima u
+  `studio/lidar/<vreme>.jsonl.gz`; na kraju `LIDAR OFF`. Traka pokazuje **HIBRID**, a polje Veza „lidar: host“ (bez
+  Poveži robota i Prekini; sesija se završava u Vožnji, **Završi**).
 - **snimak** (izbor snimka pored): ponavlja snimljene krugove (u krug), bez robota; radi na svakoj brzini.
 - Iz terminala: `python studio/sim.py run <taktika> --lidar file:<snimak>`.
 
@@ -123,8 +135,11 @@ robot može da stoji bilo gde.
 
 ### Vožnja ROBOT: pravi robot uživo
 
-Prostor **Vožnja**, u bočnoj traci **ROBOT** (ili Izvori → **d**), pa **▶ Pokreni sesiju** otvara blok Izvori sa
-vezom sa robotom (host, lozinka, **Poveži**, **Virtuelni robot**; ✕ ili Esc zatvara). Veza preko postojećeg ESP upload servera (TCP 8267) i telemetrije (UDP 8268), kao `tools/tactic.py` i
+Prostor **Vožnja**, u bočnoj traci **ROBOT** (ili Izvori → **d**), pa **▶ Pokreni sesiju**, ili **Poveži robota** na
+statusnoj traci iz bilo kog prostora: prozorčić ispod trake sa host, lozinka, **Poveži**, **Virtuelni robot** (✕, klik
+van njega ili Esc ga zatvara; Esc i dalje šalje STOP). Veza ostaje u svim prostorima dok ne klikneš **Prekini** na
+traci. Dok radi SIM sesija, Poveži robota kaže da je prvo završiš (jedna sesija u isto vreme). Veza preko postojećeg
+ESP upload servera (TCP 8267) i telemetrije (UDP 8268), kao `tools/tactic.py` i
 `tools/watch.py`; laptop mora biti na mreži robota. Host je `eurokik.local` ili IP sa ekrana VEZA, lozinka
 iz `ESP32/webrepl_cfg.py` (ili upiši).
 - **Pošalji** šalje taktiku (tekst iz editora ako je otvoren, inače fajl), **Pošalji i pokreni** je i pokreće
@@ -145,14 +160,17 @@ Prostor **Senzori** (bočna traka ili Alt+2) pokazuje 10 blokova: lidar odozgo, 
 izvora **PRAVO** (sa robota), **SIM** ili **SNIMAK**, ili „nepovezano“ sa razlogom (npr. „Nucleo ga ne šalje“).
 Klik na blok otvara detalj (vrednosti, šta fali, kako proveriti); „← Svi senzori“ vraća na pregled.
 - Zaglavlje kaže šta se prikazuje: pravi robot, virtuelni robot, simulacija, hibrid, snimak ili „Ništa nije povezano“.
-  Bez veze tu je i dugme **Poveži robota**.
+  Bez veze tu je i dugme **Poveži robota**. **Virtuelni robot** je simulacija (pravi ESP kod nad simuliranim STM32-jem),
+  pa su njegovi blokovi **SIM**, ne PRAVO.
 - **Poveži robota** je i na statusnoj traci (host, lozinka, **Poveži**, **Virtuelni robot**). Pravi robot danas šalje
   poziciju, brzinu v, stanje meča i krugove lidara (posle **Upali lidar**); IR, ω, aktuatori, činč, napajanje, PID i
   enkoderi stižu kad ESP i Nucleo počnu da ih šalju.
+- **Aktuatori**: bez tipa u Profilu blok pokazuje ime i sirovu vrednost. Tip se zadaje u Profilu, odeljak
+  `[actuators.type]` (`ime = "servo"`: ugao 0–300° i traka; `ime = "pumpa"`: lampica).
 - **Snimak**: otvaranje snimka (Snimci ili rezultat brze simulacije) ga odmah pušta, pa blokovi pokazuju šta su senzori
-  javljali u tom trenutku (SNIMAK, zaglavlje „snimak <ime> · <vreme> s“). Pauza ostaje na snimku (pauzira se na vremenskoj
-  liniji u drugim prostorima). Dugme **Uživo** (ili kraj snimka, drugi snimak, nova sesija) vraća na uživo. Grafici pokazuju
-  poslednjih 15 s pre kursora.
+  javljali u tom trenutku (SNIMAK, zaglavlje „snimak <ime> · <vreme> s“). Pauza ostaje na snimku (razmak u Senzorima, ili
+  vremenska linija u drugim prostorima; razmak opet pušta). Dugme **Uživo** (ili kraj snimka, drugi snimak, nova sesija)
+  vraća na uživo. Grafici pokazuju poslednjih 15 s pre kursora.
 - Klik na **Odozgo · lidar** otvara postojeće panele lidara (isto kao ranije Test dela → Lidar):
 
 #### Lidar

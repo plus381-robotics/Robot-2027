@@ -96,6 +96,19 @@ test('timeKey: vreme (razmak, strelice, Home/End) svuda osim u Senzorima; Ctrl+E
   assert.equal(timeKey(null, 'taktike'), null);
 });
 
+test('timeKey: u Senzorima razmak pauzira / nastavlja samo pušten snimak; ostali tasteri za vreme i Esc ne', () => {
+  assert.equal(timeKey(k(' '), 'senzori', true), 'play');
+  assert.equal(timeKey(k(' '), 'senzori', false), null);                    // samo učitan snimak / uživo: ništa
+  assert.equal(timeKey(k(' '), 'senzori'), null);
+  for (const key of ['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Escape']) assert.equal(timeKey(k(key), 'senzori', true), null, key);
+  assert.equal(timeKey(k(' ', { ctrlKey: true }), 'senzori', true), null);
+  assert.equal(timeKey(k(' ', { altKey: true }), 'senzori', true), null);
+  const handled = { ...k(' '), defaultPrevented: true };                    // razmak na pločici: otvara detalj, ne vreme
+  assert.equal(timeKey(handled, 'senzori', true), null);
+  assert.equal(timeKey(k(' '), 'voznja', false), 'play');                   // drugi prostori kao pre
+  assert.ok(SHORTCUTS.find(([key]) => key === 'Razmak')[1].includes('Senzori'));
+});
+
 test('railChanged: bočna traka se crta samo kad se promeni ono što pokazuje (ne na svaki paket lidara)', () => {
   const st = { ws: 'senzori', drive: 'sim', repo: null, session: { kind: 'sim' }, lidarScan: 1, telemetry: true };
   assert.equal(railChanged(st, null), true);

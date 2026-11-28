@@ -67,8 +67,8 @@ test('linkView: sim, robot povezivanje / nema telemetrije / povezan / podaci sta
   assert.deepEqual(linkView({ session: null }), { cls: 'idle', text: 'nije povezano', connect: true, disconnect: false });
   const sim = { session: { kind: 'sim' } };
   assert.equal(linkView({ ...sim, speed: null }).text, 'pokretanje…');
-  assert.deepEqual(linkView({ ...sim, speed: 2, paused: false }), { cls: 'ok', text: 'simulacija radi · ×2', connect: false, disconnect: false });
-  assert.deepEqual(linkView({ ...sim, speed: 1, paused: true }), { cls: 'warn', text: 'simulacija na pauzi', connect: false, disconnect: false });
+  assert.deepEqual(linkView({ ...sim, speed: 2, paused: false }), { cls: 'ok', text: 'simulacija radi · ×2', connect: true, disconnect: false });
+  assert.deepEqual(linkView({ ...sim, speed: 1, paused: true }), { cls: 'warn', text: 'simulacija na pauzi', connect: true, disconnect: false });
   const rob = { session: { kind: 'robot', host: 'eurokik.local' } };
   assert.deepEqual(linkView({ ...rob, telemetry: null }), { cls: 'idle', text: 'povezivanje…', connect: false, disconnect: true });
   assert.deepEqual(linkView({ ...rob, telemetry: false, linkState: 'stale' }), { cls: 'warn', text: 'nema telemetrije', connect: false, disconnect: true });
@@ -166,6 +166,20 @@ test('hibrid iz snimka: lidar iz snimka', () => {
   assert.equal(v.text, 'lidar iz snimka'); assert.equal(v.cls, 'ok');
   assert.equal(linkView({ session: { kind: 'sim', lidar: 'file' }, speed: 1, paused: true }).cls, 'warn');
   assert.equal(v.connect, false); assert.equal(v.disconnect, false);
+});
+test('SIM sesija (bez hibrida): tekst simulacije i dugme Poveži robota (klik daje razlog); hibrid bez dugmeta', () => {
+  for (const lidar of [undefined, 'sim']) {
+    for (const extra of [{ speed: null }, { speed: 1 }, { speed: 1, paused: true }]) {
+      const v = linkView({ session: { kind: 'sim', lidar }, ...extra });
+      assert.equal(v.connect, true, JSON.stringify([lidar, extra])); assert.equal(v.disconnect, false);
+    }
+  }
+  assert.equal(linkView({ session: { kind: 'sim', lidar: 'sim' }, speed: 1 }).text, 'simulacija radi · ×1');
+  assert.equal(stripView({ session: { kind: 'sim', lidar: 'sim' }, speed: 1, snap: null }).link.connect, true);
+  for (const lidar of ['robot', 'file']) {
+    assert.equal(linkView({ session: { kind: 'sim', lidar, host: 'h' }, speed: 1 }, 0).connect, false, lidar);
+    assert.equal(linkView({ session: { kind: 'sim', lidar, host: 'h' }, speed: null }, 0).connect, false, lidar);
+  }
 });
 test('SIM sesija: Poveži se odbija sa razlogom', () => {
   assert.deepEqual(connectView({ session: { kind: 'sim' } }), { ok: false, reason: 'Sesija radi: prvo Završi u Vožnji' });

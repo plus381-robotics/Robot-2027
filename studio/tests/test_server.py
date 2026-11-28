@@ -63,6 +63,27 @@ def test_info(base):
     assert d["migrated"] == {"moved": [], "skipped": []}      # prenos radi samo pri serve() u repo režimu
 
 
+def test_info_profile_aktuatori_i_napajanje(base):
+    # Senzori: tip aktuatora ([actuators.type]) i prag baterije (power.bat_min) moraju biti dostupni webu
+    prof = get(base + "/api/info")["profile"]
+    assert prof["actuators"]["default_ms"] == 300
+    assert isinstance(prof["power"], dict)                       # nema [power]: {} (blok koristi podrazumevani prag)
+    for k in ("name", "body", "drive", "odometry", "ir", "model", "lidar", "ir_sensors"):
+        assert k in prof, k
+
+
+def test_info_profile_prenosi_tip_aktuatora_i_prag_baterije():
+    from aiohttp.test_utils import make_mocked_request
+    from eurosim import profile as profmod
+    prof = profmod.load()
+    prof["actuators"] = {**prof["actuators"], "type": {"lift": "servo", "pumpa_l": "pumpa"}}
+    prof["power"] = {"bat_min": 11.2}
+    req = make_mocked_request("GET", "/api/info", app=server.make_app(prof))
+    d = json.loads(asyncio.run(server.info(req)).body)
+    assert d["profile"]["actuators"]["type"] == {"lift": "servo", "pumpa_l": "pumpa"}
+    assert d["profile"]["power"] == {"bat_min": 11.2}
+
+
 def test_info_actuators(base):
     d = get(base + "/api/info")
     assert d["actuators"] == {"hvataljka": 1, "lift": 2, "ruka_l": 3, "ruka_r": 4}

@@ -1,7 +1,9 @@
-// Blok „Veza i zdravlje“ (donji red): redovi ESP ↔ laptop (kao na traci, shell/strip.js linkView), telemetrija (frame-ova u
-// poslednjoj sekundi, „—“ bez frame-ova), Nucleo ↔ ESP (ROBOT: frame-ovi stižu = „javlja“, inače „ne javlja“; SIM:
-// „simulirano“; snimak: „iz snimka“) i RSSI / RAM / krug petlje ESP-a („—“: ESP ih još ne šalje). Ne zavisi od polja
-// (fields []), pa ima izvor čim radi sesija; ne koristi Nucleo frame-ove za „ESP ↔ laptop“ (iz store: telemetry, linkAge).
+// Blok „Veza i zdravlje“ (donji red): redovi ESP ↔ laptop (kao na traci, shell/strip.js linkView; snimak: „iz snimka“),
+// telemetrija (ROBOT: paketa u sekundi, store.telemetryHz iz brojača paketa servera, app.js, i bez Nucleo frame-ova; inače
+// i kad brojača nema: frame-ova u poslednjoj sekundi; „—“ bez podatka), Nucleo ↔ ESP (pravi robot: frame-ovi stižu =
+// „javlja“, inače „ne javlja“; SIM i virtuelni robot: „simulirano“; snimak: „iz snimka“) i RSSI / RAM / krug petlje ESP-a
+// („—“: ESP ih još ne šalje). Ne zavisi od polja (fields []), pa ima izvor čim radi sesija; ne koristi Nucleo frame-ove
+// za „ESP ↔ laptop“ (iz store: telemetry, linkAge).
 import { linkView } from '../../shell/strip.js';
 import { esc } from '../../core/api.js';
 import { none, DASH } from './osnova.js';
@@ -20,14 +22,15 @@ export function telemetryHz(d) {
 
 // [[naziv, klasa 'ok'|'warn'|'bad'|'idle', tekst], ...]
 export function rows(d) {
-  const st = d.st || {}, L = linkView(st), ses = st.session, robot = !!(ses && ses.kind === 'robot');
+  const st = d.st || {}, ses = st.session, robot = !!(ses && ses.kind === 'robot'), rec = d.src === 'snimak';
+  const L = rec ? { cls: 'idle', text: 'iz snimka' } : linkView(st);
   const frames = !!(d.run && d.run.cols && d.run.cols.t && d.run.cols.t.length);
-  const hz = telemetryHz(d);
+  const hz = robot && !rec && st.telemetryHz != null ? st.telemetryHz : telemetryHz(d);
   let nucleo;
-  if (d.src === 'snimak') nucleo = ['idle', 'iz snimka'];
-  else if (robot) nucleo = frames ? ['ok', 'javlja'] : ['warn', 'ne javlja'];
+  if (rec) nucleo = ['idle', 'iz snimka'];
+  else if (robot && !ses.virtual) nucleo = frames ? ['ok', 'javlja'] : ['warn', 'ne javlja'];
   else nucleo = ['idle', 'simulirano'];
-  return [['ESP ↔ laptop', L.cls, L.text], ['telemetrija', hz == null ? 'idle' : 'ok', hz == null ? DASH : hz + ' Hz'],
+  return [['ESP ↔ laptop', L.cls, L.text], ['telemetrija', hz == null ? 'idle' : hz > 0 ? 'ok' : 'warn', hz == null ? DASH : hz + ' Hz'],
     ['Nucleo ↔ ESP', ...nucleo], ['WiFi RSSI', 'idle', DASH], ['RAM ESP-a', 'idle', DASH], ['krug petlje ESP-a', 'idle', DASH]];
 }
 
@@ -38,7 +41,7 @@ export default {
   hints: ['Telemetrija 10 Hz, ping ispod ~50 ms.', 'Nucleo javlja: inače nema poze ni brzina.'],
   view(d) {
     if (!d.src) return none();
-    const r = rows(d), bad = r[0][1] === 'warn' || r[0][1] === 'bad' || (r[2][2] === 'ne javlja');
+    const r = rows(d), bad = r[0][1] === 'warn' || r[0][1] === 'bad' || r[1][1] === 'warn' || r[2][2] === 'ne javlja';
     return { status: bad ? 'warn' : 'ok', text: r[0][2], vals: [['veza', r[0][2]], ['telemetrija', r[1][2]], ['Nucleo', r[2][2]]],
       foot: 'RSSI, RAM, krug petlje: ' + NOT_SENT };
   },
