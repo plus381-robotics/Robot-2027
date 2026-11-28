@@ -14,7 +14,7 @@ export function mountRepo({ store, msg, getInfo, setInfo, onPulled }) {
   function showBanner() {
     const w = where();
     const b = $('repoBanner');
-    if (w.mode === 'repo') { b.hidden = true; document.title = 'Eurosim'; return; }
+    if (w.mode === 'repo') { b.hidden = true; document.title = 'Gambit Studio'; return; }
     let local = false;
     try { local = sessionStorage.getItem('eurosim.norepo') === '1'; } catch (e) { /* ignore */ }
     b.hidden = false;
@@ -22,9 +22,9 @@ export function mountRepo({ store, msg, getInfo, setInfo, onPulled }) {
     $('rbLocal').hidden = local;
     $('repoBannerText').textContent = local
       ? `⚠ Bez repoa: taktike i profili se čuvaju SAMO na ovom računaru (${w.home}). Niko drugi ih ne vidi.`
-      : '⚠ Eurosim nije pokrenut iz repoa Robot-2027. Taktike i profil robota se NE čuvaju u timski repo i ' +
+      : '⚠ Gambit Studio nije pokrenut iz repoa Robot-2027. Taktike i profil robota se NE čuvaju u timski repo i ' +
         'niko drugi ih neće videti. Pokreni ga iz kloniranog repoa (start.bat / start.sh) ili:';
-    document.title = 'Eurosim (BEZ REPOA)';
+    document.title = 'Gambit Studio (BEZ REPOA)';
   }
 
   async function switched(d) {

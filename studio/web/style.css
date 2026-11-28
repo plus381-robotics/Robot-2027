@@ -303,6 +303,10 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 #rail button svg { width: 28px; height: 28px; }
 #rail button.on { color: #fff; background: #18202b; border-left-color: var(--accent); }
 #rail button:hover:not(.on) { color: var(--text); }
+#rail .rl-logo { flex: none; padding: 12px 6px 10px; text-align: center; border-bottom: 1px solid var(--line); line-height: 1.05; }
+#rail .rl-logo b { display: block; font-size: 19px; letter-spacing: .02em; color: var(--text); }
+#rail .rl-logo span { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--accent); }
+#rail .rl-logo svg { width: 26px; height: 26px; color: var(--accent); margin-bottom: 4px; }
 #rail .rl-grow { flex: 1; min-height: 8px; }
 #rail button.rl-mini { min-height: 62px; font-size: 12px; font-weight: 500; padding: 8px 4px; }
 #rail button.rl-mini svg { width: 22px; height: 22px; }

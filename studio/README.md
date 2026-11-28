@@ -1,4 +1,4 @@
-# Simulator taktika (eurosim)
+# Gambit Studio (simulator taktika, paket eurosim)
 
 Pušta taktike iz `ESP32/tactics/` bez robota, sa **istim ESP kodom** koji radi na robotu
 (`tac.py`, `robot.py`, `runner.py`, `match.py`, `app.py`...) i simuliranim STM32-jem.

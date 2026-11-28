@@ -65,7 +65,7 @@ def test_info(base):
 
 def test_index_i_staticki_fajlovi(base):
     with urllib.request.urlopen(base + "/", timeout=5) as r:
-        assert b"Eurosim" in r.read()
+        assert b"<title>Gambit Studio</title>" in r.read()
     with urllib.request.urlopen(base + "/app.js", timeout=5) as r:
         assert r.status == 200
 

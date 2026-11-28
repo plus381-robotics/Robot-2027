@@ -33,6 +33,10 @@ const MINI = [
     icon: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01"/>' },
 ];
 
+// Logo na vrhu trake (ikonica + „Gambit“ / „Studio“ kao u maketi).
+export const RAIL_LOGO = { title: 'Gambit', sub: 'Studio' };
+const KNIGHT = '<path d="M7 20h10M8 20l1-4c-2-1-3-3-2-5l4-5 1-2 1 2c3 1 5 4 4 8l-1 6"/><path d="M11 8h.01"/>';
+
 const sessionKind = st => (st.session ? st.session.kind : null);
 export const railChanged = (st, prev) => !prev || st.ws !== prev.ws || st.drive !== prev.drive || st.repo !== prev.repo ||
   sessionKind(st) !== sessionKind(prev);
@@ -41,7 +45,8 @@ const icon = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 
 export function mountRail(el, ctx) {
   el.setAttribute('aria-label', 'Radni prostori');
-  el.innerHTML = RAIL_ITEMS.map(w => `<button type="button" class="rl-ws" data-ws="${w.id}" title="${w.title}">${icon(w.icon)}<span>${w.name}</span></button>` +
+  el.innerHTML = `<div class="rl-logo" title="${RAIL_LOGO.title} ${RAIL_LOGO.sub}">${icon(KNIGHT)}<b>${RAIL_LOGO.title}</b><span>${RAIL_LOGO.sub}</span></div>` +
+    RAIL_ITEMS.map(w => `<button type="button" class="rl-ws" data-ws="${w.id}" title="${w.title}">${icon(w.icon)}<span>${w.name}</span></button>` +
     (w.id === 'voznja' ? `<span class="rl-drive" id="railDrive" hidden>
       <button type="button" data-drive="sim" title="Simulacija u stvarnom vremenu (sesija uživo, ESP ekran i tasteri)">SIM</button>
       <button type="button" data-drive="robot" title="Pravi ili virtuelni robot preko WiFi-ja (Poveži)">ROBOT</button></span>` : '')).join('') +
@@ -51,7 +56,7 @@ export function mountRail(el, ctx) {
   const help = document.createElement('div');
   help.id = 'railHelp'; help.className = 'rl-help'; help.hidden = true;
   help.setAttribute('role', 'dialog'); help.setAttribute('aria-label', 'Prečice sa tastature');
-  help.innerHTML = '<div class="rl-help-h">Prečice <button type="button" title="Zatvori (Esc)">✕</button></div>' +
+  help.innerHTML = '<div class="rl-help-h">Gambit Studio · prečice <button type="button" title="Zatvori (Esc)">✕</button></div>' +
     `<table>${SHORTCUTS.map(([k, v]) => `<tr><td><kbd>${k}</kbd></td><td>${v}</td></tr>`).join('')}</table>`;
   document.body.appendChild(help);
   const toggleHelp = () => { help.hidden = !help.hidden; };
