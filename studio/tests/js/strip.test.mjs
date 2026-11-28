@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { buildRun } from '../../web/core/run.js';
-import { snapshotAt, stripView, matchView, linkView, sourceView, linkStateOf, SRC_COLOR } from '../../web/shell/strip.js';
+import { snapshotAt, stripView, matchView, linkView, connectView, sourceView, linkStateOf, SRC_COLOR } from '../../web/shell/strip.js';
 
 const fixture = () => JSON.parse(readFileSync(new URL('./fixtures/run_sve_komande.json', import.meta.url), 'utf8'));
 const IR = ['FLU', 'FLD', 'FRU', 'FRD', 'BLU', 'BLD', 'BRU', 'BRD'];
@@ -64,18 +64,18 @@ test('matchView: miruje / NAORUŽAN / MEČ odbrojava / KRAJ', () => {
 });
 
 test('linkView: sim, robot povezivanje / nema telemetrije / povezan / podaci stari / veza izgubljena', () => {
-  assert.deepEqual(linkView({ session: null }), { cls: 'idle', text: 'nema sesije' });
+  assert.deepEqual(linkView({ session: null }), { cls: 'idle', text: 'nije povezano', connect: true, disconnect: false });
   const sim = { session: { kind: 'sim' } };
   assert.equal(linkView({ ...sim, speed: null }).text, 'pokretanje…');
-  assert.deepEqual(linkView({ ...sim, speed: 2, paused: false }), { cls: 'ok', text: 'simulacija radi · ×2' });
-  assert.deepEqual(linkView({ ...sim, speed: 1, paused: true }), { cls: 'warn', text: 'simulacija na pauzi' });
+  assert.deepEqual(linkView({ ...sim, speed: 2, paused: false }), { cls: 'ok', text: 'simulacija radi · ×2', connect: false, disconnect: false });
+  assert.deepEqual(linkView({ ...sim, speed: 1, paused: true }), { cls: 'warn', text: 'simulacija na pauzi', connect: false, disconnect: false });
   const rob = { session: { kind: 'robot', host: 'eurokik.local' } };
-  assert.deepEqual(linkView({ ...rob, telemetry: null }), { cls: 'idle', text: 'povezivanje…' });
-  assert.deepEqual(linkView({ ...rob, telemetry: false, linkState: 'stale' }), { cls: 'warn', text: 'nema telemetrije' });
-  assert.deepEqual(linkView({ ...rob, telemetry: false, linkState: 'lost' }), { cls: 'bad', text: 'nema telemetrije' });
-  assert.deepEqual(linkView({ ...rob, telemetry: true, linkAge: 120 }), { cls: 'ok', text: 'povezan' });
-  assert.deepEqual(linkView({ ...rob, telemetry: true, linkAge: 2300 }), { cls: 'warn', text: 'podaci stari 2.3 s' });
-  assert.deepEqual(linkView({ ...rob, telemetry: true, linkAge: 7400 }), { cls: 'bad', text: 'veza izgubljena 7 s' });
+  assert.deepEqual(linkView({ ...rob, telemetry: null }), { cls: 'idle', text: 'povezivanje…', connect: false, disconnect: true });
+  assert.deepEqual(linkView({ ...rob, telemetry: false, linkState: 'stale' }), { cls: 'warn', text: 'nema telemetrije', connect: false, disconnect: true });
+  assert.deepEqual(linkView({ ...rob, telemetry: false, linkState: 'lost' }), { cls: 'bad', text: 'nema telemetrije', connect: false, disconnect: true });
+  assert.deepEqual(linkView({ ...rob, telemetry: true, linkAge: 120 }), { cls: 'ok', text: 'povezan', connect: false, disconnect: true });
+  assert.deepEqual(linkView({ ...rob, telemetry: true, linkAge: 2300 }), { cls: 'warn', text: 'podaci stari 2.3 s', connect: false, disconnect: true });
+  assert.deepEqual(linkView({ ...rob, telemetry: true, linkAge: 7400 }), { cls: 'bad', text: 'veza izgubljena 7 s', connect: false, disconnect: true });
   assert.equal(linkStateOf(1500), 'ok');
   assert.equal(linkStateOf(1501), 'stale');
   assert.equal(linkStateOf(5001), 'lost');
@@ -136,4 +136,39 @@ test('stripView: poza, korak, polja bez podatka se ne prikazuju, STOP neaktivan 
   assert.equal(idle.stopIdle, true);
   const noPose = stripView({ session: { kind: 'robot' }, telemetry: true, linkAge: 100, snap: null });
   assert.deepEqual(noPose.pose, { text: 'nema poze (STM32)', cls: 'warn' });
+});
+
+test('bez sesije: dugme Poveži robota', () => {
+  const v = linkView({ session: null });
+  assert.equal(v.connect, true); assert.equal(v.disconnect, false); assert.equal(v.text, 'nije povezano');
+});
+test('ROBOT: Prekini, tekst kao pre', () => {
+  const v = linkView({ session: { kind: 'robot', host: 'eurokik.local' }, telemetry: true, linkAge: 100 });
+  assert.equal(v.disconnect, true); assert.equal(v.connect, false); assert.equal(v.text, 'povezan');
+});
+test('hibrid sa pravim lidarom: lidar: host, bez Prekini', () => {
+  const v = linkView({ session: { kind: 'sim', lidar: 'robot', host: 'eurokik.local' }, speed: 1,
+    lidarScan: { wall: 1000 } }, 1500);
+  assert.equal(v.text, 'lidar: eurokik.local'); assert.equal(v.cls, 'ok'); assert.equal(v.disconnect, false);
+  assert.equal(v.connect, false);
+});
+test('hibrid: lidar stao duže od 1,5 s je warn', () => {
+  assert.equal(linkView({ session: { kind: 'sim', lidar: 'robot', host: 'h' }, speed: 1, lidarScan: { wall: 0 } }, 2000).cls, 'warn');
+  assert.equal(linkView({ session: { kind: 'sim', lidar: 'robot', host: 'h' }, speed: 1, lidarScan: { wall: 0 } }, 1500).cls, 'ok');
+});
+test('hibrid: još nema skena je warn, tekst ostaje; bez hosta lidar: robot', () => {
+  const v = linkView({ session: { kind: 'sim', lidar: 'robot', host: 'h' }, speed: 1 }, 5000);
+  assert.deepEqual(v, { cls: 'warn', text: 'lidar: h', connect: false, disconnect: false });
+  assert.equal(linkView({ session: { kind: 'sim', lidar: 'robot' }, speed: 1 }, 0).text, 'lidar: robot');
+});
+test('hibrid iz snimka: lidar iz snimka', () => {
+  const v = linkView({ session: { kind: 'sim', lidar: 'file' }, speed: 1 });
+  assert.equal(v.text, 'lidar iz snimka'); assert.equal(v.cls, 'ok');
+  assert.equal(linkView({ session: { kind: 'sim', lidar: 'file' }, speed: 1, paused: true }).cls, 'warn');
+  assert.equal(v.connect, false); assert.equal(v.disconnect, false);
+});
+test('SIM sesija: Poveži se odbija sa razlogom', () => {
+  assert.deepEqual(connectView({ session: { kind: 'sim' } }), { ok: false, reason: 'Sesija radi: prvo Završi u Vožnji' });
+  assert.deepEqual(connectView({ session: null }), { ok: true, reason: null });
+  assert.deepEqual(connectView({ session: { kind: 'robot' } }), { ok: false, reason: 'Već je povezan: Prekini pa poveži ponovo' });
 });
