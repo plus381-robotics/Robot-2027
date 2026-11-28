@@ -1135,8 +1135,6 @@ function setRef(r, name, saved = null) {       // saved: ime sačuvanog snimka (
 async function main() {
   info = await api('/api/info');
   fillLidarSources();
-  const moved = migratedNotice(info.migrated);    // jednokratni prenos iz starog foldera simulator/
-  if (moved) msg(moved);
   REF_SIDE = info.ref_side || REF_SIDE;
   $('tactic').innerHTML = info.tactics.map(t => `<option>${t}</option>`).join('');
   try {
@@ -1374,6 +1372,11 @@ async function main() {
   const w = info.where || {};
   msg(w.mode === 'standalone' ? `bez repoa: taktike, profili i snimci u ${w.home}` : `repo ${w.root}: taktike u ESP32/tactics`);
   $('msg').title = JSON.stringify(w, null, 1);     // gde su fajlovi (ranije title natpisa „Eurosim“ u starom redu)
+  const moved = migratedNotice(info.migrated);    // jednokratni prenos iz starog foldera simulator/
+  if (moved) {                                    // posle završne msg(...) i mountShell: traka ga pokazuje, a u liniji ostaje ceo spisak
+    notice(moved, false);
+    $('msg').title = moved + '\n\n' + JSON.stringify(w, null, 1);
+  }
 }
 
 window.eurosim = { get ed() { return ed; }, get run() { return run; }, get view() { return view; }, play, edMarks, store };   // za testove i konzolu
