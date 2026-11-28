@@ -1,10 +1,10 @@
 // Prečice sa tastature, bez DOM-a (da ga uveze i `node --test`). Slušaoce postavlja shell/layout.js (installKeys,
 // installEscStop); vreme (razmak, strelice), Ctrl+Enter i Ctrl+S su u app.js / editor.js.
-//   wsForKey(e)    Alt+1..4 -> radni prostor, redom kao u bočnoj traci (Taktike, Test dela, Vožnja, Snimci); inače null
+//   wsForKey(e)    Alt+1..4 -> radni prostor, redom kao u bočnoj traci (Taktike, Senzori, Vožnja, Snimci); inače null
 //   isHelpKey(e)   „?“ -> prozorčić Prečice (Pomoć u bočnoj traci)
 //   isTyping(el)   fokus je u polju za kucanje ili u editoru: „?“ se tada kuca, ne otvara spisak
 //   timeKey(e, ws) vreme snimka i ▶ Pokreni (app.js): 'play' | 'frame-' | 'frame+' | 'step-' | 'step+' | 'home' | 'end' |
-//                  'run' | null. Test dela nema vreme (tasteri ne rade ništa); Ctrl+Enter samo u Taktikama.
+//                  'run' | null. Senzori nemaju vreme (tasteri ne rade ništa); Ctrl+Enter samo u Taktikama.
 //   SHORTCUTS      [[tasteri, šta radi]] za prozorčić Prečice
 
 import { WORKSPACES } from './panels.js';
@@ -27,7 +27,7 @@ export function isTyping(el) {
 export function timeKey(e, ws) {
   if (!e) return null;
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) return ws === 'taktike' ? 'run' : null;
-  if (ws === 'test') return null;
+  if (ws === 'senzori') return null;
   switch (e.key) {
     case ' ': return 'play';
     case 'ArrowLeft': return e.shiftKey ? 'step-' : 'frame-';
@@ -46,7 +46,7 @@ export const SHORTCUTS = [
   ['← / →', 'vreme: frejm nazad / napred'],
   ['Shift+← / →', 'vreme: korak nazad / napred'],
   ['Home / End', 'vreme: početak / kraj snimka'],
-  ['Alt+1 … 4', 'prostori: Taktike, Test dela, Vožnja, Snimci'],
+  ['Alt+1 … 4', 'prostori: Taktike, Senzori, Vožnja, Snimci'],
   ['dupli klik na stolu', 'kopiraj koordinate (za taktiku)'],
   ['Alt+klik na stolu', 'ubaci tačku goto(x, y) u editor (Taktike)'],
   ['?', 'ovaj spisak'],

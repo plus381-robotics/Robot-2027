@@ -1,4 +1,4 @@
-// Test dela → Lidar bez DOM-a (da ga uveze i `node --test`): projekcije sto / radar, slojevi, puštanje snimka, brojke.
+// Senzori → Lidar bez DOM-a (da ga uveze i `node --test`): projekcije sto / radar, slojevi, puštanje snimka, brojke.
 // Međukoraci kruga (u stolu / van stola / grupe) stižu sa servera (POST /api/lidar/stages, eurosim/lidarview.py):
 //   {in: [[x, y]], out: [[x, y]], raw: [[x, y, k]] (koordinate robota, k: 1 u stolu, 0 van, -1 nema poze),
 //    groups: [{x, y, rx, ry, n, dist, angle}], nearest, esp_near: {dist, angle} | null, frame: 'sto' | 'robot', by: 'laptop'}

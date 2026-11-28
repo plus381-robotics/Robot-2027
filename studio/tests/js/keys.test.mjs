@@ -9,7 +9,7 @@ const k = (key, extra = {}) => ({ key, code: '', altKey: false, ctrlKey: false, 
 
 test('wsForKey: Alt+1..4 = prostori redom kao u bočnoj traci', () => {
   assert.deepEqual([1, 2, 3, 4].map(n => wsForKey(k(String(n), { altKey: true, code: 'Digit' + n }))), RAIL_ITEMS.map(w => w.id));
-  assert.deepEqual([1, 2, 3, 4].map(n => wsForKey(k(String(n), { altKey: true }))), ['taktike', 'test', 'voznja', 'snimci']);
+  assert.deepEqual([1, 2, 3, 4].map(n => wsForKey(k(String(n), { altKey: true }))), ['taktike', 'senzori', 'voznja', 'snimci']);
   assert.equal(wsForKey(k('¡', { altKey: true, code: 'Digit1' })), 'taktike');      // raspored gde Alt menja znak: važi code
   assert.equal(wsForKey(k('1')), null);                                             // bez Alt-a: kuca se
   assert.equal(wsForKey(k('5', { altKey: true, code: 'Digit5' })), null);
@@ -84,12 +84,12 @@ test('timeKey: vreme (razmak, strelice, Home/End) svuda osim u Testu dela; Ctrl+
     assert.equal(timeKey(k('End'), ws), 'end');
   }
   for (const key of [' ', 'ArrowLeft', 'ArrowRight', 'Home', 'End']) {
-    assert.equal(timeKey(k(key), 'test'), null, key);
-    assert.equal(timeKey(k(key, { shiftKey: true }), 'test'), null, key);
+    assert.equal(timeKey(k(key), 'senzori'), null, key);
+    assert.equal(timeKey(k(key, { shiftKey: true }), 'senzori'), null, key);
   }
   assert.equal(timeKey(k('Enter', { ctrlKey: true }), 'taktike'), 'run');
   assert.equal(timeKey(k('Enter', { metaKey: true }), 'taktike'), 'run');
-  for (const ws of ['test', 'voznja', 'snimci']) assert.equal(timeKey(k('Enter', { ctrlKey: true }), ws), null, ws);
+  for (const ws of ['senzori', 'voznja', 'snimci']) assert.equal(timeKey(k('Enter', { ctrlKey: true }), ws), null, ws);
   assert.equal(timeKey(k('Enter'), 'taktike'), null);
   assert.equal(timeKey(k('Escape'), 'taktike'), null);                     // Esc = STOP: shell/layout.js
   assert.equal(timeKey(k('a'), 'taktike'), null);
@@ -97,7 +97,7 @@ test('timeKey: vreme (razmak, strelice, Home/End) svuda osim u Testu dela; Ctrl+
 });
 
 test('railChanged: bočna traka se crta samo kad se promeni ono što pokazuje (ne na svaki paket lidara)', () => {
-  const st = { ws: 'test', drive: 'sim', repo: null, session: { kind: 'sim' }, lidarScan: 1, telemetry: true };
+  const st = { ws: 'senzori', drive: 'sim', repo: null, session: { kind: 'sim' }, lidarScan: 1, telemetry: true };
   assert.equal(railChanged(st, null), true);
   assert.equal(railChanged({ ...st, lidarScan: 2, telemetry: false, linkAge: 5 }, st), false);
   assert.equal(railChanged({ ...st, session: { kind: 'sim', host: null } }, st), false);   // nov objekat, ista vrsta

@@ -366,7 +366,7 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 
 /* ---------- regioni radnog prostora (shell/layout.js, Zadatak 4.1) ---------- */
 #ws-tool, #ws-bottom { flex: none; min-width: 0; }
-#ws-tool { min-height: 43px; }                         /* ista visina i kad je u redu samo poruka (Test dela) */
+#ws-tool { min-height: 43px; }                         /* ista visina i kad je u redu samo poruka (Senzori) */
 #ws-body { flex: 1; display: flex; min-height: 0; min-width: 0; }
 #ws-main { flex: 1; display: flex; min-width: 0; min-height: 0; }
 #ws-side { flex: none; width: 360px; display: flex; flex-direction: column; gap: 8px; padding: 8px; overflow-y: auto;
@@ -481,7 +481,7 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 .sn-dot.zuta { background: var(--yellow); } .sn-dot.plava { background: var(--blue); }
 .sn-empty { color: var(--dim); font-size: 12px; padding: 4px 2px; }
 
-/* ---------- Test dela (Zadatak 5.2): podkartice, Lidar (panels/test-dela.js, panels/lidar.js) ---------- */
+/* ---------- Senzori (Zadatak 5.2): podkartice, Lidar (panels/test-dela.js, panels/lidar.js) ---------- */
 .td-tabs button:disabled { opacity: .4; cursor: not-allowed; }
 .td-tabs button.on:disabled { opacity: 1; }
 #ws-lidar-alati .li-inline { display: inline-flex; align-items: center; gap: 8px; }

@@ -1,4 +1,4 @@
-// Test dela (Zadatak 5.2): podkartice Lidar · Pogon · Mehanizmi · IR na početku reda komandi. Radi samo Lidar
+// Senzori (Zadatak 5.2): podkartice Lidar · Pogon · Mehanizmi · IR na početku reda komandi. Radi samo Lidar
 // (panels/lidar.js: red komandi, sto + radar, kartica Lidar); ostale su sive dok ne stigne Faza 6 (ESP).
 import { registerPanel } from '../core/panels.js';
 
@@ -10,7 +10,7 @@ export const TEST_TABS = [
 ];
 
 registerPanel({
-  id: 'test-dela', title: 'Test dela', workspaces: ['test'], region: 'tool', priority: 1, open: true,
+  id: 'test-dela', title: 'Senzori', workspaces: ['senzori'], region: 'tool', priority: 1, open: true,
   mount: el => {
     el.className += ' tool-row';
     el.innerHTML = `<span class="seg td-tabs" id="tdTabs" role="tablist" title="Deo robota koji se testira">${TEST_TABS.map(t =>

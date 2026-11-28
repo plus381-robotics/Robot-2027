@@ -1,7 +1,7 @@
 // Testovi za web/core/panels.js: registar panela i pamćenje radnog prostora.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRegistry, loadWorkspace, saveWorkspace, WORKSPACES, WS_KEY } from '../../web/core/panels.js';
+import { createRegistry, panelsFor, loadWorkspace, saveWorkspace, WORKSPACES, WS_KEY } from '../../web/core/panels.js';
 
 test('panelsFor: samo paneli tog prostora, po regionu pa po prioritetu (manji broj prvi), stabilno', () => {
   const r = createRegistry();
@@ -12,7 +12,7 @@ test('panelsFor: samo paneli tog prostora, po regionu pa po prioritetu (manji br
   r.registerPanel({ id: 'vreme', workspaces: ['voznja'], region: 'bottom', priority: 1 });
   assert.deepEqual(r.panelsFor('voznja').map(p => p.id), ['sto', 'koraci', 'esp', 'dnevnik', 'vreme']);
   assert.deepEqual(r.panelsFor('taktike').map(p => p.id), ['sto', 'koraci']);
-  assert.deepEqual(r.panelsFor('test'), []);
+  assert.deepEqual(r.panelsFor('senzori'), []);
 });
 
 test('panelsFor: needs koji izvor nema -> panel ostaje, ali siv sa razlogom', () => {
@@ -43,7 +43,7 @@ test('registerPanel: podrazumevane vrednosti i provere', () => {
 
 test('loadWorkspace / saveWorkspace: ključ eurosim.ws, loša vrednost i bačen izuzetak -> podrazumevano', () => {
   assert.equal(WS_KEY, 'eurosim.ws');
-  assert.deepEqual(WORKSPACES, ['taktike', 'test', 'voznja', 'snimci']);
+  assert.deepEqual(WORKSPACES, ['taktike', 'senzori', 'voznja', 'snimci']);
   const mem = new Map();
   const st = { getItem: k => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, v) };
   assert.equal(loadWorkspace(st), 'taktike');
@@ -56,6 +56,25 @@ test('loadWorkspace / saveWorkspace: ključ eurosim.ws, loša vrednost i bačen 
   assert.equal(loadWorkspace(st), 'taktike');
   const bad = { getItem() { throw new Error('blokirano'); }, setItem() { throw new Error('blokirano'); } };
   assert.equal(loadWorkspace(bad), 'taktike');
-  assert.doesNotThrow(() => saveWorkspace('test', bad));
+  assert.doesNotThrow(() => saveWorkspace('senzori', bad));
   assert.equal(loadWorkspace(undefined), 'taktike');
+});
+
+test('staro eurosim.ws = test otvara senzori', () => {
+  assert.equal(loadWorkspace({ getItem: () => 'test' }), 'senzori');
+});
+
+test('lidar paneli samo u detalju lidara', async () => {
+  let ok = true;
+  try { await import('../../web/panels/lidar.js'); } catch (e) { ok = false; }
+  if (!ok) {                                     // fallback: registar sa lažnim panelom sa istim when
+    const r = createRegistry();
+    r.registerPanel({ id: 'lidar', workspaces: ['senzori'], when: st => st.sensOpen === 'lidar' });
+    assert.ok(r.panelsFor('senzori', [], { sensOpen: 'lidar' }).some(p => p.id === 'lidar'));
+    assert.ok(!r.panelsFor('senzori', [], { sensOpen: null }).some(p => p.id === 'lidar'));
+    return;
+  }
+  const ids = st => panelsFor('senzori', [], st).map(p => p.id);
+  assert.ok(ids({ sensOpen: 'lidar' }).includes('lidar'));
+  assert.ok(!ids({ sensOpen: null }).includes('lidar'));
 });

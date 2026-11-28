@@ -31,29 +31,29 @@ const { chromium } = require('playwright');
     if (box.h < 54 || box.w < 150) fail.push('STOP premali: ' + JSON.stringify(box));
     if (!(await p.isVisible('#stripStop'))) fail.push('STOP nije vidljiv');
     if ((await p.$eval('#strip', e => e.getBoundingClientRect().height)) !== 72) fail.push('traka nije visoka 72 px');
-    await p.click('#rail [data-ws=test]');
-    // Test dela (Zadatak 5.2): podkartice (radi samo Lidar), sto + radar, kartica Lidar sa „izračunao laptop“
+    await p.click('#rail [data-ws=senzori]');
+    // Senzori (Zadatak 5.2): podkartice (radi samo Lidar), sto + radar, kartica Lidar sa „izračunao laptop“
     const tabs = await p.$$eval('#tdTabs button', l => l.map(b => [b.textContent.trim(), b.disabled]));
     if (JSON.stringify(tabs) !== JSON.stringify([['Lidar', false], ['Pogon', true], ['Mehanizmi', true], ['IR', true]]))
-      fail.push('Test dela: podkartice ' + JSON.stringify(tabs));
-    if (!(await p.isVisible('#liTable')) || !(await p.isVisible('#liRadar'))) fail.push('Test dela → Lidar: nema stola ili radara');
-    if (!/izračunao laptop/.test(await p.textContent('#ws-lidar-info'))) fail.push('Test dela → Lidar: nema „izračunao laptop“');
-    if (!(await p.isDisabled('#liOn'))) fail.push('Test dela → Lidar: Upali lidar bez ROBOT sesije nije siv');
+      fail.push('Senzori: podkartice ' + JSON.stringify(tabs));
+    if (!(await p.isVisible('#liTable')) || !(await p.isVisible('#liRadar'))) fail.push('Senzori → Lidar: nema stola ili radara');
+    if (!/izračunao laptop/.test(await p.textContent('#ws-lidar-info'))) fail.push('Senzori → Lidar: nema „izračunao laptop“');
+    if (!(await p.isDisabled('#liOn'))) fail.push('Senzori → Lidar: Upali lidar bez ROBOT sesije nije siv');
     if (await p.$('#bar, #ws-stari-alati, #repoBtn, #profBtn, .brand')) fail.push('stari red (#bar, Repo/Profile dugmad) još postoji');
-    if (!(await p.$('#ws-tool:not([hidden]) #ws-poruka #msg'))) fail.push('Test dela: nema poruke u redu komandi');
-    await p.click('#rail [data-act=profile]').catch(() => {});               // Profil se vidi i u Test dela (Zadatak 4.1)
-    if (!(await p.isVisible('#profDialog'))) fail.push('Test dela: Profil se ne vidi');
+    if (!(await p.$('#ws-tool:not([hidden]) #ws-poruka #msg'))) fail.push('Senzori: nema poruke u redu komandi');
+    await p.click('#rail [data-act=profile]').catch(() => {});               // Profil se vidi i u Senzori (Zadatak 4.1)
+    if (!(await p.isVisible('#profDialog'))) fail.push('Senzori: Profil se ne vidi');
     await p.click('#profClose').catch(() => {});
     // Repo: stavka bočne trake samo u timskom repou (4.6); dijalog se otvara iz svakog prostora
     const repoMode = await p.evaluate(() => fetch('/api/info').then(r => r.json()).then(i => (i.where || {}).mode === 'repo'));
     if (await p.isVisible('#rail [data-act=repo]') !== repoMode) fail.push('stavka Repo: vidljiva = ' + !repoMode + ', a repo = ' + repoMode);
     if (repoMode) {
       await p.click('#rail [data-act=repo]');
-      if (!(await p.isVisible('#repoDialog'))) fail.push('Test dela: Repo se ne vidi');
+      if (!(await p.isVisible('#repoDialog'))) fail.push('Senzori: Repo se ne vidi');
       await p.click('#repoClose');
     }
     // Alt+1..4 = prostori, „?“ = prečice (Esc ih zatvara)
-    for (const [k, ws] of [['4', 'snimci'], ['3', 'voznja'], ['1', 'taktike'], ['2', 'test']]) {
+    for (const [k, ws] of [['4', 'snimci'], ['3', 'voznja'], ['1', 'taktike'], ['2', 'senzori']]) {
       await p.keyboard.press('Alt+' + k);
       if (await p.evaluate(() => window.eurosim.store.get().ws) !== ws) fail.push('Alt+' + k + ' nije ' + ws);
       if (!(await p.$(`#rail [data-ws=${ws}].on`))) fail.push('bočna traka ne prati Alt+' + k);
@@ -174,10 +174,10 @@ const { chromium } = require('playwright');
     if (await stops() !== n + 1) fail.push('Esc iz editora (popup dopune) nije poslao ["stop"]');
     if (await p.$('.cm-tooltip-autocomplete')) fail.push('Esc nije zatvorio popup dopune');
     n = await stops();
-    await p.click('#rail [data-ws=test]');                         // STOP iz trake radi i u Test dela
+    await p.click('#rail [data-ws=senzori]');                         // STOP iz trake radi i u Senzori
     await p.click('#stripStop');
     await p.waitForTimeout(300);
-    if (await stops() !== n + 1) fail.push('STOP iz trake (Test dela) nije poslao ["stop"]');
+    if (await stops() !== n + 1) fail.push('STOP iz trake (Senzori) nije poslao ["stop"]');
     await p.click('#rail [data-ws=voznja]');
     await p.click('#endBtn');
     await p.waitForFunction(() => !window.eurosim.store.get().session, null, { timeout: 15000 });

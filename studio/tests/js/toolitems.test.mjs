@@ -7,7 +7,7 @@ import { createToolItems, sharedHomes, sharedMoves } from '../../web/core/toolit
 // Registar kao posle Zadatka 4.6 (voznja-alati se dodaje u testu, da se vidi deljenje između prostora).
 function registry() {
   const r = createRegistry();
-  r.registerPanel({ id: 'poruka', workspaces: ['taktike', 'test', 'voznja', 'snimci'], region: 'tool', priority: 95 });
+  r.registerPanel({ id: 'poruka', workspaces: ['taktike', 'senzori', 'voznja', 'snimci'], region: 'tool', priority: 95 });
   r.registerPanel({ id: 'taktike-alati', workspaces: ['taktike'], region: 'tool', priority: 10, shared: ['taktika', 'strana'] });
   r.registerPanel({ id: 'snimci-alati', workspaces: ['snimci'], region: 'tool', priority: 10, shared: ['taktika', 'strana'] });
   r.registerPanel({ id: 'teren', workspaces: ['taktike', 'voznja', 'snimci'], region: 'main', priority: 20 });
@@ -18,7 +18,7 @@ test('sharedHomes: u prostoru stavka ide u najvažniji panel koji je navodi', ()
   const r = registry();
   assert.deepEqual(sharedHomes(r.panelsFor('taktike')), { taktika: 'taktike-alati', strana: 'taktike-alati' });
   assert.deepEqual(sharedHomes(r.panelsFor('voznja')), {});                     // još bez voznja-alati
-  assert.deepEqual(sharedHomes(r.panelsFor('test')), {});
+  assert.deepEqual(sharedHomes(r.panelsFor('senzori')), {});
   r.registerPanel({ id: 'voznja-alati', workspaces: ['voznja'], region: 'tool', priority: 10, shared: ['strana', 'taktika'] });
   assert.deepEqual(sharedHomes(r.panelsFor('voznja')), { strana: 'voznja-alati', taktika: 'voznja-alati' });
   assert.deepEqual(sharedHomes(r.panelsFor('snimci')), { taktika: 'snimci-alati', strana: 'snimci-alati' });
@@ -41,7 +41,7 @@ test('sharedMoves: seli samo ono što menja dom; bez doma u prostoru stavka osta
   const toV = sharedMoves(where, sharedHomes(r.panelsFor('voznja')));
   assert.deepEqual(toV.map(m => [m.id, m.from, m.to]), [['taktika', 'taktike-alati', 'voznja-alati'], ['strana', 'taktike-alati', 'voznja-alati']]);
   for (const m of toV) where[m.id] = m.to;
-  assert.deepEqual(sharedMoves(where, sharedHomes(r.panelsFor('test'))), []);            // Test dela: ostaju u Vožnji
+  assert.deepEqual(sharedMoves(where, sharedHomes(r.panelsFor('senzori'))), []);            // Senzori: ostaju u Vožnji
   const toS = sharedMoves(where, sharedHomes(r.panelsFor('snimci')));
   assert.deepEqual(toS.map(m => m.to), ['snimci-alati', 'snimci-alati']);
 });

@@ -13,7 +13,7 @@
 // Stavke bočne trake:
 //   Taktike -> otvoren editor (sesija, ako radi, nastavlja da radi, traka i njen STOP takođe);
 //   Vožnja -> SIM ili ROBOT (izbor ispod stavke, store.drive): red komandi Vožnja (panels/voznja-alati.js) i kartice
-//             idu za njim;  Snimci -> lista sačuvanih snimaka (osveži je: legacy.openRuns);  Test dela -> podkartice, Lidar (panels/lidar.js).
+//             idu za njim;  Snimci -> lista sačuvanih snimaka (osveži je: legacy.openRuns);  Senzori -> podkartice, Lidar (panels/lidar.js).
 // Dok sesija radi, prelaz SIM <-> ROBOT se odbija porukom „Sesija radi: prvo je završi“; traka i njen STOP (i Esc)
 // rade u svakom prostoru. Tastatura (core/keys.js): Alt+1..4 = prostori (redom kao u bočnoj traci), „?“ = prečice.
 //   mountShell({store, command, legacy}) -> {go, setDrive, setBadge, openCard, openConnect}
@@ -116,7 +116,7 @@ export function mountShell({ store, command, legacy }) {
     roots[p.id] = r;
     p.mount(root, ctx);
   }
-  placeItems(allPanels());            // odmah u dokument (i u Test dela, gde ih nijedan panel ne prima): app.js ih traži po id-ju
+  placeItems(allPanels());            // odmah u dokument (i u Senzori, gde ih nijedan panel ne prima): app.js ih traži po id-ju
   const parts = $('parts');                           // index.html: stari delovi čekaju ovde dok ih paneli ne preuzmu
   if (parts && !parts.children.length) parts.remove();
 
@@ -216,7 +216,7 @@ export function mountShell({ store, command, legacy }) {
 
   store.subscribe((st, prev) => {
     if (st.drive !== prev.drive) saveDrive(st.drive);
-    if (curWs && (st.caps !== prev.caps || st.drive !== prev.drive || st.session !== prev.session || st.refLabel !== prev.refLabel))
+    if (curWs && (st.caps !== prev.caps || st.drive !== prev.drive || st.session !== prev.session || st.refLabel !== prev.refLabel || st.sensOpen !== prev.sensOpen))
       applyPanels(curWs);                       // `needs`: siv ili ne; `when`: ESP, Postavka stola; open(ws, state): Grafici
   });
   mountStrip($('strip'), ctx);

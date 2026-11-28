@@ -1,6 +1,6 @@
 // Zajedničke stavke reda komandi (core/toolitems.js): „Taktika“ (#tactic) i „Strana“ Žuta | Plava (nad skrivenim
 // #side, koji ostaje izvor istine za app.js). Jedan čvor po stavci; okvir ga premešta u red komandi prostora:
-// Taktike -> taktike-alati, Vožnja -> voznja-alati, Snimci -> snimci-alati; Test dela nema svoj dom (stavke ostaju
+// Taktike -> taktike-alati, Vožnja -> voznja-alati, Snimci -> snimci-alati; Senzori nema svoj dom (stavke ostaju
 // gde su bile, skrivene sa svojim panelom).
 import { registerToolItem } from '../core/toolitems.js';
 import { segmented } from '../shell/segmented.js';

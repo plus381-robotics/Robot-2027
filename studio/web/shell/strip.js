@@ -166,7 +166,7 @@ export function mountStrip(el, ctx) {
 
   q('stripStop').onclick = () => ctx.command(['stop']);
   q('stripErr').onclick = () => {
-    if (ctx.store.get().ws === 'test') ctx.go('voznja');
+    if (ctx.store.get().ws === 'senzori') ctx.go('voznja');
     ctx.legacy && ctx.legacy.showErrors();
   };
   q('stripConnect').onclick = () => ctx.openConnect && ctx.openConnect(q('stripConnect'));   // dok sesija radi: poruka, bez prozorčića

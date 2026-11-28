@@ -31,14 +31,15 @@ const $ = id => document.getElementById(id);
 // referenca (null: nesačuvan, npr. simulacija ili sesija), refLabel = ime reference za prikaz (i nesačuvane; null = nema).
 // Referenca (?ref=1) se učitava bez menjanja serverovog „poslednjeg“ snimka: Sačuvaj snimak čuva ono što se gleda.
 // repo: null kad aplikacija nije u timskom repou (stavka Repo se ne vidi), inače značka za stavku Repo (web/repo.js).
-// Test dela → Lidar (panels/lidar.js): lidarScan = poslednji krug sesije (događaj "lidar" + wall: performance.now(), kind),
+// Senzori → Lidar (panels/lidar.js): lidarScan = poslednji krug sesije (događaj "lidar" + wall: performance.now(), kind),
 // lidarReply = poslednji odgovor na komandu ["lidar", ...] (ROBOT: Upali lidar, Snimi krugove); robotMec, robotLidar,
 // robotLidarSeen = stanje meča i lidara iz poslednjeg paketa telemetrije (ROBOT; i bez STM32-a).
 const store = createStore({ ws: 'taktike', drive: 'sim', session: null, caps: null, paused: false, speed: null, telemetry: null,
   linkAge: null, linkState: null, connAge: null, snap: null, notice: null, edUnsaved: false, running: null,
   runs: null, runName: null, refName: null, refLabel: null, repo: null,
   sources: loadSources(), lidarFiles: [], helloSource: null, lidarScan: null, lidarReply: null,
-  robotMec: null, robotLidar: null, robotLidarSeen: false });
+  robotMec: null, robotLidar: null, robotLidarSeen: false,
+  sensOpen: 'lidar' });      // id otvorenog detalja u Senzorima (null = pregled); Zadatak 7 menja na null
 const STRANA = { zuta: 'Žuta', plava: 'Plava' };        // i kartica rezultata (#result) i naslovi taktika u Koracima
 const REASON = { BLOCKED: 'blokiran', TIMEOUT: 'isteklo vreme', PREEMPTED: 'prekinut novom komandom', MATCH_OVER: 'kraj meča',
   STOPPED: 'zaustavljen', INVALID: 'odbijen', NOREPLY: 'nema odgovora', SUPERSEDED: 'zamenjen', STOP: 'STOP' };
@@ -1018,7 +1019,7 @@ function setRealtime(on, source) {
   if (on) { $('pace').value = '1'; msg('uživo sa pravim lidarom (' + source + '): radi na ×1, bez pauze'); }
 }
 
-function lidarToStore(events, kind) {           // poslednji krug iz paketa -> Test dela → Lidar (store.lidarScan)
+function lidarToStore(events, kind) {           // poslednji krug iz paketa -> Senzori → Lidar (store.lidarScan)
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i];
     if (e[1] === 'lidar') { store.set({ lidarScan: { t: e[0], ...e[2], wall: performance.now(), kind } }); return; }
@@ -1083,7 +1084,7 @@ function startRobot(host, password, label, virtual = false) {
     const f = liveData(m);
     store.set({ telemetry: m.age != null, linkAge: m.age ?? null,      // age null = još nijedan paket (traka: Veza)
       running: m.running || null,                                      // taktika koja radi na robotu (traka: Izvor)
-      robotMec: m.esp_mec ?? null, robotLidar: m.lidar_state ?? null, robotLidarSeen: !!m.lidar_seen });   // Test dela → Lidar
+      robotMec: m.esp_mec ?? null, robotLidar: m.lidar_state ?? null, robotLidarSeen: !!m.lidar_seen });   // Senzori → Lidar
     if (f && live.follow) $('time').textContent = `${secs(f.t)} s · robot`;
   });
   s.on('state', m => {                            // server: veza ok / stale (> 1.5 s) / lost (> 5 s), šalje se na promenu
@@ -1093,7 +1094,7 @@ function startRobot(host, password, label, virtual = false) {
     if (!mine()) return;
     const text = `${m.cmd}: ${m.ok ? 'OK' : 'ERR'} ${(m.lines || []).slice(-2).join(' · ')}`;
     msg(text, !m.ok);
-    if (m.cmd === 'lidar') store.set({ lidarReply: m });            // Test dela → Lidar: Upali lidar, Snimi krugove
+    if (m.cmd === 'lidar') store.set({ lidarReply: m });            // Senzori → Lidar: Upali lidar, Snimi krugove
     if (m.cmd === 'STAT' && m.ok) msg(`robot ${host}: povezan · ` + (m.lines || []).slice(0, 3).join(' · '));
   });
   s.on('end', m => {
@@ -1360,7 +1361,7 @@ async function main() {
     if (tg.isContentEditable || (tg.closest && tg.closest('.cm-editor'))) return;
     if (tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' ||
         (tg.tagName === 'INPUT' && !['range', 'checkbox', 'button'].includes(tg.type))) return;
-    const k = timeKey(e, store.get().ws);           // Test dela: vreme ne radi; Ctrl+Enter samo u Taktikama
+    const k = timeKey(e, store.get().ws);           // Senzori: vreme ne radi; Ctrl+Enter samo u Taktikama
     if (k === 'play') { e.preventDefault(); setPlaying(!play.playing); }
     else if (k === 'frame-' || k === 'frame+') { e.preventDefault(); frameJump(k === 'frame-' ? -1 : 1); }
     else if (k === 'step-' || k === 'step+') { e.preventDefault(); stepJump(k === 'step-' ? -1 : 1); }

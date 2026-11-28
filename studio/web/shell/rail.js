@@ -14,8 +14,8 @@ import { SHORTCUTS } from '../core/keys.js';
 export const RAIL_ITEMS = [
   { id: 'taktike', name: 'Taktike', title: 'Taktike: editor, brza simulacija i puštanje (Alt+1)',
     icon: '<path d="M8 6 3 12l5 6M16 6l5 6-5 6M14 4l-4 16"/>' },
-  { id: 'test', name: 'Test dela', title: 'Test dela robota (lidar, pogon, mehanizmi, IR) (Alt+2)',
-    icon: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>' },
+  { id: 'senzori', name: 'Senzori', title: 'Senzori: pregled svih senzora robota (Alt+2)',
+    icon: '<path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4-5"/><circle cx="12" cy="16" r="1.5"/>' },
   { id: 'voznja', name: 'Vožnja', title: 'Vožnja: simulacija uživo (SIM) ili pravi/virtuelni robot (ROBOT) (Alt+3)',
     icon: '<rect x="5" y="7" width="14" height="10" rx="2"/><path d="M9 17v3M15 17v3M12 3v4M8 11h.01M16 11h.01"/>' },
   { id: 'snimci', name: 'Snimci', title: 'Snimci: sačuvaj, učitaj, uporedi (Alt+4)',

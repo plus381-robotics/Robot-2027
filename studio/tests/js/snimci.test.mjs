@@ -76,7 +76,7 @@ test('refTagView: oznaka reference na stolu van Snimaka (u Snimcima je u redu ko
   assert.equal(refTagView(null, 'taktike'), null);
   assert.equal(refTagView('', 'voznja'), null);
   assert.equal(refTagView('pre_PID_fixa', 'snimci'), null);
-  for (const ws of ['taktike', 'voznja', 'test']) {
+  for (const ws of ['taktike', 'voznja', 'senzori']) {
     const v = refTagView('pre_PID_fixa', ws);
     assert.equal(v.text, 'referenca: pre_PID_fixa');
     assert.match(v.title, /pre_PID_fixa/);

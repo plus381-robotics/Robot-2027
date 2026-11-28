@@ -1,4 +1,4 @@
-// Test dela → Lidar (Zadatak 5.2): sirovo → u stolu / van stola → grupe, sa brojkama. Međukorake računa LAPTOP
+// Senzori → Lidar (Zadatak 5.2): sirovo → u stolu / van stola → grupe, sa brojkama. Međukorake računa LAPTOP
 // (POST /api/lidar/stages, eurosim/lidarview.py): ESP danas ima samo binove i najbližu tačku (lib/lidar.py _closest).
 // Tri panela, jedno stanje (S, ispod):
 //   lidar-alati (red komandi)  Izvor: Sesija | Snimak (studio/lidar/, ▶/⏸, u krug); uz ROBOT sesiju „Upali lidar“
@@ -7,11 +7,11 @@
 //                              prati stanje lidara iz telemetrije kad ga ima, inače ono što je panel poslao)
 //                              i „Snimi krugove“ (studio/lidar/<vreme>.jsonl.gz, isti format kao lidarsrc.FileLidar)
 //   lidar (glavni region)      sto (u stolu puno, van stola sivo prazno, grupe krstić + mm) i radar oko robota (napred
-//                              gore; radi i bez poze). Svoje platno, ne FieldView: Test dela ne otima sto Vožnji.
+//                              gore; radi i bez poze). Svoje platno, ne FieldView: Senzori ne otima sto Vožnji.
 //   lidar-info (kartica)       slojevi (sirovo / van stola / grupe), Hz, tačke, starost kruga, poza, najbliža grupa
 //                              (laptop) i najbliža tačka (ESP), „izračunao laptop“
 // Krugovi sesije stižu kroz store.lidarScan (app.js: događaj "lidar" sesije SIM ili ROBOT), odgovori na komandu lidar
-// kroz store.lidarReply. Međukoraci se traže samo dok je Test dela prikazan (jedan zahtev odjednom, poslednji krug).
+// kroz store.lidarReply. Međukoraci se traže samo dok je Senzori prikazan (jedan zahtev odjednom, poslednji krug).
 import { registerPanel } from '../core/panels.js';
 import { api, esc } from '../core/api.js';
 import { LAYERS, RANGES, STALE_MS, robotLidarView, scanPose, radarView, radarXY, tableView, tableXY, layerItems, playIndex,
@@ -35,7 +35,8 @@ const S = {
   robot: { on: null, state: null, rec: null, n: 0 }, body: { length: 165, width: 300 }, els: {},
 };
 
-const visible = () => !!S.ctx && S.ctx.store.get().ws === 'test';
+const SENS_LIDAR = st => st.sensOpen === 'lidar';       // Zadatak 7: panel Senzori preuzima prikaz kad nije otvoren detalj lidara
+const visible = () => !!S.ctx && S.ctx.store.get().ws === 'senzori';
 const session = () => (S.ctx ? S.ctx.store.get().session : null);
 const setPrefs = p => { S.prefs = { ...S.prefs, ...p }; savePrefs(S.prefs); };
 
@@ -416,19 +417,19 @@ function start(ctx) {
     }
     if (st.lidarFiles !== prev.lidarFiles || st.running !== prev.running || st.robotMec !== prev.robotMec
       || st.robotLidar !== prev.robotLidar || st.robotLidarSeen !== prev.robotLidarSeen) renderTools();
-    if (st.ws !== prev.ws && st.ws === 'test') { compute(); draw(); renderInfo(); }
+    if (st.ws !== prev.ws && st.ws === 'senzori') { compute(); draw(); renderInfo(); }
   });
   api('/api/info').then(i => { if (i.profile && i.profile.body) S.body = i.profile.body; draw(); }).catch(() => {});
   setInterval(tick, TICK_MS);
 }
 
 registerPanel({
-  id: 'lidar-alati', title: 'Lidar: alati', workspaces: ['test'], region: 'tool', priority: 10, open: true,
+  id: 'lidar-alati', title: 'Lidar: alati', workspaces: ['senzori'], when: SENS_LIDAR, region: 'tool', priority: 10, open: true,
   mount: (el, ctx) => { start(ctx); mountTools(el, ctx); renderTools(); },
 });
 
 registerPanel({
-  id: 'lidar', title: 'Lidar', workspaces: ['test'], region: 'main', priority: 1, open: true,
+  id: 'lidar', title: 'Lidar', workspaces: ['senzori'], when: SENS_LIDAR, region: 'main', priority: 1, open: true,
   mount: (el, ctx) => {
     start(ctx);
     el.innerHTML = `<div class="li-main">
@@ -452,7 +453,7 @@ registerPanel({
 });
 
 registerPanel({
-  id: 'lidar-info', title: 'Lidar', workspaces: ['test'], region: 'side', priority: 1, open: true, grow: true,
+  id: 'lidar-info', title: 'Lidar', workspaces: ['senzori'], when: SENS_LIDAR, region: 'side', priority: 1, open: true, grow: true,
   mount: (el, ctx) => { start(ctx); mountInfo(el); },
   shown: () => renderInfo(),
 });

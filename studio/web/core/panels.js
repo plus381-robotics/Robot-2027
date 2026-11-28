@@ -15,7 +15,7 @@
 // Paneli su u web/panels/ (jedan fajl po panelu, prijava pri uvozu panels/index.js).
 // Bez DOM-a na nivou modula, da ga uveze i `node --test`.
 
-export const WORKSPACES = ['taktike', 'test', 'voznja', 'snimci'];
+export const WORKSPACES = ['taktike', 'senzori', 'voznja', 'snimci'];
 export const WS_KEY = 'eurosim.ws';                 // localStorage: poslednji radni prostor
 export const REGIONS = ['main', 'side', 'bottom', 'tool'];
 
@@ -58,7 +58,8 @@ export const allPanels = () => registry.all();
 // Radni prostor u localStorage (svaki pristup u try/catch: privatni prozor, blokiran storage).
 export function loadWorkspace(storage = globalThis.localStorage, def = 'taktike') {
   try {
-    const w = storage && storage.getItem(WS_KEY);
+    let w = storage && storage.getItem(WS_KEY);
+    if (w === 'test') w = 'senzori';                // staro ime prostora (Test dela)
     return WORKSPACES.includes(w) ? w : def;
   } catch (e) { return def; }
 }
