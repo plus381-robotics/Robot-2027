@@ -37,7 +37,7 @@ function mode(st) {
 }
 
 // Prelaz stanja „pušten snimak“ (play.replay u app.js): puštanje ga pali i pauza ga ne gasi; gase ga kraj snimka, dugme
-// Uživo, učitavanje drugog snimka i početak sesije. Događaji: 'play' | 'pause' | 'seek' | 'end' | 'live' | 'load' | 'session'.
+// Uživo, učitavanje drugog snimka i početak sesije. Događaji: 'play' | 'pause' | 'end' | 'live' | 'load' | 'session'.
 export function nextReplay(replay, ev) {
   if (ev === 'play') return true;
   if (ev === 'end' || ev === 'live' || ev === 'load' || ev === 'session') return false;

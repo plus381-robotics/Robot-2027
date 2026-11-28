@@ -488,7 +488,6 @@ function load(d, label, keepTime = null, runName = null) {
   if (keepTime != null) { seek(keepTime); return; }
   seek(0);
   setPlaying(true);
-  setReplay('load');                            // pokretanje posle učitavanja nije namerno puštanje: Senzori ostaju uživo
 }
 
 let simSeq = 0;                                 // samo odgovor poslednje simulacije se prikazuje

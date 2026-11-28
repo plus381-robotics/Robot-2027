@@ -124,7 +124,6 @@ test('snimak pauziran (replay ostaje true) je i dalje snimak; samo učitan nije'
 test('nextReplay: pušten snimak ostaje kroz pauzu, gasi se na kraj, Uživo, drugi snimak i sesiju', () => {
   assert.equal(nextReplay(false, 'play'), true);
   assert.equal(nextReplay(true, 'pause'), true);
-  assert.equal(nextReplay(true, 'seek'), true);
   for (const ev of ['end', 'live', 'load', 'session']) assert.equal(nextReplay(true, ev), false, ev);
   assert.equal(nextReplay(false, 'pause'), false);
 });

@@ -149,9 +149,10 @@ Klik na blok otvara detalj (vrednosti, šta fali, kako proveriti); „← Svi se
 - **Poveži robota** je i na statusnoj traci (host, lozinka, **Poveži**, **Virtuelni robot**). Pravi robot danas šalje
   poziciju, brzinu v, stanje meča i krugove lidara (posle **Upali lidar**); IR, ω, aktuatori, činč, napajanje, PID i
   enkoderi stižu kad ESP i Nucleo počnu da ih šalju.
-- **Snimak**: učitan snimak se ne prikazuje; čim ga pustiš (▶), blokovi pokazuju šta su senzori javljali u tom
-  trenutku (SNIMAK, zaglavlje „snimak <ime> · <vreme> s“). Pauza ostaje na snimku. Dugme **Uživo** (ili kraj snimka,
-  drugi snimak, nova sesija) vraća na uživo. Grafici pokazuju poslednjih 15 s pre kursora.
+- **Snimak**: otvaranje snimka (Snimci ili rezultat brze simulacije) ga odmah pušta, pa blokovi pokazuju šta su senzori
+  javljali u tom trenutku (SNIMAK, zaglavlje „snimak <ime> · <vreme> s“). Pauza ostaje na snimku (pauzira se na vremenskoj
+  liniji u drugim prostorima). Dugme **Uživo** (ili kraj snimka, drugi snimak, nova sesija) vraća na uživo. Grafici pokazuju
+  poslednjih 15 s pre kursora.
 - Klik na **Odozgo · lidar** otvara postojeće panele lidara (isto kao ranije Test dela → Lidar):
 
 #### Lidar
