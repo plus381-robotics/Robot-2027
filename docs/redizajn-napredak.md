@@ -39,6 +39,24 @@ Grana: `redizajn-ui` (lokalna). Maketa: varijanta A (`~/makete-ui/varijanta-a.ht
 - Otvoreno (nije popravljeno): `core/panels.js`, `core/lidar.js`, `core/regions.js` čitaju `localStorage` van
   try/catch u podrazumevanom parametru — u browseru sa blokiranim podacima sajta stranica ne bi krenula. Mali zadatak.
 
+## Gambit Studio i Senzori (grane gs-a … gs-d, 2026-11-28)
+
+Plan: `docs/plan-gambit-studio-senzori.md`. Lokalne grane, jedna na drugoj; ništa nije gurnuto na GitHub.
+
+- **gs-a-preimenovanje**: aplikacija se zove **Gambit Studio**, folder je `studio/` (bio `simulator/`). Unutrašnja imena
+  ostaju (`eurosim`, `sim.py`, `~/.eurosim.json`, `~/Eurosim`, `EUROSIM_*`, localStorage `eurosim.*`). Migracija
+  prenosi lokalne snimke (`simulator/runs`, `simulator/lidar`) u `studio/` i javlja to porukom.
+- **gs-b-povezi-robota**: **Poveži robota** je na statusnoj traci (host, lozinka, virtuelni robot), a ne samo u Vožnji.
+- **gs-c-senzori-okvir**: prostor **Senzori** zamenio je Test dela (okvir, zaglavlje „Prikazuje: …“, izvori podataka).
+- **gs-d-senzori-blokovi**: 10 blokova (lidar odozgo, skica robota sa IR, brzine, regulacija, napajanje, aktuatori,
+  enkoderi, činč i tasteri, meč i taktika, veza), detalj na klik, i **snimak u Senzorima** (SNIMAK, dugme Uživo).
+- **Šta robot šalje danas**: poza, brzina v, stanje meča, taktika, krugovi lidara (posle Upali lidar), stanje veze.
+  **Kasnije (ESP/Nucleo)**: IR (`ir`, `irm`), ω, aktuatori (`act`), činč i tasteri, INA3221 napajanje, PID reference,
+  enkoderi, RSSI, RAM i krug petlje. Blokovi za njih već postoje i pišu „nepovezano“ sa razlogom; kad polje stigne, počnu
+  da rade bez izmene prikaza. SIM ih već daje (osim napajanja).
+- Testovi: `node --test studio/tests/js/` i `simulator/.venv/bin/python -m pytest -q studio/tests`; `ui_*.js` skripte
+  su ažurirane, ali se (bez Playwright-a) ne pokreću ovde.
+
 ## Pravila izrade (od korisnika)
 
 - Jedna faza po jedna: posle faze testovi, lokalni commit, STOP i lista za ručnu proveru; dalje tek na „dalje“.

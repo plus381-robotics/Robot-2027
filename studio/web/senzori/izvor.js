@@ -36,6 +36,14 @@ function mode(st) {
   return st && st.sens && st.sens.replay ? 'snimak' : 'nista';
 }
 
+// Prelaz stanja „pušten snimak“ (play.replay u app.js): puštanje ga pali i pauza ga ne gasi; gase ga kraj snimka, dugme
+// Uživo, učitavanje drugog snimka i početak sesije. Događaji: 'play' | 'pause' | 'seek' | 'end' | 'live' | 'load' | 'session'.
+export function nextReplay(replay, ev) {
+  if (ev === 'play') return true;
+  if (ev === 'end' || ev === 'live' || ev === 'load' || ev === 'session') return false;
+  return !!replay;
+}
+
 export function viewMode(st) {
   const m = mode(st), s = st && st.session;
   if (m === 'robot') return { mode: m, text: 'Prikazuje: ' + (s.virtual ? 'virtuelni robot' : 'pravi robot · ' + s.host) };
@@ -46,7 +54,7 @@ export function viewMode(st) {
   }
   if (m === 'snimak') {
     const t = (Number(st.sens.t || 0) / 1000).toFixed(1).replace('.', ',');
-    return { mode: m, text: `Prikazuje: snimak ${st.sens.name} · ${t} s` };
+    return { mode: m, text: `Prikazuje: snimak${st.sens.name ? ' ' + st.sens.name : ''} · ${t} s` };
   }
   return { mode: 'nista', text: 'Ništa nije povezano: Poveži robota ili pokreni simulaciju u Vožnji' };
 }

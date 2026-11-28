@@ -1,7 +1,7 @@
 // Testovi za web/senzori/izvor.js: viewMode i blockSource (oznaka izvora i razlozi).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { viewMode, blockSource, REASONS } from '../../web/senzori/izvor.js';
+import { viewMode, blockSource, nextReplay, REASONS } from '../../web/senzori/izvor.js';
 
 const B = { id: 'brzine', part: 'pogon', fields: ['v', 'w'], notes: { robot: { w: 'ω: ESP je još ne šalje laptopu' } } };
 const emptyRun = { cols: { t: [] } };
@@ -110,4 +110,21 @@ test('viewMode: snimak', () => {
     { mode: 'snimak', text: 'Prikazuje: snimak abc · 42,3 s' });
   assert.equal(viewMode({ session: null, sens: { replay: false, name: 'x' } }).mode, 'nista');
   assert.equal(viewMode({ session: { kind: 'sim' }, sens: { replay: true, name: 'x', t: 1 } }).mode, 'sim');
+});
+
+test('snimak pušten: zaglavlje sa trenutkom snimka (t u ms)', () => {
+  const vm = viewMode({ session: null, sens: { replay: true, name: 'abc', t: 42300 } });
+  assert.equal(vm.mode, 'snimak');
+  assert.equal(vm.text, 'Prikazuje: snimak abc · 42,3 s');
+});
+test('snimak pauziran (replay ostaje true) je i dalje snimak; samo učitan nije', () => {
+  assert.equal(viewMode({ session: null, sens: { replay: true, name: 'abc', t: 5000 } }).mode, 'snimak');
+  assert.equal(viewMode({ session: null, sens: { replay: false, name: 'abc', t: 5000 } }).mode, 'nista');
+});
+test('nextReplay: pušten snimak ostaje kroz pauzu, gasi se na kraj, Uživo, drugi snimak i sesiju', () => {
+  assert.equal(nextReplay(false, 'play'), true);
+  assert.equal(nextReplay(true, 'pause'), true);
+  assert.equal(nextReplay(true, 'seek'), true);
+  for (const ev of ['end', 'live', 'load', 'session']) assert.equal(nextReplay(true, ev), false, ev);
+  assert.equal(nextReplay(false, 'pause'), false);
 });

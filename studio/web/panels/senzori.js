@@ -1,7 +1,8 @@
 // Senzori (Zadatak 7): pregled svih senzora robota po maketi B i detalj bloka na klik. Dva panela:
 //   senzori-alati (red komandi)  „Senzori“ (u detalju „← Svi senzori“: sensOpen = null) · šta se prikazuje
 //                                (senzori/izvor.js viewMode, u boji izvora) · bez veze dugme „Poveži robota“
-//                                (ctx.openConnect) · desno brojač „● n radi · ● n upozorenja · ○ n bez podataka“.
+//                                (ctx.openConnect) · dok se prikazuje pušten snimak dugme „Uživo“ (događaj senzori-uzivo,
+//                                sluša ga app.js: stop puštanja, sens.replay = false) · desno brojač „● n radi · ● n upozorenja · ○ n bez podataka“.
 //                                U detalju lidara (posle njega idu lidar-alati): „← Svi senzori“, lampica, ime i oznaka
 //                                izvora (SNIMAK dok detalj lidara pušta snimak krugova, store.lidarSrc).
 //   senzori (glavni region)      mreža blokova (senzori/blokovi/, mesto po slot-u: top · sketch · right · bottom) ili
@@ -75,15 +76,17 @@ function mountTool(el, ctx) {
     <b class="sz-title">Senzori</b>
     <span class="sz-cur" hidden><span class="sz-lamp none"></span><b class="sz-cur-name"></b><span class="sz-badge none"></span></span>
     <span class="sz-showing"></span>
+    <button type="button" class="sz-live" hidden title="Nazad na uživo: prekida puštanje snimka">Uživo</button>
     <button type="button" class="primary sz-connect" hidden aria-haspopup="dialog"
       title="Poveži se sa pravim ili virtuelnim robotom (host, lozinka)">Poveži robota</button>
     <span class="sz-grow"></span>
     <span class="sz-count" title="Blokovi: radi · upozorenje · bez podataka"></span>`;
   const q = s => el.querySelector(s);
   R.tool = { root: el, back: q('.sz-back'), title: q('.sz-title'), cur: q('.sz-cur'), curLamp: q('.sz-cur .sz-lamp'),
-    curName: q('.sz-cur-name'), curBadge: q('.sz-cur .sz-badge'), showing: q('.sz-showing'), connect: q('.sz-connect'),
+    curName: q('.sz-cur-name'), curBadge: q('.sz-cur .sz-badge'), showing: q('.sz-showing'), live: q('.sz-live'), connect: q('.sz-connect'),
     count: q('.sz-count') };
   R.tool.back.onclick = () => ctx.store.set({ sensOpen: null });
+  R.tool.live.onclick = () => document.dispatchEvent(new CustomEvent('senzori-uzivo'));   // app.js: stani i vrati se uživo
   R.tool.connect.onclick = () => ctx.openConnect && ctx.openConnect(R.tool.connect);   // dok sesija radi: poruka
 }
 
@@ -109,6 +112,7 @@ function renderTool(st, list) {
   setCls(T.showing, 'sz-showing m-' + vm.mode);
   setText(T.showing, vm.text);
   setTitle(T.showing, vm.text);
+  T.live.hidden = vm.mode !== 'snimak';
   T.connect.hidden = vm.mode !== 'nista';
   T.count.hidden = inLidar;
   if (!inLidar) {

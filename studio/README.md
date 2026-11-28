@@ -32,7 +32,7 @@ Exe i GitHub Release se više ne prave: iz repoa je uvek najnovija verzija.
     pip install -r studio/requirements.txt      # jednom (aiohttp)
     python studio/sim.py serve                  # otvara http://localhost:8270
 
-- Levo bočna traka: prostori **Taktike**, **Test dela**, **Vožnja** (SIM / ROBOT), **Snimci** (Alt+1 … 4), a dole
+- Levo bočna traka: prostori **Taktike**, **Senzori**, **Vožnja** (SIM / ROBOT), **Snimci** (Alt+1 … 4), a dole
   Izvori, Repo, Profil i **Pomoć** (spisak prečica, i taster „?“). Gore statusna traka sa ■ STOP (i Esc).
 - Ispod nje red komandi prostora; na njegovom desnom kraju je **poruka** (šta se upravo desilo; greška crveno, cela u
   oblačiću), u svakom prostoru, ponekad sa dugmetom (npr. „Otvori u Snimcima“ posle kraja sesije).
@@ -138,10 +138,25 @@ iz `ESP32/webrepl_cfg.py` (ili upiši).
   telemetrijom nad simuliranim STM32) i poveže se na njega. Isto iz terminala: `python studio/sim.py robot`,
   pa `python tools/tactic.py primer --host 127.0.0.1 --password eurosim` i `python tools/watch.py --host 127.0.0.1`.
 
-### Test dela → Lidar
+### Senzori
 
-Prostor **Test dela**, podkartica **Lidar** (Pogon, Mehanizmi i IR dolaze sa Fazom 6). Jedan krug lidara korak po
-korak: sirove tačke → u stolu / van stola (sudija pored stola nije protivnik; odbačene tačke sivo i prazno) → grupe
+Prostor **Senzori** (bočna traka ili Alt+2) pokazuje 10 blokova: lidar odozgo, skica robota sa IR, brzine, regulacija
+(zadato/stvarno), napajanje, aktuatori, enkoderi, činč i tasteri, meč i taktika, veza i zdravlje. Svaki ima oznaku
+izvora **PRAVO** (sa robota), **SIM** ili **SNIMAK**, ili „nepovezano“ sa razlogom (npr. „Nucleo ga ne šalje“).
+Klik na blok otvara detalj (vrednosti, šta fali, kako proveriti); „← Svi senzori“ vraća na pregled.
+- Zaglavlje kaže šta se prikazuje: pravi robot, virtuelni robot, simulacija, hibrid, snimak ili „Ništa nije povezano“.
+  Bez veze tu je i dugme **Poveži robota**.
+- **Poveži robota** je i na statusnoj traci (host, lozinka, **Poveži**, **Virtuelni robot**). Pravi robot danas šalje
+  poziciju, brzinu v, stanje meča i krugove lidara (posle **Upali lidar**); IR, ω, aktuatori, činč, napajanje, PID i
+  enkoderi stižu kad ESP i Nucleo počnu da ih šalju.
+- **Snimak**: učitan snimak se ne prikazuje; čim ga pustiš (▶), blokovi pokazuju šta su senzori javljali u tom
+  trenutku (SNIMAK, zaglavlje „snimak <ime> · <vreme> s“). Pauza ostaje na snimku. Dugme **Uživo** (ili kraj snimka,
+  drugi snimak, nova sesija) vraća na uživo. Grafici pokazuju poslednjih 15 s pre kursora.
+- Klik na **Odozgo · lidar** otvara postojeće panele lidara (isto kao ranije Test dela → Lidar):
+
+#### Lidar
+
+Jedan krug lidara korak po korak: sirove tačke → u stolu / van stola (sudija pored stola nije protivnik; odbačene tačke sivo i prazno) → grupe
 (krstić, udaljenost od centra robota; najbliža crveno). Međukorake računa **laptop** (`eurosim/lidarview.py`, POST
 `/api/lidar/stages`), jer ESP danas ima samo binove i najbližu tačku; kartica Lidar to i piše („izračunao laptop“) i
 odvojeno pokazuje ESP-ovu najbližu tačku.

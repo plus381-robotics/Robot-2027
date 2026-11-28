@@ -22,6 +22,7 @@ import { mountIzvori } from './panels/izvori.js';
 import { loadSources, lidarSpec } from './core/izvori.js';
 import { SESSION_LOCK } from './core/snimci.js';      // dok sesija radi: Snimci zaključani, Sačuvaj i ▶ Pokreni sivi
 import { timeKey } from './core/keys.js';               // vreme (razmak, strelice) i Ctrl+Enter po prostoru
+import { nextReplay } from './senzori/izvor.js';
 
 const $ = id => document.getElementById(id);
 // Most ka novom okviru (statusna traka, bočna traka): stari kod piše ovde ono što traka treba. Polja: shell/strip.js.
@@ -59,7 +60,7 @@ let ref = null;                       // reference run for comparing (pinned or 
 let ed = null;                        // {editor, api, name, sha, saved} when the editor is open
 let edOpening = null;                 // Promise dok se editor otvara (bočna traka Taktike ne sme da ga otvori dvaput)
 let live = null;                       // {s (core/session.js), kind, raw: {meta, frames, events}, follow, dirty, lidarSrc}
-const play = { t: 0, playing: false, speed: 1, last: 0 };
+const play = { t: 0, playing: false, speed: 1, last: 0, replay: false };   // replay: pušten snimak (Senzori ga prikazuju, senzori/izvor.js nextReplay)
 
 // ---------------- formatting ----------------
 
@@ -349,10 +350,21 @@ function bridgeSnap(t) {
 
 // Senzori: sens = {run, t, replay, name}. U sesiji živi snimak sesije (null dok prvi frame-ovi ne stignu; ROBOT bez
 // STM32-a ih nema) i t = njegov kraj; bez sesije učitan snimak (ili null) i kursor play.t. t je u ms. replay (pušten
-// snimak) dolazi sa Zadatkom 11. Najviše 10 puta u sekundi (show() se zove iz requestAnimationFrame-a); poslednja
-// promena se ne gubi (zakašnjeli poziv).
+// snimak) je play.replay (stoji i kroz pauzu). Najviše 10 puta u sekundi (show() se zove iz requestAnimationFrame-a);
+// poslednja promena se ne gubi (zakašnjeli poziv), a promena replay-a ide odmah.
 const SENS_MS = 100;
 let sensAt = -Infinity, sensTimer = null;
+
+function setReplay(ev) {                        // prelaz play.replay; promena se odmah prosleđuje Senzorima
+  const r = nextReplay(play.replay, ev);
+  if (r === play.replay) return;
+  play.replay = r;
+  sensAt = -Infinity;
+  bridgeSens();
+}
+
+// Uživo (dugme u zaglavlju Senzora): zaustavi puštanje i vrati Senzore na uživo (sesija ili „Ništa nije povezano“).
+document.addEventListener('senzori-uzivo', () => { setPlaying(false); setReplay('live'); });
 
 function bridgeSens() {
   const wait = SENS_MS - (performance.now() - sensAt);
@@ -362,8 +374,9 @@ function bridgeSens() {
   const t = live ? (r ? r.duration : 0) : play.t;
   const name = live ? '' : store.get().runName || '';
   const p = store.get().sens;
-  if (p && p.run === r && p.t === t && p.name === name && !p.replay) return;
-  store.set({ sens: { run: r, t, replay: false, name } });
+  const replay = !live && play.replay;
+  if (p && p.run === r && p.t === t && p.name === name && p.replay === replay) return;
+  store.set({ sens: { run: r, t, replay, name } });
 }
 
 function bridgeSession() {                      // sesija počela / završila: traka kreće iz početnog stanja veze
@@ -372,6 +385,7 @@ function bridgeSession() {                      // sesija počela / završila: t
     lidar: L.lidarSrc || 'sim', edText: !!L.edText } : null, caps: null,
     paused: false, speed: null, telemetry: null, linkAge: null, linkState: null, connAge: null, running: null,
     runName: null, sensZero: null, helloSource: null, lidarScan: null, lidarReply: null, robotMec: null, robotLidar: null, robotLidarSeen: false });   // sesija nije sačuvan snimak (Snimci ga ne ističu)
+  setReplay('session');                         // sesija i puštanje ne idu zajedno
   bridgeSens();                                 // Senzori: sesija bez frame-ova ne pokazuje stari učitan snimak
   $('speed').hidden = !!L;                     // brzina puštanja snimka; u sesiji važi brzina iz reda komandi Vožnja
   // Dok sesija radi Sačuvaj snimak bi sačuvao serverov „poslednji“ snimak (ne sesiju na ekranu), a brza simulacija ne
@@ -413,13 +427,14 @@ function setPlaying(p) {
   if (p && run && play.t >= run.duration) play.t = 0;
   play.playing = p && !!run;
   play.last = performance.now();
+  setReplay(play.playing ? 'play' : 'pause');
   $('play').textContent = play.playing ? '⏸' : '▶';
 }
 
 function tick(now) {
   if (play.playing && run) {
     play.t += (now - play.last) * play.speed;
-    if (play.t >= run.duration) { play.t = run.duration; setPlaying(false); }
+    if (play.t >= run.duration) { play.t = run.duration; setPlaying(false); setReplay('end'); }
     show();
   }
   play.last = now;
@@ -454,6 +469,7 @@ function msg(text, err = false, act = null) {
 // runName: ime sačuvanog snimka (Snimci ga ističu u listi); null za simulaciju, sesiju i ostalo.
 function load(d, label, keepTime = null, runName = null) {
   run = buildRun(d);
+  if (keepTime == null) setReplay('load');
   store.set(keepTime == null ? { runName, sensZero: null } : { runName });   // drugi snimak: „Nuliraj“ iz Senzora ne važi
   view.setRun(run);
   elShownKey = null;
@@ -472,6 +488,7 @@ function load(d, label, keepTime = null, runName = null) {
   if (keepTime != null) { seek(keepTime); return; }
   seek(0);
   setPlaying(true);
+  setReplay('load');                            // pokretanje posle učitavanja nije namerno puštanje: Senzori ostaju uživo
 }
 
 let simSeq = 0;                                 // samo odgovor poslednje simulacije se prikazuje

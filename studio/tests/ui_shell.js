@@ -67,8 +67,6 @@ const { chromium } = require('playwright');
     if (!/izračunao laptop/.test(await p.textContent('#ws-lidar-info'))) fail.push('Senzori → Lidar: nema „izračunao laptop“');
     if (!(await p.isDisabled('#liOn'))) fail.push('Senzori → Lidar: Upali lidar bez ROBOT sesije nije siv');
     if (!(await p.isVisible('#ws-senzori-alati .sz-back')) || await p.isVisible('#ws-senzori')) fail.push('detalj lidara: nema „← Svi senzori“ ili se vidi mreža');
-    await p.click('#ws-senzori-alati .sz-back');
-    await p.waitForSelector('#ws-senzori .sz-grid');
     if (await p.$('#bar, #ws-stari-alati, #repoBtn, #profBtn, .brand')) fail.push('stari red (#bar, Repo/Profile dugmad) još postoji');
     if (!(await p.$('#ws-tool:not([hidden]) #ws-poruka #msg'))) fail.push('Senzori: nema poruke u redu komandi');
     await p.click('#rail [data-act=profile]').catch(() => {});               // Profil se vidi i u Senzori (Zadatak 4.1)
