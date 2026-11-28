@@ -5,7 +5,7 @@
 //   SIM_REASONS                     razlozi u simulaciji (i hibridu), po id-u bloka
 //
 // st = {session, sens, lidarScan}: session = null | {kind: 'sim'|'robot', host, virtual, lidar: 'sim'|'robot'|'file'},
-//   sens = null | {run, t, replay, name} (t u tekstu je u sekundama), lidarScan = poslednji krug lidara ili null.
+//   sens = null | {run, t, replay, name} (t je u ms, kao run.cols.t; u tekstu se piše u sekundama), lidarScan = poslednji krug lidara ili null.
 // block = {id, part: 'pogon'|'lidar'|'ir'|'mehanizmi'|null, fields, simFields?, notes?: {robot?: {[polje]: tekst}}}:
 //   fields = polja koja blok traži (`'@lidar'` = stigao je krug lidara; [] = blok ne zavisi od polja, npr. veza);
 //   simFields (nije obavezno) zamenjuje fields u simulaciji, hibridu i puštanju snimka simulacije.
@@ -45,7 +45,7 @@ export function viewMode(st) {
     return { mode: m, text: `Prikazuje: hibrid · lidar ${lidar}, ostalo simulirano` };
   }
   if (m === 'snimak') {
-    const t = Number(st.sens.t || 0).toFixed(1).replace('.', ',');
+    const t = (Number(st.sens.t || 0) / 1000).toFixed(1).replace('.', ',');
     return { mode: m, text: `Prikazuje: snimak ${st.sens.name} · ${t} s` };
   }
   return { mode: 'nista', text: 'Ništa nije povezano: Poveži robota ili pokreni simulaciju u Vožnji' };

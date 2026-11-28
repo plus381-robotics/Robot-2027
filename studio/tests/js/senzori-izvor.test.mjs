@@ -106,7 +106,7 @@ test('viewMode: tekstovi', () => {
     'Prikazuje: hibrid · lidar iz snimka, ostalo simulirano');
 });
 test('viewMode: snimak', () => {
-  assert.deepEqual(viewMode({ session: null, sens: { replay: true, name: 'abc', t: 42.3 } }),
+  assert.deepEqual(viewMode({ session: null, sens: { replay: true, name: 'abc', t: 42300 } }),
     { mode: 'snimak', text: 'Prikazuje: snimak abc · 42,3 s' });
   assert.equal(viewMode({ session: null, sens: { replay: false, name: 'x' } }).mode, 'nista');
   assert.equal(viewMode({ session: { kind: 'sim' }, sens: { replay: true, name: 'x', t: 1 } }).mode, 'sim');
