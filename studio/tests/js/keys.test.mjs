@@ -73,7 +73,7 @@ test('installKeys: Alt+1..4 menja prostor (preventDefault), „?“ spisak samo 
   assert.deepEqual(went, ['voznja']);                                    // odjavljen
 });
 
-test('timeKey: vreme (razmak, strelice, Home/End) svuda osim u Testu dela; Ctrl+Enter samo u Taktikama', () => {
+test('timeKey: vreme (razmak, strelice, Home/End) svuda osim u Senzorima; Ctrl+Enter samo u Taktikama', () => {
   for (const ws of ['taktike', 'voznja', 'snimci']) {
     assert.equal(timeKey(k(' '), ws), 'play');
     assert.equal(timeKey(k('ArrowLeft'), ws), 'frame-');

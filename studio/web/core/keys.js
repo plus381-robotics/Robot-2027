@@ -42,7 +42,7 @@ export const SHORTCUTS = [
   ['Esc', 'STOP dok radi sesija (iz svakog prostora, i iz editora)'],
   ['Ctrl+Enter', '▶ Pokreni: simulacija taktike (u Taktikama)'],
   ['Ctrl+S', 'Sačuvaj taktiku (u editoru; Ctrl+Shift+S: Sačuvaj kao…)'],
-  ['Razmak', 'vreme: pusti / pauza (tasteri za vreme ne rade u Testu dela)'],
+  ['Razmak', 'vreme: pusti / pauza (tasteri za vreme ne rade u Senzorima)'],
   ['← / →', 'vreme: frejm nazad / napred'],
   ['Shift+← / →', 'vreme: korak nazad / napred'],
   ['Home / End', 'vreme: početak / kraj snimka'],

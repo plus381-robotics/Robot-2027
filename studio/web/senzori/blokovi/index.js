@@ -1,0 +1,65 @@
+// Senzori: spisak blokova (raspored B) i procena za prikaz. Bez DOM-a, da ga uveze i `node --test`.
+//   BLOCKS                    blokovi redom; mesto u rasporedu (slot): 'top' lidar odozgo · 'sketch' skica robota ·
+//                             'right' desna kolona (brzine, PID, napajanje) · 'bottom' donji red
+//   SLOTS                     dozvoljena mesta
+//   makeHas(st)               has(polje) za blockSource: '@lidar' = krug sesije (st.lidarScan) ili krugovi u snimku
+//                             st.sens.run; ostalo hasData(st.sens.run, polje); bez snimka false
+//   evalBlocks(st, blocks?)   [{b, s: {src, reason, note}, d, v: {status, text, vals, error?}}] za svaki blok
+//                             (view koji baci izuzetak daje status 'none' sa tekstom greške, ostali blokovi rade)
+//   counts(list)              {ok, warn, none}: brojač u zaglavlju („● n radi · ● n upozorenja · ○ n bez podataka“)
+//   warnWord(n)               'upozorenje' | 'upozorenja'
+//
+// Modul bloka (podrazumevani export, web/senzori/blokovi/<id>.js):
+//   {id, name, slot, part, fields, simFields?, notes?, hints: string[],
+//    view(d) -> {status: 'ok'|'warn'|'none', text: string, vals: [[ime, vrednost], ...]},
+//    draw?(g, w, h, d, big), html?(d, big) -> string, actions?(d) -> [{label, run(), disabled?, title?}]}
+//   part / fields / simFields / notes: za oznaku izvora (senzori/izvor.js blockSource); hints: „Kako proveriti“.
+//   d = {st, run, t, src, reason, note, profile}: st = store, run i t (ms) iz st.sens (app.js bridgeSens),
+//       src = 'pravo'|'sim'|'snimak'|null i reason / note iz blockSource, profile = store.profile (/api/info).
+//   Bez izvora (src null) view vraća status 'none'. draw crta na platno w × h (CSS px; big = u detalju), html je
+//   prikaz bez platna; bez oba se u pločici krupno pišu vals.
+
+import { hasData } from '../../core/run.js';
+import { blockSource } from '../izvor.js';
+import lidar from './lidar.js';
+import robot from './robot.js';
+import brzine from './brzine.js';
+import pid from './pid.js';
+import napajanje from './napajanje.js';
+import aktuatori from './aktuatori.js';
+import enkoderi from './enkoderi.js';
+import ulazi from './ulazi.js';
+import mec from './mec.js';
+import veza from './veza.js';
+
+export const SLOTS = ['top', 'sketch', 'right', 'bottom'];
+export const BLOCKS = [lidar, robot, brzine, pid, napajanje, aktuatori, enkoderi, ulazi, mec, veza];
+
+export function makeHas(st) {
+  const run = (st && st.sens && st.sens.run) || null;
+  return k => {
+    if (k === '@lidar') return !!(st && st.lidarScan) || !!(run && run.lidars && run.lidars.length);
+    return !!run && !!run.cols && hasData(run, k);
+  };
+}
+
+export function evalBlocks(st, blocks = BLOCKS) {
+  st = st || {};
+  const sens = st.sens || null, run = (sens && sens.run) || null, t = sens && sens.t != null ? sens.t : 0;
+  const has = makeHas(st), profile = st.profile || null;
+  return blocks.map(b => {
+    const s = blockSource(b, st, has);
+    const d = { st, run, t, src: s.src, reason: s.reason, note: s.note, profile };
+    let v;
+    try { v = b.view(d); } catch (e) { v = { status: 'none', text: 'greška u bloku: ' + e.message, vals: [], error: e }; }
+    return { b, s, d, v };
+  });
+}
+
+export function counts(list) {
+  const c = { ok: 0, warn: 0, none: 0 };
+  for (const x of list) c[x.v.status === 'ok' || x.v.status === 'warn' ? x.v.status : 'none']++;
+  return c;
+}
+
+export const warnWord = n => (n % 10 === 1 && n % 100 !== 11 ? 'upozorenje' : 'upozorenja');

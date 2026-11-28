@@ -12,6 +12,8 @@
 //                              (laptop) i najbliža tačka (ESP), „izračunao laptop“
 // Krugovi sesije stižu kroz store.lidarScan (app.js: događaj "lidar" sesije SIM ili ROBOT), odgovori na komandu lidar
 // kroz store.lidarReply. Međukoraci se traže samo dok je Senzori prikazan (jedan zahtev odjednom, poslednji krug).
+// Izvor panela (Sesija | Snimak) ide i u store.lidarSrc: zaglavlje Senzora tada piše oznaku SNIMAK.
+// Od Zadatka 7 ovo je detalj lidara u Senzorima (sensOpen = 'lidar'; klik na blok „Odozgo · lidar“).
 import { registerPanel } from '../core/panels.js';
 import { api, esc } from '../core/api.js';
 import { LAYERS, RANGES, STALE_MS, robotLidarView, scanPose, radarView, radarXY, tableView, tableXY, layerItems, playIndex,
@@ -136,6 +138,7 @@ function tick() {
 
 function setSrc(src) {
   setPrefs({ src });
+  S.ctx.store.set({ lidarSrc: src });                   // zaglavlje Senzora (panels/senzori.js): oznaka SNIMAK
   S.play.i = -1;
   if (src === 'sesija') { setPlay(false); setScan(sessionScan()); }
   else {
@@ -400,6 +403,7 @@ function start(ctx) {
   if (started) return;
   started = true;
   S.ctx = ctx;
+  ctx.store.set({ lidarSrc: S.prefs.src });
   ctx.store.subscribe((st, prev) => {
     if (st.lidarScan !== prev.lidarScan && S.prefs.src === 'sesija') setScan(sessionScan());
     if (st.session !== prev.session) {

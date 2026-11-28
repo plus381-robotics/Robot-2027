@@ -5,7 +5,8 @@
 // Zadatak 4.4: red komandi voznja-alati, bočne kartice esp (ESP) i sto (Postavka stola).
 // Zadatak 4.5: red komandi snimci-alati i bočna kartica snimci (lista sačuvanih snimaka).
 // Zadatak 4.6: poruka (desni kraj reda komandi, svi prostori); Repo i Profil su samo stavke bočne trake.
-// Zadatak 5.2: Senzori — podkartice (test-dela.js) i Lidar (lidar.js: red komandi, sto + radar, kartica Lidar).
+// Zadatak 5.2: Senzori → Lidar (lidar.js: red komandi, sto + radar, kartica Lidar); od Zadatka 7 to je detalj lidara.
+// Zadatak 7: Senzori (senzori.js: zaglavlje senzori-alati i mreža blokova / detalj bloka); podkartice Test dela obrisane.
 import './teren.js';
 import './editor.js';
 import './vreme.js';
@@ -22,5 +23,5 @@ import './sto.js';
 import './snimci-alati.js';
 import './snimci.js';
 import './poruka.js';
-import './test-dela.js';
+import './senzori.js';
 import './lidar.js';

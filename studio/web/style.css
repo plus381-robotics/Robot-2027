@@ -481,9 +481,91 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 .sn-dot.zuta { background: var(--yellow); } .sn-dot.plava { background: var(--blue); }
 .sn-empty { color: var(--dim); font-size: 12px; padding: 4px 2px; }
 
-/* ---------- Senzori (Zadatak 5.2): podkartice, Lidar (panels/test-dela.js, panels/lidar.js) ---------- */
-.td-tabs button:disabled { opacity: .4; cursor: not-allowed; }
-.td-tabs button.on:disabled { opacity: 1; }
+/* ---------- Senzori (Zadatak 7, panels/senzori.js): zaglavlje, mreža blokova (maketa B), detalj bloka ---------- */
+/* Zaglavlje: deli ostatak reda sa porukom (brojač desno); u detalju lidara samo koliko treba (posle njega lidar-alati). */
+#ws-tool > #ws-senzori-alati { flex: 4 1 auto; min-width: 0; flex-wrap: nowrap; }
+#ws-tool > #ws-senzori-alati.sz-in-lidar { flex: none; }
+#ws-senzori-alati .sz-title { font-size: 16px; }
+#ws-senzori-alati .sz-back { font-weight: 600; }
+.sz-cur { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.sz-cur b { font-size: 14px; }
+.sz-showing { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; padding: 3px 9px;
+  border-radius: 5px; border: 1px solid var(--szc); color: #fff; background: var(--panel2);
+  background: color-mix(in srgb, var(--szc) 30%, transparent); }
+.sz-showing.m-robot { --szc: var(--src-robot); } .sz-showing.m-sim { --szc: var(--src-sim); }
+.sz-showing.m-hibrid { --szc: var(--src-hib); } .sz-showing.m-snimak { --szc: var(--src-rec); }
+.sz-showing.m-nista { border: 1px dashed var(--line); background: transparent; color: var(--dim); }
+.sz-grow { flex: 1; }
+.sz-count { flex: none; white-space: nowrap; }
+.sz-count .ok { color: var(--ok); } .sz-count .warn { color: var(--warn); } .sz-count .none { color: var(--dim); }
+/* Oznaka izvora bloka (boje kao Izvor na traci, shell/strip.js SRC_COLOR) i lampica stanja. */
+.sz-badge { flex: none; font-size: 10px; font-weight: 800; letter-spacing: .08em; line-height: 1.3; padding: 2px 6px;
+  border-radius: 4px; color: #fff; white-space: nowrap; }
+.sz-badge.pravo { background: var(--src-robot); } .sz-badge.sim { background: var(--src-sim); }
+.sz-badge.snimak { background: var(--src-rec); }
+.sz-badge.none { background: transparent; border: 1px dashed #556070; color: var(--dim); font-weight: 600; letter-spacing: 0; }
+.sz-lamp { flex: none; width: 11px; height: 11px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 7px var(--ok); }
+.sz-lamp.warn { background: var(--warn); box-shadow: 0 0 7px var(--warn); }
+.sz-lamp.none { background: transparent; border: 2px solid #556070; box-shadow: none; }
+/* Mreža (1366×768 bez skrolovanja): lidar odozgo · skica robota 290 px · desna kolona 330 px; donji red 186 px. */
+#ws-senzori { background: var(--bg); }
+.sz-grid { flex: 1; display: grid; gap: 8px; padding: 8px; min-width: 0; min-height: 0;
+  grid-template-columns: minmax(0, 1fr) 290px 330px; grid-template-rows: minmax(0, 1fr) 186px; }
+.sz-slot { display: grid; gap: 8px; min-width: 0; min-height: 0; }
+.sz-slot-top { grid-area: 1 / 1; grid-auto-rows: minmax(0, 1fr); }
+.sz-slot-sketch { grid-area: 1 / 2; grid-auto-rows: minmax(0, 1fr); }
+.sz-slot-right { grid-area: 1 / 3; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr); }
+.sz-slot-bottom { grid-area: 2 / 1 / 3 / 4;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, .9fr) minmax(0, .9fr); }
+.sz-tile { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; cursor: pointer;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.sz-tile:hover, .sz-tile:focus-visible { border-color: var(--accent); outline: none; }
+.sz-tile.none { background: #161a20; }
+.sz-th { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 7px; min-width: 0; padding: 7px 9px 3px; }
+.sz-th b { font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sz-acts { margin-left: auto; display: inline-flex; gap: 6px; flex: none; }
+.sz-acts:empty { display: none; }
+.sz-acts button { padding: 2px 8px; font-size: 12px; }
+.sz-body { flex: 1; position: relative; min-height: 0; }
+.sz-body canvas, .sz-dviz canvas { position: absolute; left: 0; top: 0; display: block; }
+.sz-html { position: absolute; inset: 0; overflow: hidden; }
+.sz-why { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 8px 12px; text-align: center; color: var(--dim); }
+.sz-why b { color: var(--text); font-size: 13px; font-weight: 600; }
+.sz-big { position: absolute; inset: 0; display: flex; flex-wrap: wrap; align-content: center; gap: 4px 16px; padding: 4px 12px;
+  overflow: hidden; }
+.sz-big span { display: flex; flex-direction: column; min-width: 0; }
+.sz-big small { color: var(--dim); font-size: 11px; }
+.sz-big b { font: 600 18px/1.2 ui-monospace, "JetBrains Mono", Consolas, monospace; font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere; }                               /* broj i jedinica su spojeni (nbsp, blokovi/osnova.js) */
+.sz-vals { flex: none; padding: 2px 9px 7px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sz-vals:empty { display: none; }
+.sz-vals span + span { margin-left: 10px; }
+.sz-vals b { color: var(--text); font-family: ui-monospace, "JetBrains Mono", Consolas, monospace; font-weight: 600; }
+.sz-note { color: var(--warn); }
+/* Detalj bloka (klik na pločicu): veliki prikaz levo, kartice desno; „← Svi senzori“ je u redu komandi. */
+.sz-detail { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 8px; min-width: 0; min-height: 0; }
+.sz-dh { flex: none; display: flex; align-items: center; gap: 9px; min-height: 30px; }
+.sz-dh h3 { margin: 0; font-size: 18px; }
+.sz-dbody { flex: 1; display: flex; gap: 8px; min-height: 0; }
+.sz-dviz { flex: 1; position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 8px; }
+.sz-dviz .sz-why b { font-size: 17px; }
+.sz-dviz .sz-big { gap: 12px 36px; padding: 16px 28px; }
+.sz-dviz .sz-big small { font-size: 13px; }
+.sz-dviz .sz-big b { font-size: 30px; }
+.sz-dside { flex: none; width: 320px; display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; }
+.sz-card { flex: none; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; }
+.sz-card h5 { margin: 0 0 5px; font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); }
+.sz-card p { margin: 0; }
+.sz-card p + p { margin-top: 4px; }
+.sz-card table { width: 100%; border-collapse: collapse; }
+.sz-card td { padding: 2px 0; }
+.sz-card td:last-child { text-align: right; font-family: ui-monospace, "JetBrains Mono", Consolas, monospace; }
+.sz-card ol { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
+.sz-card.need { border-style: dashed; border-color: var(--warn); }
+
+/* ---------- Senzori → detalj lidara (Zadatak 5.2, panels/lidar.js) ---------- */
 #ws-lidar-alati .li-inline { display: inline-flex; align-items: center; gap: 8px; }
 #ws-lidar-alati label { display: inline-flex; align-items: center; gap: 4px; color: var(--dim); }
 #liFile { max-width: 190px; }

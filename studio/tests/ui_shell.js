@@ -1,6 +1,6 @@
 // UI test za okvir varijante A (Playwright, Node, 1366×768): bočna traka, statusna traka, STOP, Esc = STOP svuda,
 // stanje veze robota; od 4.6 bez starog reda: poruka u svakom prostoru, Repo/Profil samo u bočnoj traci, Alt+1..4,
-// „?“ prečice, Prikaz ▾ u dve grupe.   python studio/sim.py serve --no-browser &   pa:   node studio/tests/ui_shell.js [url]
+// „?“ prečice, Prikaz ▾ u dve grupe; Senzori (Zadatak 7): mreža blokova, detalj, detalj lidara, oznake izvora.   python studio/sim.py serve --no-browser &   pa:   node studio/tests/ui_shell.js [url]
 const { chromium } = require('playwright');
 (async () => {
   const url = process.argv[2] || 'http://localhost:8270/';
@@ -32,13 +32,43 @@ const { chromium } = require('playwright');
     if (!(await p.isVisible('#stripStop'))) fail.push('STOP nije vidljiv');
     if ((await p.$eval('#strip', e => e.getBoundingClientRect().height)) !== 72) fail.push('traka nije visoka 72 px');
     await p.click('#rail [data-ws=senzori]');
-    // Senzori (Zadatak 5.2): podkartice (radi samo Lidar), sto + radar, kartica Lidar sa „izračunao laptop“
-    const tabs = await p.$$eval('#tdTabs button', l => l.map(b => [b.textContent.trim(), b.disabled]));
-    if (JSON.stringify(tabs) !== JSON.stringify([['Lidar', false], ['Pogon', true], ['Mehanizmi', true], ['IR', true]]))
-      fail.push('Senzori: podkartice ' + JSON.stringify(tabs));
+    // Senzori (Zadatak 7): zaglavlje, mreža 10 blokova (maketa B) bez skrolovanja na 1366×768, oznake „nepovezano“
+    await p.waitForSelector('#ws-senzori .sz-tile');
+    if (await p.$('#tdTabs, #ws-test-dela')) fail.push('Senzori: podkartice Test dela još postoje');
+    const tiles = await p.$$eval('#ws-senzori .sz-tile', l => l.map(t => [t.dataset.id, t.querySelector('.sz-badge').textContent.trim()]));
+    const ids = ['lidar', 'robot', 'brzine', 'pid', 'napajanje', 'aktuatori', 'enkoderi', 'ulazi', 'mec', 'veza'];
+    if (JSON.stringify(tiles.map(t => t[0]).sort()) !== JSON.stringify([...ids].sort())) fail.push('Senzori: blokovi ' + JSON.stringify(tiles));
+    if (tiles.some(t => t[1] !== 'nepovezano')) fail.push('Senzori bez veze: oznake ' + JSON.stringify(tiles));
+    if (!/Ništa nije povezano/.test(await p.textContent('#ws-senzori-alati .sz-showing'))) fail.push('Senzori: zaglavlje bez „Ništa nije povezano“');
+    if (!/0 radi · 0 upozorenja · 10 bez podataka/.test((await p.textContent('#ws-senzori-alati .sz-count')).replace(/[●○]\s*/g, '')))
+      fail.push('Senzori: brojač ' + await p.textContent('#ws-senzori-alati .sz-count'));
+    const szBox = await p.$eval('#ws-senzori', e => { const r = e.getBoundingClientRect(); return { b: r.bottom, r: r.right, sh: e.scrollHeight, ch: e.clientHeight, sw: e.scrollWidth, cw: e.clientWidth }; });
+    if (szBox.b > 768 || szBox.r > 1366 || szBox.sh > szBox.ch || szBox.sw > szBox.cw) fail.push('Senzori ne staju u 1366×768: ' + JSON.stringify(szBox));
+    const tileOut = await p.$$eval('#ws-senzori .sz-tile', l => l.filter(t => { const r = t.getBoundingClientRect(); return r.bottom > 768 || r.right > 1366 || r.height < 60; }).map(t => t.dataset.id));
+    if (tileOut.length) fail.push('Senzori: blokovi van prozora ili preniski: ' + tileOut);
+    await p.click('#ws-senzori-alati .sz-connect');                      // „Poveži robota“ iz zaglavlja: isti prozorčić
+    if (!(await p.isVisible('#vezaPop'))) fail.push('Senzori: „Poveži robota“ ne otvara #vezaPop');
+    await p.click('#vezaClose');
+    // klik na drugi blok: detalj (Vrednosti, Kako proveriti, Izvor, Šta fali), „← Svi senzori“ u zaglavlju; Esc ga ne zatvara
+    await p.click('#ws-senzori .sz-tile[data-id=enkoderi]');
+    await p.waitForSelector('#ws-senzori .sz-detail');
+    const cards = await p.$$eval('#ws-senzori .sz-card h5', l => l.map(h => h.textContent.trim()));
+    if (cards.join() !== 'Vrednosti,Šta fali,Kako proveriti,Izvor') fail.push('Senzori detalj: kartice ' + cards);
+    if (!/Nuliraj/.test(await p.textContent('#ws-senzori .sz-detail'))) fail.push('Senzori detalj enkodera: nema „Nuliraj“ u Kako proveriti');
+    if (!(await p.isVisible('#ws-senzori-alati .sz-back'))) fail.push('Senzori detalj: nema „← Svi senzori“');
+    await p.keyboard.press('Escape');
+    if (await p.evaluate(() => window.eurosim.store.get().sensOpen) !== 'enkoderi') fail.push('Esc zatvorio detalj (Esc = samo STOP)');
+    await p.click('#ws-senzori-alati .sz-back');
+    await p.waitForSelector('#ws-senzori .sz-grid');
+    // klik na lidar: postojeći paneli (sto + radar, kartica Lidar sa „izračunao laptop“) i „← Svi senzori“
+    await p.click('#ws-senzori .sz-tile[data-id=lidar]');
+    await p.waitForSelector('#liTable', { state: 'visible' });
     if (!(await p.isVisible('#liTable')) || !(await p.isVisible('#liRadar'))) fail.push('Senzori → Lidar: nema stola ili radara');
     if (!/izračunao laptop/.test(await p.textContent('#ws-lidar-info'))) fail.push('Senzori → Lidar: nema „izračunao laptop“');
     if (!(await p.isDisabled('#liOn'))) fail.push('Senzori → Lidar: Upali lidar bez ROBOT sesije nije siv');
+    if (!(await p.isVisible('#ws-senzori-alati .sz-back')) || await p.isVisible('#ws-senzori')) fail.push('detalj lidara: nema „← Svi senzori“ ili se vidi mreža');
+    await p.click('#ws-senzori-alati .sz-back');
+    await p.waitForSelector('#ws-senzori .sz-grid');
     if (await p.$('#bar, #ws-stari-alati, #repoBtn, #profBtn, .brand')) fail.push('stari red (#bar, Repo/Profile dugmad) još postoji');
     if (!(await p.$('#ws-tool:not([hidden]) #ws-poruka #msg'))) fail.push('Senzori: nema poruke u redu komandi');
     await p.click('#rail [data-act=profile]').catch(() => {});               // Profil se vidi i u Senzori (Zadatak 4.1)
@@ -175,6 +205,10 @@ const { chromium } = require('playwright');
     if (await p.$('.cm-tooltip-autocomplete')) fail.push('Esc nije zatvorio popup dopune');
     n = await stops();
     await p.click('#rail [data-ws=senzori]');                         // STOP iz trake radi i u Senzori
+    await p.waitForFunction(() => /simulacija/.test(document.querySelector('#ws-senzori-alati .sz-showing').textContent), null, { timeout: 3000 })
+      .catch(() => fail.push('Senzori u SIM sesiji: zaglavlje ne kaže „simulacija“'));
+    if (await p.textContent('#ws-senzori .sz-tile[data-id=brzine] .sz-badge') !== 'SIM') fail.push('Senzori u SIM sesiji: Brzine nisu SIM');
+    if (await p.textContent('#ws-senzori .sz-tile[data-id=napajanje] .sz-badge') !== 'nepovezano') fail.push('Senzori u SIM sesiji: Napajanje nije nepovezano');
     await p.click('#stripStop');
     await p.waitForTimeout(300);
     if (await stops() !== n + 1) fail.push('STOP iz trake (Senzori) nije poslao ["stop"]');
@@ -204,6 +238,12 @@ const { chromium } = require('playwright');
     await p.waitForFunction(() => document.getElementById('stripLink').textContent === 'povezan', null, { timeout: 20000 });
     if ((await shownIds()).join() !== 'ti-taktika,ti-strana,rPush,rRun,followBtn,endBtn,edNote') fail.push('Vožnja ROBOT sesija: ' + await shownIds());
     if (!(await p.isVisible('#stripDisc')) || await p.isVisible('#stripConnect')) fail.push('traka ROBOT: treba „Prekini“, bez „Poveži robota“');
+    await p.click('#rail [data-ws=senzori]');                         // Senzori sa virtuelnim robotom: PRAVO, bez „Poveži robota“
+    await p.waitForFunction(() => /virtuelni robot/.test(document.querySelector('#ws-senzori-alati .sz-showing').textContent), null, { timeout: 3000 })
+      .catch(() => fail.push('Senzori uz virtuelnog robota: zaglavlje ne kaže „virtuelni robot“'));
+    if (await p.isVisible('#ws-senzori-alati .sz-connect')) fail.push('Senzori uz robota: „Poveži robota“ se i dalje vidi');
+    if (await p.textContent('#ws-senzori .sz-tile[data-id=veza] .sz-badge') !== 'PRAVO') fail.push('Senzori uz robota: Veza nije PRAVO');
+    await p.click('#rail [data-ws=voznja]');
     if (await p.isVisible('#vezaPop')) fail.push('#vezaPop ostao otvoren posle povezivanja');
     if (await p.textContent('#endBtn') !== 'Prekini vezu') fail.push('ROBOT: nema „Prekini vezu“');
     await p.click('#rPush');
