@@ -9,7 +9,8 @@
 //                                Izvor. Nema ga u detalju lidara: tada su tu postojeći paneli lidara (panels/lidar.js).
 // Klik (ili Enter) na pločicu: store.sensOpen = id bloka (lidar: postojeći paneli). Esc i dalje znači samo STOP.
 // Podaci: store.sens (app.js bridgeSens: run, t u ms), session, lidarScan, profile...; oznaka izvora po bloku iz
-// blockSource (senzori/blokovi/index.js evalBlocks). Crta se najviše 10 puta u sekundi (setTimeout + rAF) i samo dok
+// blockSource (senzori/blokovi/index.js evalBlocks; d.ctx = ctx panela za dugmad bloka, d.redraw = schedule kad blok
+// dobije odgovor servera, npr. grupe lidara). Crta se najviše 10 puta u sekundi (setTimeout + rAF) i samo dok
 // je izabran prostor Senzori; HTML se pravi iznova samo kad se promeni izvor nekog bloka ili otvoreni detalj, inače se
 // menjaju samo lampice, tekstovi, dugmad bloka i platna.
 import { registerPanel } from '../core/panels.js';
@@ -51,7 +52,7 @@ function render() {
   const st = R.ctx.store.get();
   if (st.ws !== 'senzori') return;
   R.last = performance.now();
-  const list = evalBlocks(st);
+  const list = evalBlocks(st, BLOCKS, { ctx: R.ctx, redraw: schedule });   // d.ctx: dugmad bloka; d.redraw: odgovor servera
   for (const x of list) {
     if (x.v.error && !R.logged.has(x.b.id)) { R.logged.add(x.b.id); console.error('Senzori, blok ' + x.b.id, x.v.error); }
   }
@@ -135,9 +136,11 @@ function mountMain(el, ctx) {
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => schedule()).observe(el);
 }
 
-// Telo pločice ili detalja: razlog kad nema izvora, inače platno (draw), HTML bloka (html) ili krupne vrednosti.
-function bodyHTML(x) {
+// Telo pločice ili detalja: razlog kad nema izvora, inače platno (draw), HTML bloka (html) ili krupne vrednosti. Blok sa
+// oba (npr. skica robota + lista senzora): u detalju platno i pored njega HTML, u pločici samo platno.
+function bodyHTML(x, big) {
   if (!x.s.src) return `<div class="sz-why"><b>${esc(x.s.reason || 'nepovezano')}</b></div>`;
+  if (x.b.draw && x.b.html && big) return '<div class="sz-dsplit"><div class="sz-dcv"><canvas></canvas></div><div class="sz-html"></div></div>';
   if (x.b.draw) return '<canvas></canvas>';
   if (x.b.html) return '<div class="sz-html"></div>';
   return '<div class="sz-big"></div>';
@@ -170,7 +173,7 @@ function detailHTML(x, st) {
     <div class="sz-dh"><span class="sz-lamp none"></span><h3>${esc(b.name)}</h3>${badgeHTML(x.s.src)}
       <span class="sz-state dim"></span><span class="sz-grow"></span><span class="sz-acts"></span></div>
     <div class="sz-dbody">
-      <div class="sz-dviz">${bodyHTML(x)}</div>
+      <div class="sz-dviz">${bodyHTML(x, true)}</div>
       <div class="sz-dside">
         <section class="sz-card"><h5>Vrednosti</h5><table class="sz-vt"></table></section>
         ${need ? `<section class="sz-card need"><h5>Šta fali</h5><p>${esc(need)}</p></section>` : ''}
@@ -267,9 +270,10 @@ function update(r, x, big) {
     if (r.html && x.b.html) setHTML(r.html, x.b.html(x.d, big));
     if (r.big) setHTML(r.big, v.vals.length ? valsHTML(v.vals, true) : `<span class="dim">${esc(v.text)}</span>`);
   }
-  if (r.vals) {                                     // red ispod pločice: vrednosti (kad ih telo ne piše krupno) i napomena
+  if (r.vals) {                                     // red ispod pločice: vrednosti (kad ih telo ne piše krupno), foot, napomena
+    const foot = v.foot ? `<span class="sz-foot">${esc(v.foot)}</span>` : '';
     const note = x.s.note ? `<span class="sz-note">${esc(x.s.note)}</span>` : '';
-    setHTML(r.vals, (r.big ? '' : valsHTML(v.vals, false)) + note);
+    setHTML(r.vals, (r.big ? '' : valsHTML(v.vals, false)) + foot + note);
     setTitle(r.vals, r.vals.textContent);
   }
   if (r.table) {

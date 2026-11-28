@@ -4,20 +4,24 @@
 //   SLOTS                     dozvoljena mesta
 //   makeHas(st)               has(polje) za blockSource: '@lidar' = krug sesije (st.lidarScan) ili krugovi u snimku
 //                             st.sens.run; ostalo hasData(st.sens.run, polje); bez snimka false
-//   evalBlocks(st, blocks?)   [{b, s: {src, reason, note}, d, v: {status, text, vals, error?}}] za svaki blok
-//                             (view koji baci izuzetak daje status 'none' sa tekstom greške, ostali blokovi rade)
+//   evalBlocks(st, blocks?, env?)  [{b, s: {src, reason, note}, d, v: {status, text, vals, foot?, error?}}] za svaki
+//                             blok (view koji baci izuzetak daje status 'none' sa tekstom greške, ostali blokovi rade).
+//                             env = {ctx, redraw} od panela (panels/senzori.js); bez njega (testovi) d.ctx = d.redraw = null
 //   counts(list)              {ok, warn, none}: brojač u zaglavlju („● n radi · ● n upozorenja · ○ n bez podataka“)
 //   warnWord(n)               'upozorenje' | 'upozorenja'
 //
 // Modul bloka (podrazumevani export, web/senzori/blokovi/<id>.js):
 //   {id, name, slot, part, fields, simFields?, notes?, hints: string[],
-//    view(d) -> {status: 'ok'|'warn'|'none', text: string, vals: [[ime, vrednost], ...]},
+//    view(d) -> {status: 'ok'|'warn'|'none', text: string, vals: [[ime, vrednost], ...], foot?: string},
 //    draw?(g, w, h, d, big), html?(d, big) -> string, actions?(d) -> [{label, run(), disabled?, title?}]}
 //   part / fields / simFields / notes: za oznaku izvora (senzori/izvor.js blockSource); hints: „Kako proveriti“.
-//   d = {st, run, t, src, reason, note, profile}: st = store, run i t (ms) iz st.sens (app.js bridgeSens),
-//       src = 'pravo'|'sim'|'snimak'|null i reason / note iz blockSource, profile = store.profile (/api/info).
-//   Bez izvora (src null) view vraća status 'none'. draw crta na platno w × h (CSS px; big = u detalju), html je
-//   prikaz bez platna; bez oba se u pločici krupno pišu vals.
+//   d = {st, run, t, src, reason, note, profile, ctx, redraw}: st = store, run i t (ms) iz st.sens (app.js bridgeSens),
+//       src = 'pravo'|'sim'|'snimak'|null i reason / note iz blockSource, profile = store.profile (/api/info),
+//       ctx = ctx panela (ctx.command(c) šalje komandu sesije; za actions.run) ili null, redraw() = zakaži novo crtanje
+//       (npr. kad stigne odgovor servera) ili null.
+//   Bez izvora (src null) view vraća status 'none'. foot = kratak tekst u dnu pločice posle vals (npr. „grupe računa
+//   laptop“). draw crta na platno w × h (CSS px; big = u detalju), html je prikaz bez platna; bez oba se u pločici
+//   krupno pišu vals. Blok sa draw i html: pločica je samo platno, detalj platno i pored njega html (npr. skica + lista).
 
 import { hasData } from '../../core/run.js';
 import { blockSource } from '../izvor.js';
@@ -43,13 +47,14 @@ export function makeHas(st) {
   };
 }
 
-export function evalBlocks(st, blocks = BLOCKS) {
+export function evalBlocks(st, blocks = BLOCKS, env = null) {
   st = st || {};
   const sens = st.sens || null, run = (sens && sens.run) || null, t = sens && sens.t != null ? sens.t : 0;
   const has = makeHas(st), profile = st.profile || null;
+  const ctx = (env && env.ctx) || null, redraw = (env && env.redraw) || null;
   return blocks.map(b => {
     const s = blockSource(b, st, has);
-    const d = { st, run, t, src: s.src, reason: s.reason, note: s.note, profile };
+    const d = { st, run, t, src: s.src, reason: s.reason, note: s.note, profile, ctx, redraw };
     let v;
     try { v = b.view(d); } catch (e) { v = { status: 'none', text: 'greška u bloku: ' + e.message, vals: [], error: e }; }
     return { b, s, d, v };

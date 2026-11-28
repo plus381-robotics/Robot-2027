@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { robotLidarView, scanPose, radarView, radarXY, tableView, tableXY, layerItems, playIndex, fmtAge, fmtGroup, statsRows,
-  loadPrefs, savePrefs, PREFS_KEY, DEFAULT_PREFS } from '../../web/core/lidar.js';
+  loadPrefs, savePrefs, PREFS_KEY, DEFAULT_PREFS, stagesBody } from '../../web/core/lidar.js';
 
 // Međukoraci kao iz POST /api/lidar/stages (eurosim/lidarview.py).
 const STAGES = {
@@ -147,4 +147,11 @@ test('robotLidarView: stanje lidara iz telemetrije kad ga javlja, inače ono št
   assert.deepEqual([on.on, on.state], [true, 'skenira']);                                          // upaljen sa ESP menija
   assert.equal(robotLidarView({ ...robot, robotLidarSeen: true, robotLidar: null }, { on: true }).on, false);   // ESP ga ugasio
   assert.equal(robotLidarView({ ...robot, robotLidarSeen: true, robotLidar: 'off' }, {}).on, false);
+});
+
+test('stagesBody: telo POST /api/lidar/stages (krug + poza; bez poze null)', () => {
+  const scan = { pts: [0, 500], o: [1, 2, 300], near: [500, 0], hz: 9.5, pose: [10, 20, 30], wall: 5, kind: 'sim' };
+  assert.deepEqual(stagesBody(scan), { scan: { pts: [0, 500], o: [1, 2, 300], near: [500, 0], hz: 9.5 }, pose: [10, 20, 30] });
+  assert.deepEqual(stagesBody({ pts: null, nopose: true, pose: [1, 2, 3] }),
+    { scan: { pts: [], o: null, near: null, hz: null }, pose: null });
 });

@@ -6,6 +6,7 @@
 //   pose: [x, y, ugao°] | null, nopose?, wall: performance.now() kad je stigao, kind: 'sim' | 'robot' | 'snimak'}
 //
 //   scanPose(scan)                  poza za međukorake: null kad je nema (nopose = STM32 nije povezan, snimak bez poze)
+//   stagesBody(scan)                telo POST /api/lidar/stages za krug (panel lidara i blok „Odozgo · lidar“ u Senzorima)
 //   radarView(w, h, range)          {cx, cy, k}: robot u centru, napred GORE, levo LEVO; range = mm do ivice
 //   radarXY(x, y, v)                tačka robota (x napred, y levo, mm) -> piksel
 //   tableView(w, h, field, pad, margin)  {ox, oy, k, W, H}: ceo sto (+ margin mm oko njega) u pravougaoniku, y GORE
@@ -33,6 +34,9 @@ export function scanPose(scan) {
   if (!scan || scan.nopose || !Array.isArray(scan.pose) || scan.pose.length !== 3) return null;
   return scan.pose.every(v => typeof v === 'number' && Number.isFinite(v)) ? scan.pose : null;
 }
+
+export const stagesBody = scan => ({ scan: { pts: scan.pts || [], o: scan.o || null, near: scan.near || null, hz: scan.hz ?? null },
+  pose: scanPose(scan) });
 
 export function radarView(w, h, range = 2000, pad = 14) {
   const r = Math.max(1, Math.min(w, h) / 2 - pad);

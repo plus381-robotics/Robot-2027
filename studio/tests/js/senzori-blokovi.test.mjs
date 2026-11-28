@@ -4,6 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BLOCKS, SLOTS, makeHas, evalBlocks, counts, warnWord } from '../../web/senzori/blokovi/index.js';
 import { buildRun } from '../../web/core/run.js';
+import { scanXY } from '../../web/senzori/blokovi/lidar.js';
+import { wheelsAt } from '../../web/senzori/blokovi/robot.js';
 
 const IDS = ['lidar', 'robot', 'brzine', 'pid', 'napajanje', 'aktuatori', 'enkoderi', 'ulazi', 'mec', 'veza'];
 const byId = id => BLOCKS.find(b => b.id === id);
@@ -122,4 +124,114 @@ test('warnWord: 1 upozorenje, 2/5/11 upozorenja, 21 upozorenje', () => {
   assert.equal(warnWord(5), 'upozorenja');
   assert.equal(warnWord(11), 'upozorenja');
   assert.equal(warnWord(21), 'upozorenje');
+});
+
+// ---------------- Zadatak 8: Odozgo · lidar i Robot · IR ----------------
+
+const lidarBlock = byId('lidar'), robotBlock = byId('robot');
+const ROBOT_SES = { kind: 'robot', host: 'eurokik.local', virtual: false, lidar: 'sim' };
+const scanOf = (hz, wall = performance.now()) => ({ t: 0, pts: [0, 500, 10, 600], o: [0, 0, 300], near: [500, 0], hz, wall,
+  kind: 'robot' });
+const dWithHz = (hz, st = {}) => ({ st: { session: ROBOT_SES, lidarScan: scanOf(hz), ...st }, run: null, t: 0, src: 'pravo',
+  reason: null, note: null, profile: null });
+
+test('lidar upozorenje ispod 5 Hz', () => assert.equal(lidarBlock.view(dWithHz(4)).status, 'warn'));
+
+test('lidar: svež krug i 10 Hz radi; Hz, tačaka, najbliža grupa i „grupe računa laptop“', () => {
+  const v = lidarBlock.view(dWithHz(10));
+  assert.equal(v.status, 'ok');
+  assert.deepEqual(v.vals.map(p => p[0]), ['Hz', 'tačaka', 'najbliža grupa']);
+  assert.equal(v.vals[0][1], '10,0');
+  assert.equal(v.vals[1][1], '2');                         // pts = [ugao, mm, ugao, mm]
+  assert.equal(v.foot, 'grupe računa laptop');
+});
+
+test('lidar: krug stariji od 1,5 s -> upozorenje (i bez Hz)', () => {
+  const d = dWithHz(10);
+  d.st.lidarScan.wall = performance.now() - 2000;
+  assert.equal(lidarBlock.view(d).status, 'warn');
+  const noHz = dWithHz(null);
+  assert.equal(lidarBlock.view(noHz).status, 'ok');           // nema Hz: ne upozorava na Hz
+  noHz.st.lidarScan.wall = performance.now() - 1600;
+  assert.equal(lidarBlock.view(noHz).status, 'warn');
+});
+
+test('lidar: krug snimka u trenutku d.t (bez sesije), bez kruga nema podataka', () => {
+  const run = buildRun({ meta: {}, result: {}, events: [[100, 'lidar', { pts: [0, 800], hz: 9.8, pose: [0, 0, 0] }]],
+    cols: { t: [0, 100, 200] } });
+  const v = lidarBlock.view({ st: { session: null }, run, t: 150, src: 'snimak', profile: null });
+  assert.equal(v.status, 'ok');
+  assert.equal(v.vals[0][1], '9,8');
+  assert.equal(lidarBlock.view({ st: { session: null }, run, t: 50, src: 'snimak', profile: null }).status, 'none');
+});
+
+test('lidar: tačke kruga u koordinatama robota (ugao + levo, od položaja lidara)', () => {
+  const p = scanXY({ pts: [0, 500, 90, 1000], o: [10, -5, 300] });
+  assert.equal(p.length, 2);
+  assert.ok(Math.abs(p[0][0] - 510) < 1e-9 && Math.abs(p[0][1] + 5) < 1e-9);
+  assert.ok(Math.abs(p[1][0] - 10) < 1e-9 && Math.abs(p[1][1] - 995) < 1e-9);
+  assert.equal(scanXY({ pts: [0, 0, 5, 300] }).length, 1);       // 0 mm = nema tačke
+  assert.deepEqual(scanXY(null), []);
+});
+
+test('lidar dugmad: ROBOT Upali/Ugasi lidar (sivo dok taktika radi), hibrid i SIM bez dugmeta', () => {
+  const sent = [];
+  const ctx = { command: c => { sent.push(c); return true; } };
+  const a = lidarBlock.actions({ ...dWithHz(10), ctx });
+  assert.equal(a.length, 1);
+  assert.equal(a[0].label, 'Upali lidar');
+  assert.ok(!a[0].disabled);
+  a[0].run();
+  assert.deepEqual(sent, [['lidar', 'on']]);
+  const on = lidarBlock.actions({ ...dWithHz(10, { robotLidarSeen: true, robotLidar: 'scan' }), ctx });
+  assert.equal(on[0].label, 'Ugasi lidar');
+  on[0].run();
+  assert.deepEqual(sent[1], ['lidar', 'off']);
+  const replied = lidarBlock.actions({ st: { session: ROBOT_SES, lidarReply: { cmd: 'lidar', ok: true, lidar: { on: true } } },
+    src: null });
+  assert.equal(replied[0].label, 'Ugasi lidar');                // telemetrija ne javlja stanje: ono što je poslato
+  const busy = lidarBlock.actions(dWithHz(10, { running: 'primer' }));
+  assert.equal(busy[0].disabled, true);
+  assert.match(busy[0].title, /taktika primer radi/);
+  const off = lidarBlock.actions({ st: { session: ROBOT_SES, lidarScan: null }, src: null });
+  assert.equal(off.length, 1);                                  // ugašen lidar: dugme je tu (blok je nepovezan)
+  const hib = { st: { session: { kind: 'sim', lidar: 'robot' }, lidarScan: scanOf(10) }, src: 'pravo' };
+  assert.deepEqual(lidarBlock.actions(hib), []);
+  assert.deepEqual(lidarBlock.actions({ st: { session: { kind: 'sim', lidar: 'sim' } }, src: 'sim' }), []);
+  assert.deepEqual(lidarBlock.actions({ st: { session: null }, src: null }), []);
+});
+
+test('evalBlocks: ctx i redraw panela stižu u d (dugmad i crtanje)', () => {
+  const ctx = { command: () => true }, redraw = () => {};
+  const list = evalBlocks({ session: null, sens: null }, BLOCKS, { ctx, redraw });
+  assert.equal(list[0].d.ctx, ctx);
+  assert.equal(list[0].d.redraw, redraw);
+  assert.equal(evalBlocks({ session: null, sens: null })[0].d.ctx, null);
+});
+
+const irRun = () => buildRun({ meta: {}, result: {}, events: [],
+  cols: { t: [0, 100], ir: [0, 0b10000001], irm: [255, 255], ox: [0, 100], oy: [0, 0], oth: [0, 0] } });
+
+test('Robot · IR: aktivni i maska; status ok kad ima IR', () => {
+  const v = robotBlock.view({ st: {}, run: irRun(), t: 100, src: 'sim', profile: null });
+  assert.equal(v.status, 'ok');
+  assert.deepEqual(v.vals, [['aktivni', 'FLD BRU'], ['maska', 'svi']]);
+  const before = robotBlock.view({ st: {}, run: irRun(), t: 0, src: 'sim', profile: null });
+  assert.deepEqual(before.vals, [['aktivni', 'nijedan'], ['maska', 'svi']]);
+});
+
+test('Robot · IR detalj: 8 senzora sa mestom i stanjem', () => {
+  const html = robotBlock.html({ st: {}, run: irRun(), t: 100, src: 'sim', profile: null }, true);
+  for (const n of ['FLD', 'FLU', 'FRD', 'FRU', 'BLD', 'BLU', 'BRD', 'BRU']) assert.match(html, new RegExp(n));
+  assert.equal((html.match(/<tr class="on/g) || []).length, 2);  // FLD i BRU vide
+  assert.match(html, /spreda levo/);
+  assert.match(html, /pozadi desno/);
+});
+
+test('Robot · IR: mm pasivnih točkova od „Nuliraj“ (sensZero) ili od početka snimka', () => {
+  const run = irRun();
+  const w = wheelsAt({ st: {}, run, t: 100 }, 286);
+  assert.ok(Math.abs(w.L - 100) < 1e-9 && Math.abs(w.R - 100) < 1e-9);
+  assert.ok(Math.abs(wheelsAt({ st: { sensZero: 100 }, run, t: 100 }, 286).L) < 1e-9);
+  assert.equal(wheelsAt({ st: {}, run: null, t: 0 }, 286), null);
 });

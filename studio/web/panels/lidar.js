@@ -16,7 +16,7 @@
 // Od Zadatka 7 ovo je detalj lidara u Senzorima (sensOpen = 'lidar'; klik na blok „Odozgo · lidar“).
 import { registerPanel } from '../core/panels.js';
 import { api, esc } from '../core/api.js';
-import { LAYERS, RANGES, STALE_MS, robotLidarView, scanPose, radarView, radarXY, tableView, tableXY, layerItems, playIndex,
+import { LAYERS, RANGES, STALE_MS, robotLidarView, scanPose, stagesBody, radarView, radarXY, tableView, tableXY, layerItems, playIndex,
   fmtGroup, statsRows, loadPrefs, savePrefs } from '../core/lidar.js';
 
 const COL = { bg: '#12151a', table: '#1b232c', edge: '#5a6675', grid: '#26303b', in: '#3ee0ff', out: '#8a96a5',
@@ -54,8 +54,7 @@ function compute() {
   if (!visible() || S.busy || !S.scan || S.stagesFor === S.scan) return;
   const scan = S.scan;
   S.busy = true;
-  api('/api/lidar/stages', { scan: { pts: scan.pts || [], o: scan.o || null, near: scan.near || null, hz: scan.hz ?? null },
-    pose: scanPose(scan) })
+  api('/api/lidar/stages', stagesBody(scan))
     .then(d => { S.stages = d; S.stagesFor = scan; S.err = null; })
     .catch(e => { S.err = e.message; S.stages = null; S.stagesFor = scan; })
     .finally(() => { S.busy = false; draw(); renderInfo(); if (S.scan !== scan) compute(); });

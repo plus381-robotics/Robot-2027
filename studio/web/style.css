@@ -543,6 +543,19 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 .sz-vals span + span { margin-left: 10px; }
 .sz-vals b { color: var(--text); font-family: ui-monospace, "JetBrains Mono", Consolas, monospace; font-weight: 600; }
 .sz-note { color: var(--warn); }
+.sz-vals .sz-foot { color: var(--dim); font-style: italic; }
+/* Detalj bloka sa platnom i HTML-om (skica robota + lista IR senzora): platno levo, lista desno. */
+.sz-dsplit { position: absolute; inset: 0; display: flex; }
+.sz-dcv { flex: 1; position: relative; min-width: 0; }
+.sz-dsplit .sz-html { position: relative; inset: auto; flex: none; width: 360px; overflow-y: auto; padding: 12px 14px;
+  border-left: 1px solid var(--line); }
+.sz-dsplit .sz-html > p { margin: 0 0 10px; font-size: 12px; }
+.sz-irt { width: 100%; border-collapse: collapse; }
+.sz-irt th { text-align: left; font-weight: 600; font-size: 11px; color: var(--dim); padding: 0 6px 4px 0; }
+.sz-irt td { padding: 4px 6px 4px 0; border-top: 1px solid var(--line); white-space: nowrap; }
+.sz-irt td:nth-child(2) { white-space: normal; color: var(--dim); }
+.sz-irt tr.on .sz-irs { color: var(--ok); font-weight: 600; }
+.sz-irt tr.off .sz-irs, .sz-irt tr.na .sz-irs { color: var(--dim); }
 /* Detalj bloka (klik na pločicu): veliki prikaz levo, kartice desno; „← Svi senzori“ je u redu komandi. */
 .sz-detail { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 8px; min-width: 0; min-height: 0; }
 .sz-dh { flex: none; display: flex; align-items: center; gap: 9px; min-height: 30px; }
