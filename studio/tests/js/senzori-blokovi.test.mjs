@@ -235,3 +235,70 @@ test('Robot · IR: mm pasivnih točkova od „Nuliraj“ (sensZero) ili od poče
   assert.ok(Math.abs(wheelsAt({ st: { sensZero: 100 }, run, t: 100 }, 286).L) < 1e-9);
   assert.equal(wheelsAt({ st: {}, run: null, t: 0 }, 286), null);
 });
+
+// ---------------- Zadatak 9: Brzine, Regulacija (PID), Enkoderi ----------------
+
+import { drawLines } from '../../web/senzori/grafik.js';
+
+const odoRun = rows => buildRun({ meta: {}, result: {}, events: [], cols: {
+  t: rows.map(r => r[0]), ox: rows.map(r => r[1]), oy: rows.map(r => r[2]), oth: rows.map(r => r[3]) } });
+const encD = (run, extra = {}) => ({ st: {}, run, t: run.duration, src: 'sim', reason: null, note: null,
+  profile: { odometry: { encoder_track: 286 } }, ctx: null, redraw: null, ...extra });
+
+test('enkoderi: |L − D| < 5 mm ok, >= 5 mm warn; vrednosti u mm, razlika sa zarezom', () => {
+  const good = odoRun([[0, 0, 0, 0], [1000, 500, 0, 0.1]]);       // dθ 0,1° -> razlika ~0,5 mm
+  const v = byId('enkoderi').view(encD(good));
+  assert.equal(v.status, 'ok');
+  assert.deepEqual(v.vals.map(p => p[0]), ['L', 'D', 'L − D']);
+  assert.match(v.vals[0][1], /^50\d\smm$/);
+  assert.match(v.vals[2][1], /^-?\d,\d\smm$/);
+  const bad = odoRun([[0, 0, 0, 0], [1000, 500, 0, 2]]);          // dθ 2° -> razlika ~10 mm
+  const w = byId('enkoderi').view(encD(bad));
+  assert.equal(w.status, 'warn');
+  assert.match(w.vals[2][1], /^-?\d+,\d\smm$/);
+});
+
+test('enkoderi: Nuliraj postavlja sensZero na d.t, t0 = sensZero', () => {
+  const run = odoRun([[0, 0, 0, 0], [1000, 300, 0, 0], [2000, 800, 0, 0]]);
+  const calls = [];
+  const d = encD(run, { t: 1000, ctx: { store: { set: o => calls.push(o) } } });
+  const [a] = byId('enkoderi').actions(d);
+  assert.equal(a.label, 'Nuliraj');
+  assert.equal(a.disabled, false);
+  a.run();
+  assert.deepEqual(calls, [{ sensZero: 1000 }]);
+  const v = byId('enkoderi').view(encD(run, { st: { sensZero: 1000 } }));
+  assert.match(v.vals[0][1], /^500\smm$/);                        // samo drugi interval
+  assert.equal(byId('enkoderi').actions(encD(run))[0].disabled, true);   // bez ctx-a
+});
+
+test('brzine: ROBOT bez ω nosi napomenu; PID na robotu bez izvora (status none, razlog)', () => {
+  const robotRun = buildRun({ meta: {}, result: {}, events: [], cols: { t: [0, 100], v: [0.1, 0.2] } });
+  const st = { session: { kind: 'robot', lidar: 'sim' }, sens: { run: robotRun, t: 100 }, lidarScan: null, profile: null };
+  const list = evalBlocks(st), get = id => list.find(x => x.b.id === id);
+  assert.equal(get('brzine').s.note, 'ω: ESP je još ne šalje laptopu');
+  assert.equal(get('pid').v.status, 'none');
+  assert.equal(get('pid').s.src, null);
+  assert.match(get('pid').s.reason, /Nucleo ga ne šalje/);
+});
+
+function stubCtx() {
+  const calls = [];
+  return new Proxy({ calls }, { get(t, k) { return k in t ? t[k] : (...a) => calls.push([k, ...a]); },
+    set(t, k, v) { calls.push(['set:' + String(k), v]); return true; } });
+}
+
+test('drawLines: ravan niz ne deli nulom (sve koordinate konačne), skala zadata i auto rade', () => {
+  for (const series of [[[[5, 5, 5, 5], '#fff']], [[[0, 0], '#fff', true]], [[[], '#fff']], [[[1, 2, 3], '#fff']]]) {
+    const g = stubCtx();
+    drawLines(g, 0, 0, 100, 40, series, { label: 'x' });
+    for (const c of g.calls) for (const a of c.slice(1)) if (typeof a === 'number') assert.ok(Number.isFinite(a), c[0]);
+  }
+  const g = stubCtx();
+  drawLines(g, 0, 0, 100, 40, [[[0, 10], '#fff']], { lo: 0, hi: 10 });
+  const lt = g.calls.filter(c => c[0] === 'moveTo' || c[0] === 'lineTo');
+  assert.deepEqual(lt.slice(-2).map(c => c[2]), [40, 0]);         // 0 dole, 10 gore
+  const d = stubCtx();
+  drawLines(d, 0, 0, 100, 40, [[[1, 2], '#fff', true]]);
+  assert.ok(d.calls.some(c => c[0] === 'setLineDash' && c[1].length === 2));
+});

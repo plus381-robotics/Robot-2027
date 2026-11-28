@@ -36,13 +36,14 @@ const $ = id => document.getElementById(id);
 // robotLidarSeen = stanje meča i lidara iz poslednjeg paketa telemetrije (ROBOT; i bez STM32-a).
 // Senzori (panels/senzori.js): sensOpen = id otvorenog detalja (null = pregled svih blokova; 'lidar' = paneli lidara),
 // sens = {run, t, replay, name} šta Senzori prikazuju (bridgeSens), profile = info.profile (/api/info: body, drive,
-// odometry, ir, lidar, ir_sensors), lidarSrc = izvor detalja lidara 'sesija' | 'snimak' (piše panels/lidar.js).
+// odometry, ir, lidar, ir_sensors), lidarSrc = izvor detalja lidara 'sesija' | 'snimak' (piše panels/lidar.js),
+// sensZero = vreme (ms) „Nuliraj“ enkodera u Senzorima (null = od početka snimka; briše ga nova sesija i drugi snimak).
 const store = createStore({ ws: 'taktike', drive: 'sim', session: null, caps: null, paused: false, speed: null, telemetry: null,
   linkAge: null, linkState: null, connAge: null, snap: null, notice: null, edUnsaved: false, running: null,
   runs: null, runName: null, refName: null, refLabel: null, repo: null,
   sources: loadSources(), lidarFiles: [], helloSource: null, lidarScan: null, lidarReply: null,
   robotMec: null, robotLidar: null, robotLidarSeen: false,
-  sensOpen: null, sens: null, profile: null, lidarSrc: null });
+  sensOpen: null, sens: null, sensZero: null, profile: null, lidarSrc: null });
 const STRANA = { zuta: 'Žuta', plava: 'Plava' };        // i kartica rezultata (#result) i naslovi taktika u Koracima
 const REASON = { BLOCKED: 'blokiran', TIMEOUT: 'isteklo vreme', PREEMPTED: 'prekinut novom komandom', MATCH_OVER: 'kraj meča',
   STOPPED: 'zaustavljen', INVALID: 'odbijen', NOREPLY: 'nema odgovora', SUPERSEDED: 'zamenjen', STOP: 'STOP' };
@@ -369,7 +370,7 @@ function bridgeSession() {                      // sesija počela / završila: t
   store.set({ session: L ? { kind: L.kind === 'robot' ? 'robot' : 'sim', host: L.host || L.lidarHost || null, virtual: !!L.virtual,
     lidar: L.lidarSrc || 'sim', edText: !!L.edText } : null, caps: null,
     paused: false, speed: null, telemetry: null, linkAge: null, linkState: null, connAge: null, running: null,
-    runName: null, helloSource: null, lidarScan: null, lidarReply: null, robotMec: null, robotLidar: null, robotLidarSeen: false });   // sesija nije sačuvan snimak (Snimci ga ne ističu)
+    runName: null, sensZero: null, helloSource: null, lidarScan: null, lidarReply: null, robotMec: null, robotLidar: null, robotLidarSeen: false });   // sesija nije sačuvan snimak (Snimci ga ne ističu)
   bridgeSens();                                 // Senzori: sesija bez frame-ova ne pokazuje stari učitan snimak
   $('speed').hidden = !!L;                     // brzina puštanja snimka; u sesiji važi brzina iz reda komandi Vožnja
   // Dok sesija radi Sačuvaj snimak bi sačuvao serverov „poslednji“ snimak (ne sesiju na ekranu), a brza simulacija ne
@@ -452,7 +453,7 @@ function msg(text, err = false, act = null) {
 // runName: ime sačuvanog snimka (Snimci ga ističu u listi); null za simulaciju, sesiju i ostalo.
 function load(d, label, keepTime = null, runName = null) {
   run = buildRun(d);
-  store.set({ runName });
+  store.set(keepTime == null ? { runName, sensZero: null } : { runName });   // drugi snimak: „Nuliraj“ iz Senzora ne važi
   view.setRun(run);
   elShownKey = null;
   drawElements();
