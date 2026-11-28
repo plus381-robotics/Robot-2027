@@ -16,7 +16,8 @@
 //             idu za njim;  Snimci -> lista sačuvanih snimaka (osveži je: legacy.openRuns);  Test dela -> podkartice, Lidar (panels/lidar.js).
 // Dok sesija radi, prelaz SIM <-> ROBOT se odbija porukom „Sesija radi: prvo je završi“; traka i njen STOP (i Esc)
 // rade u svakom prostoru. Tastatura (core/keys.js): Alt+1..4 = prostori (redom kao u bočnoj traci), „?“ = prečice.
-//   mountShell({store, command, legacy}) -> {go, setDrive, setBadge, openCard}
+//   mountShell({store, command, legacy}) -> {go, setDrive, setBadge, openCard, openConnect}
+//   ctx.openConnect(anchor?) -> bool: prozorčić „Poveži robota“ (#vezaPop); ctx.disconnect(): Prekini vezu (komanda quit)
 //   openCard(id): otvori karticu u tekućem prostoru (zapamti kao klik), npr. Dnevnik za ⚠ na traci
 //   legacy = {notice(text, err), openEditor(), openRuns(), loadRun(name), clearRef(), openSources(anchor) (blok Izvori, toggle),
 //             openRepo(), openProfile() (dijalog; ponovni klik ga zatvara), showErrors(), resizeView()}
@@ -26,6 +27,7 @@ import { placePanels, isCard, cardsOpen, setCard, loadCards, saveCards, REGION_O
 import { allToolItems, sharedHomes, sharedMoves } from '../core/toolitems.js';
 import { wsForKey, isHelpKey, isTyping } from '../core/keys.js';
 import { mountStrip } from './strip.js';
+import { mountVeza } from './veza.js';
 import { mountRail } from './rail.js';
 
 const DRIVE_KEY = 'eurosim.drive';
@@ -69,7 +71,10 @@ function el(tag, id, cls) {
 
 export function mountShell({ store, command, legacy }) {
   const $ = id => document.getElementById(id);
-  const ctx = { store, command, go, setDrive, openSources, setBadge, openCard, legacy };
+  const veza = mountVeza({ store, notice: legacy.notice });            // prozorčić „Poveži robota“ (shell/veza.js)
+  const openConnect = anchor => veza.open(anchor);                     // false + poruka dok sesija radi
+  const disconnect = () => command(['quit']);                          // Prekini = isto što i „Prekini vezu“ u Vožnji
+  const ctx = { store, command, go, setDrive, openSources, openConnect, disconnect, setBadge, openCard, legacy };
 
   // Regioni (ispod repo trake, ako je ima).
   const content = $('content');
@@ -223,5 +228,5 @@ export function mountShell({ store, command, legacy }) {
   const ws = loadWorkspace(), drive = loadDrive();
   store.set({ ws, drive });
   applyPanels(ws);
-  return { go, setDrive, setBadge, openCard };
+  return { go, setDrive, setBadge, openCard, openConnect };
 }

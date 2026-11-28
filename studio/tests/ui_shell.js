@@ -111,7 +111,11 @@ const { chromium } = require('playwright');
     if (!(await p.isVisible('#izvori'))) fail.push('Izvori ▾ ne otvara blok Izvori');
     if (!(await p.$eval('#izvPresets [data-p=c]', b => b.disabled && /Fazom 6/.test(b.title)))) fail.push('Izvori: c nije sivo sa razlogom');
     if (!(await p.$eval('#izvParts tr[data-part=mehanizmi] .izv-why', e => /Fazom 6/.test(e.textContent)))) fail.push('Izvori: nema razloga za lažiran');
-    if (!(await p.$('#izvori #rHost')) || !(await p.$('#izvori #rVirtual'))) fail.push('Izvori: nema veze sa robotom');
+    if (await p.$('#izvori #rHost, #izvori #rPass, #izvori #rConnect, #izvori #rVirtual')) fail.push('Izvori: polja veze nisu premeštena na traku');
+    if (!(await p.$('#vezaPop #rHost')) || !(await p.$('#vezaPop #rPass')) || !(await p.$('#vezaPop #rConnect')) || !(await p.$('#vezaPop #rVirtual')))
+      fail.push('#vezaPop nema host / lozinku / Poveži / Virtuelni robot');
+    if (!/Veza ostaje dok ne klikneš Prekini/.test(await p.textContent('#vezaPop'))) fail.push('#vezaPop: nema rečenice o vezi');
+    if (await p.isVisible('#stripDisc') || !(await p.isVisible('#stripConnect'))) fail.push('traka bez sesije: treba „Poveži robota“, bez „Prekini“');
     await p.click('#izvPresets [data-p=b]');
     if (await p.textContent('#izvoriBtn') !== 'Izvori: hibrid, pravi lidar ▾') fail.push('Izvori b: ' + await p.textContent('#izvoriBtn'));
     await p.click('#izvPresets [data-p=a]');
@@ -183,11 +187,24 @@ const { chromium } = require('playwright');
     // editor u Taktikama ima nesačuvan tekst (gore je otkucano „wai“): Pošalji bi slao taj tekst -> napomena edNote
     if ((await shownIds()).join() !== 'ti-taktika,ti-strana,izvoriBtn,sessStart,edNote') fail.push('Vožnja ROBOT bez sesije: ' + await shownIds());
     if (await p.$('#card-esp:not(.ws-off), #card-sto:not(.ws-off)')) fail.push('ROBOT: ESP ili Postavka stola se vidi');
-    await p.click('#sessStart');                                   // ROBOT: otvara Izvori (veza sa robotom)
+    await p.click('#sessStart');                                   // ROBOT: otvara #vezaPop (isti kao sa trake), ne Izvori
+    if (!(await p.isVisible('#vezaPop')) || (await p.isVisible('#izvori'))) fail.push('ROBOT „▶ Pokreni sesiju“ ne otvara #vezaPop');
+    await p.keyboard.press('Escape');                              // Esc zatvara prozorčić
+    if (await p.isVisible('#vezaPop')) fail.push('Esc ne zatvara #vezaPop');
+    await p.click('#stripConnect');                                // traka: isti prozorčić; ✕ ga zatvara
+    if (!(await p.isVisible('#vezaPop'))) fail.push('„Poveži robota“ ne otvara #vezaPop');
+    await p.click('#vezaClose');
+    if (await p.isVisible('#vezaPop')) fail.push('✕ ne zatvara #vezaPop');
+    await p.click('#stripConnect');
+    await p.click('#ws-tool', { position: { x: 2, y: 2 } });       // klik van prozorčića ga zatvara
+    if (await p.isVisible('#vezaPop')) fail.push('klik van ne zatvara #vezaPop');
+    await p.click('#stripConnect');
     await p.click('#rVirtual');
     await p.waitForFunction(() => /ROBOT/.test(document.getElementById('stripSrc').textContent), null, { timeout: 15000 });
     await p.waitForFunction(() => document.getElementById('stripLink').textContent === 'povezan', null, { timeout: 20000 });
     if ((await shownIds()).join() !== 'ti-taktika,ti-strana,rPush,rRun,followBtn,endBtn,edNote') fail.push('Vožnja ROBOT sesija: ' + await shownIds());
+    if (!(await p.isVisible('#stripDisc')) || await p.isVisible('#stripConnect')) fail.push('traka ROBOT: treba „Prekini“, bez „Poveži robota“');
+    if (await p.isVisible('#vezaPop')) fail.push('#vezaPop ostao otvoren posle povezivanja');
     if (await p.textContent('#endBtn') !== 'Prekini vezu') fail.push('ROBOT: nema „Prekini vezu“');
     await p.click('#rPush');
     await p.waitForFunction(() => /^push: OK/.test(document.getElementById('msg').textContent), null, { timeout: 10000 })
@@ -202,7 +219,7 @@ const { chromium } = require('playwright');
     await p.keyboard.press('Escape');                              // STOP i dalje šalje kad je veza izgubljena
     await p.waitForTimeout(300);
     if (await stops() !== n + 1) fail.push('Esc (robot, veza izgubljena) nije poslao ["stop"]');
-    await p.click('#endBtn');                                      // Prekini vezu
+    await p.click('#stripDisc');                                    // Prekini sa trake (isto što i „Prekini vezu“ u Vožnji)
     await p.waitForFunction(() => !window.eurosim.store.get().session, null, { timeout: 15000 });
   } catch (e) {
     fail.push('izuzetak: ' + e.message);

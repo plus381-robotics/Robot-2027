@@ -45,7 +45,8 @@ test('b: hibrid sa pravim lidarom ili snimkom; snimak bez snimaka sivo', () => {
   assert.equal(v.preset, 'b');
   assert.equal(opt(v, 'lidar', 'snimak').on, true);
   assert.deepEqual(v.lidarFile, { shown: true, value: 'b.jsonl.gz', files: FILES, disabled: false });
-  assert.equal(izvoriView({ drive: 'sim', sources: { lidar: 'pravi' } }, FILES).connect.usedBy, 'lidar');
+  assert.deepEqual(izvoriView({ drive: 'sim', sources: { lidar: 'pravi' } }, FILES).connect, { show: true, usedBy: 'lidar' });
+  assert.deepEqual(izvoriView({ drive: 'sim', sources: { lidar: 'sim' } }, FILES).connect, { show: false, usedBy: null });
   const none = izvoriView({ drive: 'sim', sources: { lidar: 'sim' } }, []);
   assert.equal(opt(none, 'lidar', 'snimak').reason, R_NEMA_SNIMKA);
   assert.equal(opt(none, 'lidar', 'pravi').disabled, false);
@@ -63,7 +64,8 @@ test('d: pravi pogon traži pravi lidar i IR (sim/snimak sivo); lažiran Faza 6'
   assert.equal(opt(v, 'pogon', 'sim').disabled, false);
   assert.equal(v.lidarFile.shown, false);
   assert.equal(v.connect.usedBy, 'robot');
-  assert.equal(v.connect.buttons, true);
+  assert.deepEqual(v.connect, { show: true, usedBy: 'robot' });                // polja veze su na traci („Poveži robota“)
+  assert.ok(!('inputs' in v.connect) && !('buttons' in v.connect));
   assert.equal(optionReason('lidar', 'pravi', 'pravi'), null);
 });
 
@@ -99,7 +101,7 @@ test('sesija radi: samo čitanje, iz hello.source (pre hello iz zahteva sesije)'
   assert.ok(v.rows.every(r => r.options.every(o => o.disabled) && r.why === ''));
   assert.equal(opt(v, 'lidar', 'snimak').on, true);
   assert.deepEqual(v.lidarFile, { shown: true, value: 'b.jsonl.gz', files: ['b.jsonl.gz'], disabled: true });
-  assert.deepEqual([v.connect.buttons, v.connect.inputs], [false, false]);
+  assert.equal(v.connect.show, false);                                          // sesija radi: ništa za povezivanje
   assert.match(v.note, /Završi/);
   const before = izvoriView({ drive: 'sim', session: { kind: 'sim', lidar: 'robot' }, helloSource: null }, FILES);
   assert.equal(before.preset, 'b');

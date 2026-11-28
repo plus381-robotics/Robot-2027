@@ -33,7 +33,7 @@
 
   <!-- Red komandi Vožnja (Zadatak 4.4): panels/voznja-alati.js premešta ove delove; šta se vidi računa core/voznja.js
        iz stanja sesije i njenih mogućnosti (hello). STOP je na traci (i Esc). -->
-  <button id="izvoriBtn" aria-haspopup="dialog" title="Izvori: šta je simulirano, a šta pravo (a sve sim, b hibrid sa pravim lidarom ili snimkom, d pravi robot); veza sa robotom">Izvori ▾</button>
+  <button id="izvoriBtn" aria-haspopup="dialog" title="Izvori: šta je simulirano, a šta pravo (a sve sim, b hibrid sa pravim lidarom ili snimkom, d pravi robot)">Izvori ▾</button>
   <button id="sessStart" class="primary">▶ Pokreni sesiju</button>
   <button id="armBtn" title="Naoružaj meč izabranom taktikom i stranom (kao ESP meni); zatim Povuci činč">Naoruži</button>
   <button id="cordBtn" title="Povuci startni činč: meč počinje, 100 s">Povuci činč</button>
@@ -227,22 +227,31 @@
 </div>
 
 <!-- Izvori (Zadatak 5.1, panels/izvori.js; logika core/izvori.js): unapred zadate kombinacije, izvor po delu robota
-     (sivo sa razlogom), veza sa robotom (host, lozinka, Poveži, Virtuelni robot). Otvara se iz bočne trake (Izvori) i
-     iz reda komandi Vožnja (Izvori ▾, ▶ Pokreni sesiju za ROBOT); dok sesija radi samo se čita. -->
+     (sivo sa razlogom). Veza sa robotom je u prozorčiću „Poveži robota“ (#vezaPop). Otvara se iz bočne trake (Izvori)
+     i iz reda komandi Vožnja (Izvori ▾); dok sesija radi samo se čita. -->
 <div id="izvori" class="izv-pop" role="dialog" aria-label="Izvori" hidden>
   <div class="izv-h">Izvori <span id="izvNote" class="izv-note"></span><button id="izvClose" type="button" title="Zatvori (Esc)">✕</button></div>
   <div id="izvPresets" class="seg izv-presets" role="group" aria-label="Unapred zadate kombinacije"></div>
   <table id="izvParts" class="izv-parts"></table>
+  <div class="izv-conn" id="izvConn" hidden>
+    <div class="dim small" id="izvConnTxt"></div>
+    <div class="row"><button id="izvConnBtn" type="button" class="primary" title="Otvori „Poveži robota“ sa statusne trake (host, lozinka, Poveži, Virtuelni robot)">Poveži robota…</button></div>
+  </div>
+</div>
+<!-- Poveži robota (shell/veza.js): host, lozinka, Poveži, Virtuelni robot (ponašanje u app.js). Otvara se iz polja Veza na
+     traci, iz Vožnje ROBOT (▶ Pokreni sesiju) i iz Izvora (d). Veza važi u svim prostorima dok se ne klikne Prekini. -->
+<div id="vezaPop" class="izv-pop veza-pop" role="dialog" aria-label="Poveži robota" hidden>
+  <div class="izv-h">Poveži robota <button id="vezaClose" type="button" title="Zatvori (Esc)">✕</button></div>
   <div class="izv-conn">
-    <div class="izv-sub">Veza sa robotom <span id="izvConnUse" class="dim small"></span></div>
     <div class="ov-grid">
       <label class="wide">host <input id="rHost" value="eurokik.local" placeholder="eurokik.local ili IP sa ekrana VEZA"></label>
       <label class="wide">lozinka <input id="rPass" type="password" placeholder="prazno = iz ESP32/webrepl_cfg.py"></label>
     </div>
-    <div class="row" id="izvConnBtns"><button id="rConnect" class="primary" title="Poveži se sa pravim robotom na ovom hostu (izvori: d, sve pravo)">Poveži</button>
-      <button id="rVirtual" title="Pokreni virtuelnog robota na ovom računaru (pravi ESP kod + simuliran STM32) i poveži se sa njim (izvori: d)">Virtuelni robot</button></div>
+    <div class="row"><button id="rConnect" class="primary" title="Poveži se sa pravim robotom na ovom hostu">Poveži</button>
+      <button id="rVirtual" title="Pokreni virtuelnog robota na ovom računaru (pravi ESP kod + simuliran STM32) i poveži se sa njim">Virtuelni robot</button></div>
+    <div class="dim small">Veza ostaje dok ne klikneš Prekini, u svakom prostoru.</div>
     <div class="dim small">ESP server za slanje (TCP 8267) i telemetrija (UDP 8268), kao tools/tactic.py i tools/watch.py.
-      Laptop mora da bude na mreži robota.</div>
+      Laptop mora da bude na mreži robota. Host i lozinka važe i za pravi lidar u hibridu (Izvori b).</div>
   </div>
 </div>
 <div id="profDialog" class="overlay pop" hidden>

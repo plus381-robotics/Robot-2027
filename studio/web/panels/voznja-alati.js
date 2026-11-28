@@ -1,6 +1,6 @@
 // Red komandi Vožnja (Zadatak 4.4), isti za SIM i ROBOT: Taktika i Strana (zajedničke stavke, panels/stavke.js), pa
 //   bez sesije:   „Izvori ▾“ (panels/izvori.js, Zadatak 5.1) · „▶ Pokreni sesiju“ (SIM: Live sa izabranim lidarom;
-//                 ROBOT: otvara Izvori, gde su host, lozinka, Poveži i Virtuelni robot)
+//                 ROBOT: otvara „Poveži robota“, isti prozorčić kao na traci: host, lozinka, Poveži, Virtuelni robot)
 //   sesija radi:  Naoruži · Povuci činč · Test · brzina + Pauza (SIM) · Pošalji · Pošalji i pokreni (ROBOT) — svaka
 //                 samo ako je sesija ima u mogućnostima (hello) · Prati · Završi (SIM) / Prekini vezu (ROBOT)
 //   napomena „koristi se tekst iz editora (nesačuvan)“ dok Live / Pošalji koriste nesačuvan tekst editora.
@@ -25,7 +25,7 @@ registerPanel({
       if (key === last) return;
       last = key;
       for (const [k, id] of Object.entries(TOOL_IDS)) $(id).hidden = !v[k];
-      start.title = v.kind === 'robot' ? 'Poveži se sa robotom (pravim ili virtuelnim): otvara Izvori (host, lozinka, Poveži, Virtuelni robot)'
+      start.title = v.kind === 'robot' ? 'Poveži se sa robotom (pravim ili virtuelnim): otvara „Poveži robota“ (host, lozinka, Poveži, Virtuelni robot)'
         : 'Pokreni simulaciju uživo sa izabranim izvorima (Izvori ▾): ESP ekran i tasteri, činč, pomeranje protivnika dok vozi';
       end.textContent = v.endLabel;
       end.title = v.kind === 'robot' ? 'Prekini vezu sa robotom; sesija ostaje kao snimak' : 'Završi sesiju; ostaje kao snimak koji možeš da pustiš ili sačuvaš';

@@ -15,7 +15,7 @@
 //
 //   izvoriView(st, files) -> {readOnly, preset, presets: [{id, label, title, on, disabled, reason}],
 //                             rows: [{id, name, value, options: [{v, label, on, disabled, reason}], why}],
-//                             lidarFile: {shown, value, files, disabled}, connect, note}
+//                             lidarFile: {shown, value, files, disabled}, connect: {show, usedBy}, note}
 //   applyPreset(id, st, files) -> {drive, sources} | null (sivo / sesija radi)
 //   applyOption(part, v, st, files) -> {drive, sources} | null
 //   normSources(src, files) -> {lidar, file}   ispravan izbor (snimak koga više nema -> prvi snimak ili sim)
@@ -43,9 +43,9 @@ export const PARTS = [
 
 export const PRESETS = [
   { id: 'a', label: 'a · sve sim', title: 'Sve simulirano na laptopu: pogon, lidar, IR, mehanizmi, protivnici' },
-  { id: 'b', label: 'b · hibrid lidar', title: 'Pogon, IR, mehanizmi i protivnici simulirani; lidar pravi (sa robota preko WiFi-ja, host i lozinka ispod) ili iz snimka' },
+  { id: 'b', label: 'b · hibrid lidar', title: 'Pogon, IR, mehanizmi i protivnici simulirani; lidar pravi (sa robota preko WiFi-ja, host i lozinka u „Poveži robota“ na traci) ili iz snimka' },
   { id: 'c', label: 'c · robot + lažiran meh.', title: 'Pravi robot, mehanizmi lažirani (odgovore „gotovo“ posle zadatog vremena)' },
-  { id: 'd', label: 'd · sve pravo', title: 'Pravi ili virtuelni robot: taktika radi na ESP-u (Poveži ili Virtuelni robot ispod)' },
+  { id: 'd', label: 'd · sve pravo', title: 'Pravi ili virtuelni robot: taktika radi na ESP-u (veza: „Poveži robota“ na traci)' },
 ];
 
 const LIDARS = ['sim', 'pravi', 'snimak'];
@@ -133,8 +133,10 @@ export function izvoriView(st = {}, files = st.lidarFiles || []) {
   const lidarFile = readOnly
     ? { shown: parts.lidar === 'snimak', value: sesFile, files: sesFile ? [sesFile] : [], disabled: true }
     : { shown: parts.lidar === 'snimak', value: sel.file, files, disabled: false };
-  // Veza sa robotom: host i lozinka važe za d (Poveži) i za pravi lidar u hibridu (b); Poveži / Virtuelni robot samo bez sesije.
-  const connect = { buttons: !readOnly, inputs: !readOnly, usedBy: parts.pogon === 'pravi' ? 'robot' : parts.lidar === 'pravi' ? 'lidar' : null };
+  // Veza sa robotom je na statusnoj traci („Poveži robota“, shell/veza.js); ovde samo uputa: d i pravi lidar u hibridu (b)
+  // traže host i lozinku odatle.
+  const usedBy = parts.pogon === 'pravi' ? 'robot' : parts.lidar === 'pravi' ? 'lidar' : null;
+  const connect = { show: !readOnly && usedBy != null, usedBy };
   const note = readOnly ? (ses.engine === 'robot' ? 'Sesija sa robotom radi: izvori se samo čitaju (menjaju se posle Prekini vezu)'
     : 'Sesija uživo radi: izvori se samo čitaju (menjaju se posle Završi)') : '';
   return { readOnly, preset, presets, rows, lidarFile, connect, note };

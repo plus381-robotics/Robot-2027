@@ -4,7 +4,8 @@
 //   snapshotAt(run, t, {irNames})  -> {pose, match, step, det, errors, label, robot, tactic}   (čisto, bez DOM-a)
 //                                     tactic = ime taktike koja je poslednja krenula do t (događaj "tactic"), ili null
 //   stripView(state)               -> tekstovi i klase za svako polje                  (čisto, bez DOM-a)
-//   mountStrip(el, ctx)            -> crta traku iz ctx.store; STOP = ctx.command(['stop'])
+//   mountStrip(el, ctx)            -> crta traku iz ctx.store; STOP = ctx.command(['stop']); u polju Veza „Poveži robota“
+//                                     (ctx.openConnect) i „Prekini“ (ctx.disconnect) po linkView
 // Stanje (store) piše app.js (most ka starom UI-ju):
 //   session   null | {kind: 'sim'|'robot', host, virtual, lidar}    sesija radi
 //   paused, speed                                                    sim sesija (poruke data)
@@ -142,7 +143,9 @@ export function stripView(st) {
 
 const HTML = `
   <span class="st-src" id="stripSrc" title="Izvor podataka"><b></b><small></small></span>
-  <div class="st-f st-link" title="Veza sa izvorom"><span class="k">Veza</span><span class="v" id="stripLink"><i class="dot"></i><span></span></span></div>
+  <div class="st-f st-link" title="Veza sa izvorom"><span class="k">Veza</span><div class="st-lrow"><span class="v" id="stripLink"><i class="dot"></i><span></span></span>
+    <button class="st-lbtn" id="stripConnect" type="button" aria-haspopup="dialog" title="Poveži se sa pravim ili virtuelnim robotom (host, lozinka)">Poveži robota</button>
+    <button class="st-lbtn" id="stripDisc" type="button" title="Prekini vezu sa robotom; sesija ostaje kao snimak">Prekini</button></div></div>
   <div class="st-f st-pose" id="stripPoseF"><span class="k">Poza x, y · θ</span><span class="v mono" id="stripPose"></span></div>
   <div class="st-f st-match" id="stripMatchF"><span class="k">Meč</span><span class="v mono" id="stripMatch"></span></div>
   <div class="st-f st-shrink st-step" id="stripStepF"><span class="k">Korak</span><span class="v" id="stripStep"></span>
@@ -166,6 +169,8 @@ export function mountStrip(el, ctx) {
     if (ctx.store.get().ws === 'test') ctx.go('voznja');
     ctx.legacy && ctx.legacy.showErrors();
   };
+  q('stripConnect').onclick = () => ctx.openConnect && ctx.openConnect(q('stripConnect'));   // dok sesija radi: poruka, bez prozorčića
+  q('stripDisc').onclick = () => ctx.disconnect && ctx.disconnect();
   q('stripSrc').onclick = () => { if (ctx.store.get().session) ctx.go('voznja'); };    // klik na izvor: prostor sesije
 
   function render(st) {
@@ -179,6 +184,8 @@ export function mountStrip(el, ctx) {
     link.querySelector('.dot').className = 'dot ' + v.link.cls;
     setText(link.querySelector('span'), v.link.text);
     link.title = v.link.text;
+    q('stripConnect').hidden = !v.link.connect;
+    q('stripDisc').hidden = !v.link.disconnect;
     q('stripPoseF').hidden = !v.pose;
     if (v.pose) { setText(q('stripPose'), v.pose.text); q('stripPose').className = 'v mono ' + v.pose.cls; }
     q('stripMatchF').className = 'st-f st-match ' + v.match.cls;

@@ -268,7 +268,13 @@ i.swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; m
 .st-f .v.warn { color: var(--warn); }
 #strip .mono { font-family: ui-monospace, "JetBrains Mono", Consolas, monospace; font-size: 18px; font-variant-numeric: tabular-nums; }
 #strip .st-link { flex: 0 1 auto; min-width: 120px; }
-.st-link .v { display: block; }
+.st-link .v { display: block; min-width: 0; }
+.st-lrow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#strip button.st-lbtn { flex: none; padding: 2px 10px; font-size: 14px; font-weight: 700; border-radius: 6px; background: var(--panel2);
+  border: 1px solid var(--accent); color: var(--text); }
+#strip button.st-lbtn:hover { background: var(--accent); color: #fff; }
+.veza-pop { width: 440px; }                                  /* Poveži robota (shell/veza.js): ispod trake, ispod dugmeta */
+.veza-pop .izv-conn { border-top: 0; padding-top: 0; }
 .st-match .v { font-size: 24px !important; font-weight: 800; }        /* drugo po veličini, posle Izvora (26 px) */
 .st-match.run .v { color: #fff; } .st-match.armed .v { color: var(--warn); } .st-match.end .v { color: var(--text); }
 .st-match.idle .v { color: var(--dim); font-size: 20px !important; }

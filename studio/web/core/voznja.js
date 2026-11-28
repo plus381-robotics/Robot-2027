@@ -7,7 +7,7 @@
 //
 //   voznjaTools(st) -> {kind, izvori, start, arm, cord, test, speed, pause, push, run, follow, end, endLabel, note}
 //     bez sesije: „Izvori ▾“ (blok Izvori, Zadatak 5.1; zamenio izbor „Lidar:“) i „▶ Pokreni sesiju“ (SIM: Live;
-//     ROBOT: blok Izvori sa vezom: Poveži, Virtuelni robot);
+//     ROBOT: prozorčić „Poveži robota“: Poveži, Virtuelni robot);
 //     sesija radi: svaka komanda samo ako je sesija ima u caps (pre poruke hello: nijedna), Prati i Završi /
 //     Prekini vezu uvek; note = „koristi se tekst iz editora (nesačuvan)“ kad Live / Pošalji koriste tekst editora
 //   espShown(st)          ESP ekran: sesija sa esp_screen (pre hello: SIM da, ROBOT ne); bez sesije samo uz SIM

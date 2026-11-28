@@ -342,7 +342,7 @@ function bridgeSnap(t) {
 
 function bridgeSession() {                      // sesija počela / završila: traka kreće iz početnog stanja veze
   const L = live;                               // caps stižu porukom hello (sessionHello); do tada nijedna komanda
-  store.set({ session: L ? { kind: L.kind === 'robot' ? 'robot' : 'sim', host: L.host || null, virtual: !!L.virtual,
+  store.set({ session: L ? { kind: L.kind === 'robot' ? 'robot' : 'sim', host: L.host || L.lidarHost || null, virtual: !!L.virtual,
     lidar: L.lidarSrc || 'sim', edText: !!L.edText } : null, caps: null,
     paused: false, speed: null, telemetry: null, linkAge: null, linkState: null, connAge: null, running: null,
     runName: null, helloSource: null, lidarScan: null, lidarReply: null, robotMec: null, robotLidar: null, robotLidarSeen: false });   // sesija nije sačuvan snimak (Snimci ga ne ističu)
@@ -941,8 +941,9 @@ async function startLive() {
   const q = new URLSearchParams({ tactic: $('tactic').value, side: $('side').value, obstacles: JSON.stringify(opponents),
     elements: (a => (a === true ? '1' : a === false ? '0' : JSON.stringify(a)))(elementsArg()) });
   const src = lidarSpec(store.get().sources, store.get().lidarFiles);   // Izvori: odakle dolaze krugovi lidara (hibrid b)
+  const lidarHost = src === 'robot' ? ($('rHost').value.trim() || 'eurokik.local') : null;   // traka u hibridu: „lidar: host“
   if (src === 'robot') {
-    q.set('lidar', 'robot:' + ($('rHost').value.trim() || 'eurokik.local'));
+    q.set('lidar', 'robot:' + lidarHost);
     if ($('rPass').value) q.set('lidar_pw', $('rPass').value);
   } else if (src !== 'sim') q.set('lidar', src);
   if (ed) {                                     // editor text (saved or not) is the tactic in Live too
@@ -951,7 +952,7 @@ async function startLive() {
   }
   if (live) return;                             // u međuvremenu (await iznad) pokrenuta druga sesija
   const s = connect({ engine: 'sim', ...Object.fromEntries(q) });      // /ws/session (isto što i stari /ws/live)
-  live = { s, raw: { meta: null, frames: [], events: [] }, follow: true, dirty: false, screen: null, lidarSrc: src,
+  live = { s, raw: { meta: null, frames: [], events: [] }, follow: true, dirty: false, screen: null, lidarSrc: src, lidarHost,
     edText: !!(ed && ed.editor.text() !== ed.saved) };                // pokrenuta sa nesačuvanim tekstom editora
   store.set({ drive: 'sim' });                    // izbor u bočnoj traci = vrsta sesije
   sessionHello(s);
@@ -1223,11 +1224,11 @@ async function main() {
   $('oppClose').onclick = () => { oppSel = -1; refreshOpponents(); };       // samo zatvori: protivnik ostaje
   for (const id of ['oppX', 'oppY', 'oppW', 'oppH', 'oppTh', 'oppZ', 'oppRound']) $(id).onchange = editOpponent;
   // Red komandi Vožnja (panels/voznja-alati.js): bez sesije „Izvori ▾“ i „▶ Pokreni sesiju“ (SIM: Live sa izabranim
-  // lidarom; ROBOT: blok Izvori, gde su host, lozinka, Poveži i Virtuelni robot).
-  izvori = mountIzvori({ store, setDrive: d => shell.setDrive(d) });
+  // lidarom; ROBOT: prozorčić „Poveži robota“ sa trake: host, lozinka, Poveži, Virtuelni robot).
+  izvori = mountIzvori({ store, setDrive: d => shell.setDrive(d), openConnect: a => shell.openConnect(a) });
   $('sessStart').onclick = () => {
     if (live) return;
-    if (store.get().drive === 'robot') izvori.open($('sessStart')); else startLive();
+    if (store.get().drive === 'robot') shell.openConnect($('sessStart')); else startLive();
   };
   $('rHost').onchange = () => { try { localStorage.setItem('eurosim.host', $('rHost').value); } catch (e) { /* ignore */ } };
   $('rConnect').onclick = () => {

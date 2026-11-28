@@ -1,19 +1,18 @@
-// Izvori (Zadatak 5.1): jedan blok za izvore podataka i vezu sa robotom. Prozorčić #izvori (index.html) se otvara iz
-// bočne trake (stavka Izvori), iz reda komandi Vožnja (dugme „Izvori ▾“ #izvoriBtn) i, za ROBOT, iz „▶ Pokreni
-// sesiju“. Sadržaj:
+// Izvori (Zadatak 5.1): jedan blok za mešanje izvora podataka. Prozorčić #izvori (index.html) se otvara iz bočne trake
+// (stavka Izvori) i iz reda komandi Vožnja (dugme „Izvori ▾“ #izvoriBtn). Sadržaj:
 //   - unapred zadate kombinacije a (sve sim) · b (hibrid: lidar pravi ili iz snimka) · c (sivo: Faza 6) · d (sve pravo)
 //   - red po delu robota (pogon, lidar, IR, mehanizmi, protivnici) sa izvorima sim / pravi / snimak / lažiran;
 //     nedozvoljeno je sivo, a razlog piše ispod reda (i u title)
-//   - veza sa robotom: #rHost, #rPass, #rConnect „Poveži“, #rVirtual „Virtuelni robot“ (ponašanje u app.js, isti id-jevi);
-//     host i lozinka važe i za pravi lidar u hibridu (b)
+//   - veza sa robotom NIJE ovde: „Poveži robota“ na statusnoj traci (shell/veza.js, #vezaPop; host i lozinka važe i za
+//     pravi lidar u hibridu). Preset d (sve pravo) i dugme „Poveži robota…“ ovde otvaraju taj prozorčić (openConnect).
 // Dok sesija radi blok se samo čita i pokazuje šta sesija stvarno koristi (hello.source). Logika (šta je dozvoljeno,
 // razlozi, šta izbor menja) je u core/izvori.js. Izbor: store.drive (pogon: SIM/ROBOT, isti kao u bočnoj traci) i
 // store.sources {lidar, file} (localStorage `eurosim.sources`).
-//   mountIzvori({store, setDrive(d) -> bool}) -> {open(anchor), close(), toggle(anchor), isOpen()}
+//   mountIzvori({store, setDrive(d) -> bool, openConnect(anchor) -> bool}) -> {open(anchor), close(), toggle(anchor), isOpen()}
 import { izvoriView, applyPreset, applyOption, izvoriLabel, normSources, saveSources } from '../core/izvori.js';
 import { esc } from '../core/api.js';
 
-export function mountIzvori({ store, setDrive }) {
+export function mountIzvori({ store, setDrive, openConnect }) {
   const $ = id => document.getElementById(id);
   const box = $('izvori'), btn = $('izvoriBtn');
   let anchor = null, lastKey = '';
@@ -39,6 +38,11 @@ export function mountIzvori({ store, setDrive }) {
     store.set({ sources: r.sources });
   }
 
+  function connectNow(a) {                                // d: odmah pokaži „Poveži robota“ (isti prozorčić kao sa trake)
+    if (!openConnect || !openConnect(a)) return;
+    close();
+  }
+
   function render(st) {
     const label = izvoriLabel(st);
     if (btn.textContent !== label) btn.textContent = label;
@@ -52,7 +56,11 @@ export function mountIzvori({ store, setDrive }) {
     const presets = $('izvPresets');
     presets.innerHTML = v.presets.map(p => `<button type="button" data-p="${p.id}" class="${p.on ? 'on' : ''}" aria-pressed="${p.on}"` +
       `${p.disabled ? ' disabled' : ''} title="${esc(p.title + (p.reason ? ' (' + p.reason + ')' : ''))}">${esc(p.label)}</button>`).join('');
-    for (const b of presets.querySelectorAll('button')) b.onclick = () => act(applyPreset(b.dataset.p, store.get()));
+    for (const b of presets.querySelectorAll('button')) b.onclick = () => {
+      const r = applyPreset(b.dataset.p, store.get());
+      act(r);
+      if (r && b.dataset.p === 'd' && store.get().drive === 'robot') connectNow(btn);
+    };
     const table = $('izvParts');
     table.innerHTML = v.rows.map(r => `<tr data-part="${r.id}"><th title="${esc(r.title)}">${esc(r.name)}</th><td>` +
       `<span class="seg" role="group" aria-label="${esc(r.name)}">` +
@@ -71,14 +79,10 @@ export function mountIzvori({ store, setDrive }) {
       const s = store.get();
       store.set({ sources: { ...normSources(s.sources, s.lidarFiles || []), lidar: 'snimak', file: sel.value } });
     };
-    // Veza sa robotom
-    $('rHost').disabled = $('rPass').disabled = !v.connect.inputs;
-    $('izvConnBtns').hidden = !v.connect.buttons;
-    const ses = st.session;
-    $('izvConnUse').textContent = ses && ses.kind === 'robot' ? `· povezan: ${ses.virtual ? 'virtuelni robot' : ses.host || ''}`
-      : ses ? '' : v.connect.usedBy === 'robot' ? '· d: Poveži (pravi robot) ili Virtuelni robot'
-        : v.connect.usedBy === 'lidar' ? '· host i lozinka: pravi lidar u hibridu (b); Poveži = d'
-          : '· za d (sve pravo) i za pravi lidar u hibridu (b)';
+    // Veza sa robotom je na traci: ovde samo uputa kad d ili pravi lidar traže host i lozinku
+    $('izvConn').hidden = !v.connect.show;
+    $('izvConnTxt').textContent = v.connect.usedBy === 'robot' ? 'd (sve pravo): robot se povezuje sa trake, „Poveži robota“ (pravi ili virtuelni).'
+      : v.connect.usedBy === 'lidar' ? 'Pravi lidar u hibridu (b): host i lozinka su u „Poveži robota“ na traci.' : '';
     place();
   }
 
@@ -93,9 +97,10 @@ export function mountIzvori({ store, setDrive }) {
   function toggle(a) { if (!box.hidden && (a || null) === anchor) close(); else open(a); }
 
   $('izvClose').onclick = close;
+  $('izvConnBtn').onclick = () => connectNow(btn);
   btn.onclick = () => toggle(btn);
   document.addEventListener('pointerdown', e => {          // klik van prozorčića ga zatvara (ne i klik na dugme koje ga otvara)
-    if (!box.hidden && !e.target.closest('#izvori, #izvoriBtn, #sessStart, #rail [data-act=sources]')) close();
+    if (!box.hidden && !e.target.closest('#izvori, #izvoriBtn, #rail [data-act=sources]')) close();
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !box.hidden) close(); });   // Esc i dalje šalje STOP
   addEventListener('resize', () => { if (!box.hidden) place(); });
